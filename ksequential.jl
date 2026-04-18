@@ -34,7 +34,7 @@ md"""
 
 **Background:** A *k-sequential-chromatic Hamiltonian path* through a $k$-color point set visits every point exactly once, with each directed edge going from color $i$ to color $i+1 \pmod{k}$.
 
-For a **fully triply-separated** point set (one where for each $i \in [1..k]$ and each color in $j \in (i-1,i,i+1)$, there is a line separating color $j$ from the other two colors in that triple), theorems from the paper reduce the search to at most **$4k$ candidate paths**, one per combination of:
+For a **fully triply-separated** point set (one where for each $i \in [1..k]$ and $j \in (i-1,i,i+1)$, there is a line separating color $j$ from the other two colors in that triple), theorems from the paper reduce the search to at most **$4k$ candidate paths**, one per combination of:
 
 | Factor | Choices | Reasoning |
 |--------|---------|-----------|
