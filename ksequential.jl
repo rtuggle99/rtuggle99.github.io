@@ -34,14 +34,14 @@ md"""
 
 **Background:** A *k-sequential-chromatic Hamiltonian path* through a $k$-color point set visits every point exactly once, with each directed edge going from color $i$ to color $i+1 \pmod{k}$.
 
-For a **fully triply-separated** point set (one where for each $i \in [1..k]$ and $j \in (i-1,i,i+1)$, there is a line separating color $j$ from the other two colors in that triple), theorems from the paper reduce the search to at most **$4k$ candidate paths**, one per combination of:
+For a **fully triply-separated** point set (one where for each $i \in [1..k]$ and $j \in (i-1,i,i+1)$, there is a line separating color $j$ from the other two colors in that triple), theorems from the paper reduce the search to at most **$6k$ candidate paths**, one per combination of:
 
 | Factor | Choices | Reasoning |
 |--------|---------|-----------|
 | Start color | $k$ | Any color can begin the path |
-| Spiral direction | $2$ | Ascending or descending through sorted levels |
-| Start endpoint | $2$ | Outermost or innermost; end is forced to the opposite | 
-| **Total** | $4k$ | |
+| Start | $3$ | Innermost (closest to $L_i$), outermost farthest from $L_i$, or outermost with highest segment to $q$ |
+| End  | $2$ | Once spiral is forced, end is innermost (1 choice) or outermost (at most 2 choices) |
+| **Total** | $6k$ | |
 
 This notebook generates such a point set, then lets you **browse every candidate interactively**.
 
@@ -208,11 +208,77 @@ begin
         path
     end
 
-    function make_candidate(sg, sc::Int, outer_p::Bool)
+	# Convex hull via gift wrapping (Jarvis march)
+    function convex_hull_indices(pts)
+        n = length(pts)
+        n < 3 && return collect(1:n)
+        start = argmin([p[1] for p in pts])
+        hull = [start]
+        current = start
+        for _ in 1:n+1
+            nxt = mod1(current + 1, n)
+            for i in 1:n
+                i == current && continue
+                cross = signed_area(pts[current], pts[nxt], pts[i])
+                if cross < 0 || (abs(cross) < 1e-10 &&
+                    norm(pts[i] .- pts[current]) > norm(pts[nxt] .- pts[current]))
+                    nxt = i
+                end
+            end
+            nxt == start && break
+            push!(hull, nxt)
+            current = nxt
+        end
+        hull
+    end
+
+    # For start color sc and sorted group sg, find the third candidate:
+    # the G point whose segment to q lies above all others.
+    # q is the B vertex on a bicolored edge of hull(G∪B) farthest/closest to L_B
+    # depending on orientation of (G,B,V).
+    function find_q_segment_candidate(sc, sg, all_pts, sep_nrm, sep_off, triple_orient, k)
+        bc = mod1(sc+1, k)
+        g_pts = all_pts[sc]
+        b_pts = all_pts[bc]
+        ng    = length(g_pts)
+        combined = vcat(g_pts, b_pts)
+        hidx  = convex_hull_indices(combined)
+        nh    = length(hidx)
+
+        # Collect B vertices that sit on a bicolored hull edge
+        b_on_biedge = Vector{Float64}[]
+        for i in 1:nh
+            i1 = hidx[i];  i2 = hidx[mod1(i+1, nh)]
+            g1 = i1 <= ng; g2 = i2 <= ng
+            if g1 ⊻ g2   # one G, one B
+                push!(b_on_biedge, g2 ? combined[i1] : combined[i2])
+            end
+        end
+        isempty(b_on_biedge) && return nothing, nothing
+
+        # Choose q: farther from L_B if (G,B,V) is CW, closer if CCW
+        gbv_orient = triple_orient[bc]
+        nrm_b = sep_nrm[bc]; off_b = sep_off[bc]
+        dists = [dot(p, nrm_b) - off_b for p in b_on_biedge]
+        q = gbv_orient == :CW ? b_on_biedge[argmax(dists)] :
+                                 b_on_biedge[argmin(dists)]
+
+        # Third candidate: G point whose segment to q is "highest"
+        # = the G point most counterclockwise as seen from q
+        angles = [atan(g[2] - q[2], g[1] - q[1]) for g in g_pts]
+        third_pt = g_pts[argmax(angles)]
+
+        # Find its index in sg[sc]
+        idx = findfirst(p -> p == third_pt, sg[sc])
+        return q, idx
+    end
+
+	
+    function make_candidate(sg, sc::Int, p_i::Int, q_i::Int)
         ec = end_color(sc)
         (isempty(sg[sc]) || isempty(sg[ec])) && return nothing
-        p_i  = outer_p ? 1              : length(sg[sc])
-        q_i  = outer_p ? length(sg[ec]) : 1
+        (p_i < 1 || p_i > length(sg[sc]))    && return nothing
+        (q_i < 1 || q_i > length(sg[ec]))    && return nothing
         p_pt = sg[sc][p_i]
         q_pt = sg[ec][q_i]
         p_pt == q_pt && return nothing
@@ -238,30 +304,73 @@ begin
 end;
 
 # ╔═╡ bfddc816-aea1-4877-85b8-d52d28de63d7
-# ── Build all 4k candidates ───────────────────────────────────────────────────
 begin
-    candidates = NamedTuple[]
+	candidates = NamedTuple[]
     for sc in 1:k,
-        (sg, sname) in [(sg_fwd, "outer→inner"), (sg_rev, "inner→outer")],
-        (outer_p, pname) in [(true, "outer"), (false, "inner")]
+        (sg, sname) in [(sg_fwd, "asc"), (sg_rev, "desc")]
 
-        path = make_candidate(sg, sc, outer_p)
-        nc   = path !== nothing && !path_has_crossing(path)
-        push!(candidates, (
-            sc       = sc,
-            ec       = end_color(sc),
-            spiral   = sname,
-            p_choice = pname,
-            path     = path,
-            valid    = path !== nothing,
-            nc_free  = nc,
-        ))
+        ec = end_color(sc)
+
+        # --- start candidates ---
+        _, p_q_i = find_q_segment_candidate(sc, sg, all_pts,
+                       sep_nrm, sep_off, triple_orient, k)
+        p_choices = Tuple{Int,String}[
+            (length(sg[sc]), "innermost"),
+            (1,              "outermost-farthest"),
+        ]
+        if p_q_i !== nothing && p_q_i ∉ [length(sg[sc]), 1]
+            push!(p_choices, (p_q_i, "outermost-q-segment"))
+        end
+
+        # --- end candidates ---
+        _, q_q_i = find_q_segment_candidate(ec, sg, all_pts,
+                       sep_nrm, sep_off, triple_orient, k)
+        q_outermost = Tuple{Int,String}[
+            (1, "outermost-farthest"),
+        ]
+        if q_q_i !== nothing && q_q_i != 1
+            push!(q_outermost, (q_q_i, "outermost-q-segment"))
+        end
+
+        for (pi, pname) in p_choices
+            if pname == "innermost"
+                # outermost start forces outermost end region
+                for (qi, qname) in q_outermost
+                    path = make_candidate(sg, sc, pi, qi)
+                    nc   = path !== nothing && !path_has_crossing(path)
+                    push!(candidates, (
+                        sc       = sc,
+                        ec       = ec,
+                        spiral   = sname,
+                        p_choice = pname,
+                        q_choice = qname,
+                        path     = path,
+                        valid    = path !== nothing,
+                        nc_free  = nc,
+                    ))
+                end
+            else
+                # outermost start forces innermost end
+                path = make_candidate(sg, sc, pi, length(sg[ec]))
+                nc   = path !== nothing && !path_has_crossing(path)
+                push!(candidates, (
+                    sc       = sc,
+                    ec       = ec,
+                    spiral   = sname,
+                    p_choice = pname,
+                    q_choice = "innermost",
+                    path     = path,
+                    valid    = path !== nothing,
+                    nc_free  = nc,
+                ))
+            end
+        end
     end
 
     n_valid = count(c -> c.valid,   candidates)
     n_nc    = count(c -> c.nc_free, candidates)
     verb = n_nc == 1 ? "is" : "are"
-    md"Generated **$(length(candidates))** candidates. **$n_nc** $verb non-crossing."
+    md"Generated **$(length(candidates))** candidates (at most $6k$). **$n_nc** $verb non-crossing."
 end
 
 # ╔═╡ e65549a9-aabe-4cf3-85e0-4fbaef2b6f6b
@@ -379,11 +488,11 @@ md"""
 ---
 ## 🔍 Candidate Path Explorer
 
-Use the slider to step through all **$(4k)** candidate paths.
+Use the slider to step through all **$(length(candidates))** candidate paths (at most $6k$).
 """
 
 # ╔═╡ 96354fa8-e4fa-4ce9-b823-94d2963c9ad2
-@bind cand_idx Slider(1:4k, default=1, show_value=true)
+@bind cand_idx Slider(1:length(candidates), default=1, show_value=true)
 
 # ╔═╡ 89bbd9d4-09b9-454b-8376-b1a49cdbd708
 # ── Candidate visualization ───────────────────────────────────────────────────
@@ -444,44 +553,45 @@ let
 end
 
 # ╔═╡ 78695890-908b-4457-889b-bbda7c5d04db
-# ── Info box for selected candidate ──────────────────────────────────────────
 let
     c      = candidates[cand_idx]
-    status = c.nc_free ? "✅ **Non-crossing!**" :
-             c.valid   ? "❌ Color-valid but **has crossings**" :
+    status = c.nc_free ? "✅ Non-crossing!" :
+             c.valid   ? "❌ Color-valid but has crossings" :
                          "⚠️ Invalid color sequence (bug — please report)"
-    Markdown.parse("""
-    **Candidate $(cand_idx) / $(4k)**
+    md"""
+    **Candidate $(cand_idx) / $(length(candidates))**
+
+    $(status)
 
     | Field | Value |
     |-------|-------|
     | Start color **sc** | $(c.sc) |
     | End color **ec** | $(c.ec) |
-    | Spiral direction | **$(c.spiral)** |
-    | p (start endpoint) | **$(c.p_choice)** in sorted order → q is forced to the opposite |
-    | Status | $status |
-    """)
+    | Spiral direction | $(c.spiral) |
+    | Start endpoint | $(c.p_choice) |
+    | End endpoint | $(c.q_choice) |
+    """
 end
 
 # ╔═╡ ad21fd1a-fc08-4b99-a785-0e07a0f9bf85
 md"""
 ---
-## 📊 All $(4k) Candidates
+## 📊 All $(length(candidates)) Candidates
 
 Highlighted row = currently selected candidate.
 """
 
 # ╔═╡ 353c4014-9863-4a16-bb89-5a419a0d0bcf
 let
-    lines = ["| # | Start→End | Spiral | p choice | Status |",
-             "|---|-----------|--------|----------|--------|"]
+    lines = ["| # | Start→End | Spiral | p choice | q choice | Status |",
+             "|---|-----------|--------|----------|----------|--------|"]
     for (i, c) in enumerate(candidates)
         status  = c.nc_free ? "✅ non-crossing" :
                   c.valid   ? "❌ has crossings" :
                               "⚠️ invalid colors"
         sel_tag = (i == cand_idx) ? " **◀**" : ""
         push!(lines,
-            "| **$(i)**$(sel_tag) | $(c.sc) → $(c.ec) | $(c.spiral) | $(c.p_choice) | $status |")
+            "| **$(i)**$(sel_tag) | $(c.sc) → $(c.ec) | $(c.spiral) | $(c.p_choice) | $(c.q_choice) | $status |")
     end
     Markdown.parse(join(lines, "\n"))
 end
