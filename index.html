@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Randal Tuggle</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --ink:       #1a1814;
+            --paper:     #f5f2eb;
+            --muted:     #6b6458;
+            --rule:      #c8c0b0;
+            --accent:    #2a4d3e;
+            --accent-lt: #3a6b55;
+        }
+
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        html { font-size: 18px; }
+
+        body {
+            background: var(--paper);
+            color: var(--ink);
+            font-family: 'EB Garamond', Georgia, serif;
+            line-height: 1.75;
+            min-height: 100vh;
+        }
+
+        /* ── page grid ── */
+        .page {
+            max-width: 680px;
+            margin: 0 auto;
+            padding: 5rem 2rem 6rem;
+        }
+
+        /* ── header ── */
+        header {
+            border-bottom: 1px solid var(--rule);
+            padding-bottom: 2.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .name {
+            font-size: 2.4rem;
+            font-weight: 400;
+            letter-spacing: 0.01em;
+            line-height: 1.15;
+            margin-bottom: 0.5rem;
+        }
+
+        .role {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.75rem;
+            font-weight: 300;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        /* ── photo ── */
+        /* To use a real photo, replace the span inside .photo with:
+           <img src="photo.jpg" alt="Randal Tuggle">
+           and remove the .photo-placeholder span.              */
+        .photo {
+    width: 100%;
+    margin-bottom: 2rem;
+    border: 1px solid var(--rule);
+    overflow: hidden;
+}
+
+.photo img {
+    width: 100%;
+    height: auto;   /* ← key change */
+    display: block;
+}
+
+        .photo-placeholder {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+            text-align: center;
+            line-height: 1.8;
+        }
+
+        /* ── section titles ── */
+        .section-label {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            font-weight: 400;
+            letter-spacing: 0.18em;
+            text-transform: uppercase;
+            color: var(--muted);
+            margin-bottom: 1.25rem;
+        }
+
+        /* ── about ── */
+        .about {
+            margin-bottom: 3.5rem;
+        }
+
+        .about p {
+            font-size: 1.05rem;
+            color: var(--ink);
+            max-width: 58ch;
+        }
+
+        .about p + p {
+            margin-top: 1em;
+        }
+
+        /* ── notebooks ── */
+        .notebooks {
+            margin-bottom: 3.5rem;
+        }
+
+        .notebook-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .notebook-item {
+            border-top: 1px solid var(--rule);
+        }
+
+        .notebook-item:last-child {
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .notebook-link {
+            display: flex;
+            align-items: baseline;
+            gap: 1rem;
+            padding: 1.1rem 0;
+            text-decoration: none;
+            color: inherit;
+            transition: color 0.15s ease;
+        }
+
+        .notebook-link:hover {
+            color: var(--accent);
+        }
+
+        .notebook-link:hover .notebook-arrow {
+            transform: translateX(4px);
+            color: var(--accent-lt);
+        }
+
+        .notebook-title {
+            font-size: 1.05rem;
+            font-weight: 500;
+            flex: 1;
+        }
+
+        .notebook-tag {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            font-weight: 300;
+            letter-spacing: 0.1em;
+            color: var(--muted);
+            white-space: nowrap;
+        }
+
+        .notebook-arrow {
+            font-size: 0.9rem;
+            color: var(--rule);
+            transition: transform 0.15s ease, color 0.15s ease;
+            flex-shrink: 0;
+        }
+
+        /* ── publications ── */
+        .publications {
+            margin-bottom: 3.5rem;
+        }
+
+        .pub-list {
+            list-style: none;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+        }
+
+        .pub-item {
+            border-top: 1px solid var(--rule);
+            padding: 1.1rem 0;
+        }
+
+        .pub-item:last-child {
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .pub-title {
+            font-size: 1.05rem;
+            font-weight: 500;
+            margin-bottom: 0.2rem;
+        }
+
+        .pub-title a {
+            color: inherit;
+            text-decoration: underline;
+            text-underline-offset: 3px;
+            text-decoration-color: var(--rule);
+            transition: color 0.15s ease, text-decoration-color 0.15s ease;
+        }
+
+        .pub-title a:hover {
+            color: var(--accent);
+            text-decoration-color: var(--accent-lt);
+        }
+
+        .pub-authors {
+            font-size: 0.92rem;
+            color: var(--ink);
+            margin-bottom: 0.15rem;
+        }
+
+        .pub-venue {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.62rem;
+            font-weight: 300;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        /* ── footer ── */
+        footer {
+            border-top: 1px solid var(--rule);
+            padding-top: 2rem;
+            margin-top: 1rem;
+        }
+
+        footer p {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.65rem;
+            font-weight: 300;
+            letter-spacing: 0.08em;
+            color: var(--muted);
+        }
+
+        footer a {
+            color: var(--muted);
+            text-decoration: underline;
+            text-underline-offset: 3px;
+        }
+
+        footer a:hover {
+            color: var(--accent);
+        }
+
+        /* ── subtle page-load animation ── */
+        @keyframes fadein {
+            from { opacity: 0; transform: translateY(10px); }
+            to   { opacity: 1; transform: translateY(0);    }
+        }
+
+        header       { animation: fadein 0.5s ease both; }
+        .about       { animation: fadein 0.5s ease 0.1s both; }
+        .publications{ animation: fadein 0.5s ease 0.2s both; }
+        .notebooks   { animation: fadein 0.5s ease 0.3s both; }
+        footer       { animation: fadein 0.5s ease 0.4s both; }
+    </style>
+</head>
+<body>
+<div class="page">
+
+    <header>
+        <h1 class="name">Randal Tuggle</h1>
+        <p class="role">PhD Candidate &nbsp;·&nbsp; Computational Geometry &nbsp;·&nbsp; UNC Chapel Hill</p>
+    </header>
+
+    <section class="about">
+        <div class="photo">
+            <img src="picture.png" alt="Randal Tuggle">
+        </div>
+        <p class="section-label">About</p>
+        <p>
+            I am a doctoral candidate at the University of North Carolina at Chapel Hill.
+            My research is in computational geometry, with some additional work in
+            human-robot interaction and numerical linear algebra. My work in computational
+            geometry focuses primarily on the design and analysis of algorithms for enumerating
+            non-crossing structures.
+        </p>
+    </section>
+
+    <section class="publications">
+        <p class="section-label">Selected Publications</p>
+        <ul class="pub-list">
+
+            <li class="pub-item">
+                <p class="pub-title">
+                    <a href="https://www.cs.qc.cuny.edu/goswami/Abstracts-FWCG-25.pdf" target="_blank">
+                        Enumerating Non-Crossing Hamiltonian Paths by Reachability Checks and Bidirectional Search
+                    </a>
+                </p>
+                <p class="pub-authors">Randal Tuggle, Jack Snoeyink</p>
+                <p class="pub-venue">32nd Annual Fall Workshop on Computational Geometry (FWCG) &nbsp;·&nbsp; 2025</p>
+            </li>
+
+            <li class="pub-item">
+                <p class="pub-title">
+                    <a href="https://ieeexplore.ieee.org/document/9889504/" target="_blank">
+                        Drone Brush: Mixed Reality Drone Path Planning
+                    </a>
+                </p>
+                <p class="pub-authors">Angelos Angelopoulos, Austin Hale, Husam Shaik, Akshay Paruchuri, Ken Liu, Randal Tuggle, Daniel Szafir</p>
+                <p class="pub-venue">ACM/IEEE International Conference on Human-Robot Interaction (HRI) &nbsp;·&nbsp; 2022</p>
+            </li>
+
+            <li class="pub-item">
+                <p class="pub-title">
+                    <a href="https://www.torontomu.ca/content/dam/canadian-conference-computational-geometry-2022/papers/CCCG2022_paper_14.pdf" target="_blank">
+                        A Constant Time Algorithm for Solving Simple Rolling Cube Mazes
+                    </a>
+                </p>
+                <p class="pub-authors">Randal Tuggle, Davis Murphy, Nicholas Lorch</p>
+                <p class="pub-venue">34th Canadian Conference on Computational Geometry (CCCG) &nbsp;·&nbsp; 2022</p>
+            </li>
+
+            <li class="pub-item">
+                <p class="pub-title">
+                    <a href="https://www.sciencedirect.com/science/article/pii/S0024379520305188" target="_blank">
+                        Accelerating the Distributed Kaczmarz Algorithm by Strong Over-relaxation
+                    </a>
+                </p>
+                <p class="pub-authors">Riley Borgard, Steven N. Harding, Haley Duba, Chloe Makdad, Jay Mayfield, Randal Tuggle, Eric S. Weber</p>
+                <p class="pub-venue">Linear Algebra and its Applications, vol. 611, pp. 334–355 &nbsp;·&nbsp; 2021</p>
+            </li>
+
+        </ul>
+    </section>
+
+    <section class="notebooks">
+        <p class="section-label">Interactive Notebooks</p>
+        <ul class="notebook-list">
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="ksequential.html">
+                    <span class="notebook-title">Colorful Path Characterization</span>
+                    <span class="notebook-tag">Pluto.jl</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="np_hardness.html">
+                    <span class="notebook-title">Hardness of Non-crossing Hamiltonian Path</span>
+                    <span class="notebook-tag">Pluto.jl</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+            
+            <li class="notebook-item">
+                <a class="notebook-link" href="paths_and_cycles_enumeration.html">
+                    <span class="notebook-title">Path &amp; Cycle Enumeration</span>
+                    <span class="notebook-tag">Pluto.jl</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="readable_triangulation_enumeration.html">
+                    <span class="notebook-title">Triangulation Enumeration</span>
+                    <span class="notebook-tag">Pluto.jl</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="quantifiers.html">
+                    <span class="notebook-title">Quantifier Diagrams</span>
+                    <span class="notebook-tag">Pluto.jl</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+        </ul>
+    </section>
+
+    <footer>
+        <p>University of North Carolina at Chapel Hill &nbsp;·&nbsp; Department of Computer Science</p>
+    </footer>
+
+</div>
+</body>
+</html>
