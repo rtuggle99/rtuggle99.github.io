@@ -18,11 +18,11 @@ const Board3D = (() => {
     // through pdflatex and sampling the resulting pixels - not computed
     // from an assumed base color, so these are exact, not approximated.
     classic: {
-      light: '#ffffff', dark: '#bfbfff', pipLight: '#8080ff', pipDark: '#ffffff', goal: '#008000',
+      light: '#ffffff', dark: '#bfbfff', pipLight: '#8080ff', pipDark: '#ffffff', goal: '#008000', goalPip: '#ffffff',
       borderFront: '#a6a6a6', borderRight: '#acacac', borderLeft: '#999999', borderBack: '#a6a6a6', borderTop: '#c6c6c6'
     },
     wood: {
-      light: '#ecd9c6', dark: '#ac7339', pipLight: '#ac7339', pipDark: '#ecd9c6', goal: '#008000',
+      light: '#ecd9c6', dark: '#ac7339', pipLight: '#ac7339', pipDark: '#ecd9c6', goal: '#008000', goalPip: '#ffffff',
       borderFront: '#302010', borderRight: '#392613', borderLeft: '#432d16', borderBack: '#4c3319', borderTop: '#734c26'
     }
   };
@@ -82,6 +82,7 @@ const Board3D = (() => {
       pipDark: custom ? c.pipDark : themeVals.pipDark,
       goal: custom ? c.goal : themeVals.goal,
       goalBorder: custom ? c.goalBorder : '#003300',
+      goalPip: custom ? c.goalPip : (themeVals.goalPip || '#ffffff'),
       borderFront: border.front, borderRight: border.right, borderLeft: border.left,
       borderBack: border.back, borderTop: border.top,
       blockShades: block
@@ -498,25 +499,25 @@ const Board3D = (() => {
     // surface = wins normal depth testing = appears on top. Blocks and
     // the die are raised 3D geometry (not part of this scale at all) so
     // they always cover flat content regardless of anyone's layer value.
-    function layerToY(layer) { return bh + 0.02 + layer * 0.008; }
+    // Layering is about render order now, not physical height - all flat
+    // content (pips, goal, path, images) sits at essentially the same
+    // height, and which one wins where they overlap is controlled by
+    // renderOrder + disabling depth testing on their materials below,
+    // not by actually being physically higher or lower. This also fixes
+    // pips disappearing in the aerial 3D view, which was Z-fighting
+    // caused by those tiny height differences becoming imperceptible
+    // (and so unstable) when the camera looks straight down.
+    const FLAT_CONTENT_Y = bh + 0.02;
     const CONTENT_LAYER = 2; // fixed baseline for pips/goal
-    const CONTENT_Y = layerToY(CONTENT_LAYER);
+    const CONTENT_Y = FLAT_CONTENT_Y;
     const pathLayer = state.pathLayer != null ? state.pathLayer : 3;
-    const PATH_Y = layerToY(pathLayer);
+    const PATH_Y = FLAT_CONTENT_Y;
 
     // goal border - inset dark-green rectangle (colGoalBorder = green!20!black), matching the source
     if (state.goal) {
       const { c, r } = state.goal;
       const inset = 0.03, size = 0.94;
       boardGroup.add(rectOutlineXZ(c + inset, r + inset, c + inset + size, r + inset + size, bh + 0.05, new THREE.Color(col.goalBorder).getHex()));
-      // white pip pattern on the goal square (source's goallabel="pips" option)
-      const goalTex = makePipTexture(state.goalFace || 6, '#ffffff');
-      const goalGeo = new THREE.PlaneGeometry(0.72, 0.72);
-      const goalMat = new THREE.MeshBasicMaterial({ map: goalTex, transparent: true, depthWrite: false });
-      const goalPlane = new THREE.Mesh(goalGeo, goalMat);
-      goalPlane.rotation.x = -Math.PI / 2;
-      goalPlane.position.set(c + 0.5, CONTENT_Y + 0.002, r + 0.5);
-      boardGroup.add(goalPlane);
     }
 
     // ---- blocked slabs - exact per-face shading from the source files ----
@@ -525,6 +526,7 @@ const Board3D = (() => {
       const geo = new THREE.BoxGeometry(BLOCK_FOOTPRINT, slabH, BLOCK_FOOTPRINT);
       const m = new THREE.Mesh(geo, boxFaceMats(col.blockShades));
       m.position.set(c + 0.5, bh + slabH / 2, r + 0.5);
+      m.renderOrder = 1000; // always after flat content - raised geometry always covers it
       boardGroup.add(m);
       const edges = new THREE.LineSegments(new THREE.EdgesGeometry(geo), new THREE.LineBasicMaterial({ color: 0x000000 }));
       edges.position.copy(m.position);
@@ -579,18 +581,26 @@ const Board3D = (() => {
       }
     });
 
-    // ---- pip labels ----
+    // ---- pip labels - works the same on the goal space as any other,
+    // just with its own color there so the number stays legible against
+    // the goal's own background color. A custom per-cell pip color (set
+    // via the Pip color tool) takes priority over both. ----
     state.labels.forEach((value, key) => {
       if (!value) return;
       const [c, r] = key.split(',').map(Number);
+      const isGoalCell = state.goal && state.goal.c === c && state.goal.r === r;
       const isLight = (c + r) % 2 === 0;
-      const dotColor = isLight ? col.pipLight : col.pipDark;
+      const override = state.pipColors && state.pipColors.get(key);
+      const dotColor = override || (isGoalCell ? col.goalPip : (isLight ? col.pipLight : col.pipDark));
       const tex = makePipTexture(value, dotColor);
       const geo = new THREE.PlaneGeometry(0.6, 0.6);
-      const labelMat = new THREE.MeshBasicMaterial({ map: tex, transparent: true, depthWrite: false });
+      const labelMat = new THREE.MeshBasicMaterial({
+        map: tex, transparent: true, depthWrite: false, depthTest: false
+      });
       const plane = new THREE.Mesh(geo, labelMat);
       plane.rotation.x = -Math.PI / 2;
       plane.position.set(c + 0.5, CONTENT_Y, r + 0.5);
+      plane.renderOrder = CONTENT_LAYER;
       boardGroup.add(plane);
     });
 
@@ -600,14 +610,20 @@ const Board3D = (() => {
       const style = state.pathStyle || { color: '#8c2f27', thickness: 2.2, endStyle: 'arrow' };
       const pathHex = new THREE.Color(style.color).getHex();
       const halfWidth = 0.09 * (style.thickness / 2.2);
+      function flatContentMesh(mesh) {
+        mesh.material.depthTest = false;
+        mesh.material.depthWrite = false;
+        mesh.renderOrder = pathLayer;
+        return mesh;
+      }
       (state.paths || []).forEach(seg => {
         if (seg.length < 1) return;
         const pts = seg.map(p => new THREE.Vector3(p.c + 0.5, z, p.r + 0.5));
         for (let i = 0; i < pts.length - 1; i++) {
-          boardGroup.add(flatSegment(pts[i], pts[i + 1], halfWidth, pathHex));
+          boardGroup.add(flatContentMesh(flatSegment(pts[i], pts[i + 1], halfWidth, pathHex)));
         }
         if (style.endStyle === 'closed' && pts.length >= 3) {
-          boardGroup.add(flatSegment(pts[pts.length - 1], pts[0], halfWidth, pathHex));
+          boardGroup.add(flatContentMesh(flatSegment(pts[pts.length - 1], pts[0], halfWidth, pathHex)));
         }
         if (style.endStyle === 'arrow' && pts.length >= 2) {
           // A flat triangular arrowhead at the final point, oriented along
@@ -628,7 +644,7 @@ const Board3D = (() => {
             backX - nx * headWidth, tip.y, backZ - nz * headWidth
           ]), 3));
           geo.setIndex([0, 1, 2]);
-          boardGroup.add(new THREE.Mesh(geo, flatMat(pathHex)));
+          boardGroup.add(flatContentMesh(new THREE.Mesh(geo, flatMat(pathHex))));
         }
       });
     }
@@ -677,7 +693,7 @@ const Board3D = (() => {
     }
     (state.stickers || []).forEach(s => {
       const cx = s.c + s.wCols / 2, cz = s.r + s.hRows / 2;
-      const y = layerToY(s.layer != null ? s.layer : 3);
+      const y = FLAT_CONTENT_Y;
       const cached = stickerTextureCache.get(s.dataUrl);
       if (cached) {
         const { w, h } = computeStickerFitSize(s);
@@ -694,9 +710,14 @@ const Board3D = (() => {
           map.offset.set(uv.offsetX, uv.offsetY);
           map.needsUpdate = true;
         }
-        const mat = new THREE.MeshBasicMaterial({ map, transparent: true, opacity: s.opacity != null ? s.opacity : 1 });
+        const mat = new THREE.MeshBasicMaterial({
+          map, transparent: true, opacity: s.opacity != null ? s.opacity : 1,
+          depthTest: false, depthWrite: false
+        });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.rotation.z = (s.rotation || 0) * Math.PI / 180;
+        if (s.mirrored) mesh.scale.x = -1;
+        mesh.renderOrder = s.layer != null ? s.layer : 3;
         const wrapper = new THREE.Group();
         wrapper.add(mesh);
         wrapper.rotation.x = -Math.PI / 2;
@@ -723,6 +744,7 @@ const Board3D = (() => {
           dieObj.faceImages,
           () => { if (currentState === state) rebuild(state); }
         );
+        group.traverse(obj => { if (obj.isMesh) obj.renderOrder = 1000; });
         const pos = dieObj.position || { c: 0, r: 0 };
         group.position.set(pos.c + 0.5, bh + DIE_SIZE / 2, pos.r + 0.5);
         boardGroup.add(group);

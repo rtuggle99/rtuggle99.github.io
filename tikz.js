@@ -92,6 +92,7 @@ const TikzExport = (() => {
     out += `\\definecolor{cBorderTop}{HTML}{${hexToTikz(col.borderTop)}}\n`;
     out += `\\definecolor{cGoalFill}{HTML}{${hexToTikz(col.goal)}}\n`;
     out += `\\definecolor{cGoalBorder}{HTML}{${hexToTikz(col.goalBorder)}}\n`;
+    out += `\\definecolor{cGoalPip}{HTML}{${hexToTikz(col.goalPip || '#ffffff')}}\n`;
     out += `\\definecolor{cBlockFront}{HTML}{${hexToTikz(block.front)}}\n`;
     out += `\\definecolor{cBlockRight}{HTML}{${hexToTikz(block.right)}}\n`;
     out += `\\definecolor{cBlockLeft}{HTML}{${hexToTikz(block.left)}}\n`;
@@ -236,29 +237,36 @@ const TikzExport = (() => {
           h = totalSwapped ? s.wCols : s.hRows;
         }
         const op = s.opacity != null ? s.opacity : 1;
+        const mirrorOpt = s.mirrored ? ', xscale=-1' : '';
         const text = `\\begin{scope}[canvas is xy plane at z=${bh}, transform shape]\n` +
-          `  \\node[inner sep=0pt, rotate=${totalRot}, opacity=${fmt(op)}] at (${cx},${cz}) {\\includegraphics[${trimClip}width=${fmt(w)}cm,height=${fmt(h)}cm]{${s.filename}}};\n` +
+          `  \\node[inner sep=0pt, rotate=${totalRot}${mirrorOpt}, opacity=${fmt(op)}] at (${cx},${cz}) {\\includegraphics[${trimClip}width=${fmt(w)}cm,height=${fmt(h)}cm]{${s.filename}}};\n` +
           '\\end{scope}\n';
         layeredBlocks.push({ layer: s.layer != null ? s.layer : 3, order: blockOrder++, text });
         images.push({ filename: s.filename, bytes: s.bytes });
       });
     }
 
-    // ---- goal label + pip labels share the fixed content layer ----
+    // ---- pip labels - works the same on the goal space as any other,
+    // just with its own color there so the number stays legible against
+    // the goal's own background color. The goal marker itself (drawn
+    // earlier, in the checkerboard block) no longer forces any
+    // particular pip value - it's purely a colored space now.
     let contentText = '';
-    if (state.goal) {
-      const { c, r } = state.goal;
-      contentText += '% goal label\n';
-      contentText += `\\begin{scope}[canvas is xy plane at z=${bh + 0.01}, shift={(${c + 0.5},${r + 0.5})}, scale=0.38, rotate=90]\n` +
-        `  \\begin{scope}[white]\\dicenum{${state.goalFace || 6}}\\end{scope}\n\\end{scope}\n\n`;
-    }
     if (state.labels.size) {
       contentText += '% pip labels\n';
       state.labels.forEach((value, key) => {
         if (!value) return;
         const [c, r] = key.split(',').map(Number);
+        const isGoalCell = state.goal && state.goal.c === c && state.goal.r === r;
         const isLight = (c + r) % 2 === 0;
-        const pipColor = isLight ? 'cPipLight' : 'cPipDark';
+        const override = state.pipColors && state.pipColors.get(key);
+        let pipColor;
+        if (override) {
+          pipColor = `cPipC${c}R${r}`;
+          contentText += `\\definecolor{${pipColor}}{HTML}{${hexToTikz(override)}}\n`;
+        } else {
+          pipColor = isGoalCell ? 'cGoalPip' : (isLight ? 'cPipLight' : 'cPipDark');
+        }
         contentText += `\\begin{scope}[canvas is xy plane at z=${bh + 0.02}, shift={(${c + 0.5},${r + 0.5})}, scale=0.4, rotate=90, ${pipColor}]\n  \\dicenum{${value}}\n\\end{scope}\n`;
       });
       contentText += '\n';
@@ -281,7 +289,7 @@ const TikzExport = (() => {
         const pts = seg.map(p => `(${p.c + 0.5},${p.r + 0.5},${z})`);
         if (pts.length >= 2) {
           if (style.endStyle === 'arrow') {
-            pathText += `\\draw[-{Stealth[length=2.2mm]}, line width=${thickness}pt, draw=cPathColor, line cap=round, line join=round, rounded corners=4pt]\n  ${pts.join(' -- ')};\n`;
+            pathText += `\\draw[-{Stealth[length=${thickness}mm]}, line width=${thickness}pt, draw=cPathColor, line cap=round, line join=round, rounded corners=4pt]\n  ${pts.join(' -- ')};\n`;
           } else if (style.endStyle === 'closed' && seg.length >= 3) {
             pathText += `\\draw[draw=cPathColor, opacity=1, line width=${thickness}pt, line cap=round, line join=round]\n  ${pts.join(' -- ')} -- cycle;\n`;
           } else {

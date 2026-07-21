@@ -70,12 +70,11 @@ body {
 .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn-primary {
-  background: var(--accent-bg);
-  color: var(--on-accent);
-  border-color: var(--accent);
-  font-weight: 600;
+  background: transparent;
+  color: var(--text-primary);
+  border-color: var(--border-strong);
 }
-.btn-primary:hover { background: var(--accent-bg-hover); }
+.btn-primary:hover { background: var(--surface-alt); }
 
 .btn-outline {
   background: transparent;
@@ -107,6 +106,10 @@ body {
 
 @media (max-width: 880px) {
   .layout { grid-template-columns: 1fr; }
+  .toolbelt { flex-wrap: wrap; }
+  .tool { flex: 1 1 22%; min-width: 68px; }
+  #canvas-wrap { min-height: 280px; }
+  .panel { max-height: 60vh; }
 }
 
 /* ---------- Stage ---------- */
@@ -281,6 +284,7 @@ body {
   border-radius: var(--radius);
   padding: 0.25rem 1rem 1rem;
   overflow-y: auto;
+  overflow-x: hidden;
   font-family: inherit;
 }
 
@@ -429,6 +433,7 @@ input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px; }
 .sticker-row {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.5rem;
   padding: 0.4rem 0;
   border-bottom: 1px solid var(--border);
@@ -447,12 +452,14 @@ input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px; }
 }
 .sticker-row span {
   flex: 1;
+  min-width: 90px;
   color: var(--text-primary);
   overflow-wrap: anywhere;
 }
 .sticker-controls {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 0.6rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border);
@@ -464,9 +471,11 @@ input[type="color"]::-moz-color-swatch { border: none; border-radius: 3px; }
   align-items: center;
   gap: 0.4rem;
   flex: 1;
+  min-width: 110px;
 }
 .sticker-controls input[type="range"] {
   flex: 1;
+  min-width: 60px;
 }
 
 .die-preset-row {

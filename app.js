@@ -7,9 +7,9 @@
     rows: 5,
     theme: 'wood',
     custom: {
-      light: '#ffffff', dark: '#bfbfff', border: '#a0a0a0',
-      pipLight: '#8080ff', pipDark: '#ffffff', goal: '#008000',
-      goalBorder: '#003300', block: '#c0c0c0'
+      light: '#ff0000', dark: '#000000', border: '#600101',
+      pipLight: '#000000', pipDark: '#ff0000', goal: '#0b7a0b',
+      goalBorder: '#003300', goalPip: '#ffffff', block: '#ac796c'
     },
     // Default board matches the reference figure exactly (blocked spaces,
     // pip labels, and goal position/face all taken straight from the
@@ -106,9 +106,12 @@
     pendingStickerRotation: 0,
     pendingStickerFit: 'stretch',
     pendingStickerOpacity: 1,
+    pendingStickerMirrored: false,
     // Also used for the global cell-color-override tool and border toggle.
     cellColors: new Map(),
     pendingCellColor: '#4a7c59',
+    pipColors: new Map(),
+    pendingPipColor: '#c0392b',
     showBorder: true,
     // Board height (the base slab/border's thickness) can go all the
     // way to 0 - a flat board with no visible thickness. Slab height is
@@ -159,7 +162,8 @@
       layer: state.pendingStickerLayer,
       rotation: state.pendingStickerRotation,
       fit: state.pendingStickerFit,
-      opacity: state.pendingStickerOpacity
+      opacity: state.pendingStickerOpacity,
+      mirrored: state.pendingStickerMirrored
     });
   }
   function removeSticker(id) {
@@ -180,6 +184,11 @@
     if (!s) return;
     s.fit = fit;
   }
+  function setStickerMirrored(id, mirrored) {
+    const s = state.stickers.find(s => s.id === id);
+    if (!s) return;
+    s.mirrored = mirrored;
+  }
   function setStickerOpacity(id, opacity) {
     const s = state.stickers.find(s => s.id === id);
     if (!s) return;
@@ -190,6 +199,12 @@
   }
   function clearCellColor(c, r) {
     state.cellColors.delete(`${c},${r}`);
+  }
+  function setPipColor(c, r, hex) {
+    state.pipColors.set(`${c},${r}`, hex);
+  }
+  function clearPipColor(c, r) {
+    state.pipColors.delete(`${c},${r}`);
   }
 
   let nextDieId = 2; // die id 1 is the default one already in state.dice
@@ -283,12 +298,21 @@
       const [c, r] = k.split(',').map(Number);
       if (!inRange(c, r)) state.labels.delete(k);
     }
+    for (const k of [...state.cellColors.keys()]) {
+      const [c, r] = k.split(',').map(Number);
+      if (!inRange(c, r)) state.cellColors.delete(k);
+    }
+    for (const k of [...state.pipColors.keys()]) {
+      const [c, r] = k.split(',').map(Number);
+      if (!inRange(c, r)) state.pipColors.delete(k);
+    }
     state.paths = state.paths
       .map(seg => seg.filter(p => inRange(p.c, p.r)))
       .filter(seg => seg.length > 0);
     if (state.paths.length === 0) state.paths = [[]];
     state.stickers = state.stickers.filter(s =>
       inRange(s.c, s.r) && s.c + s.wCols <= state.cols && s.r + s.hRows <= state.rows);
+    state.dice = state.dice.filter(d => inRange(d.position.c, d.position.r));
   }
 
   function rebuild() {
@@ -304,12 +328,14 @@
     $('#cols-val').textContent = state.cols;
     clampToGrid();
     rebuild();
+    renderDiceList();
   });
   $('#rows').addEventListener('input', e => {
     state.rows = Number(e.target.value);
     $('#rows-val').textContent = state.rows;
     clampToGrid();
     rebuild();
+    renderDiceList();
   });
 
   // ---- theme ----
@@ -325,7 +351,7 @@
   const colorInputs = {
     '#c-light': 'light', '#c-dark': 'dark', '#c-border': 'border',
     '#c-piplight': 'pipLight', '#c-pipdark': 'pipDark', '#c-goal': 'goal',
-    '#c-goalborder': 'goalBorder', '#c-block': 'block'
+    '#c-goalborder': 'goalBorder', '#c-goalpip': 'goalPip', '#c-block': 'block'
   };
   Object.entries(colorInputs).forEach(([sel, prop]) => {
     $(sel).addEventListener('input', e => {
@@ -479,8 +505,14 @@
     state.pendingStickerOpacity = Number(e.target.value) / 100;
     $('#sticker-opacity-val').textContent = e.target.value;
   });
+  $('#sticker-mirror').addEventListener('change', e => {
+    state.pendingStickerMirrored = e.target.checked;
+  });
   $('#cell-color').addEventListener('input', e => {
     state.pendingCellColor = e.target.value;
+  });
+  $('#pip-color').addEventListener('input', e => {
+    state.pendingPipColor = e.target.value;
   });
   $('#show-border').addEventListener('change', e => {
     state.showBorder = e.target.checked;
@@ -587,7 +619,17 @@
         rebuild();
       });
       opacityLabel.appendChild(opacityInput);
-      controls.append(rotateBtn, layerLabel, fitLabel, opacityLabel);
+      const mirrorBtn = document.createElement('button');
+      mirrorBtn.className = 'btn btn-small';
+      mirrorBtn.textContent = s.mirrored ? 'Mirrored' : 'Mirror';
+      mirrorBtn.classList.toggle('active', !!s.mirrored);
+      mirrorBtn.addEventListener('click', () => {
+        setStickerMirrored(s.id, !s.mirrored);
+        mirrorBtn.textContent = s.mirrored ? 'Mirrored' : 'Mirror';
+        mirrorBtn.classList.toggle('active', !!s.mirrored);
+        rebuild();
+      });
+      controls.append(rotateBtn, layerLabel, fitLabel, opacityLabel, mirrorBtn);
       list.appendChild(row);
       list.appendChild(controls);
     });
@@ -930,7 +972,7 @@
     switch (state.tool) {
       case 'blocked':
         if (state.blocked.has(k)) { state.blocked.delete(k); clearBlockFaceData(k); }
-        else {
+        else if (!state.dice.some(d => d.position.c === c && d.position.r === r)) {
           state.blocked.add(k);
           if (state.goal && state.goal.c === c && state.goal.r === r) state.goal = null;
           state.labels.delete(k);
@@ -972,7 +1014,7 @@
       case 'die': {
         const existingDie = state.dice.find(d => d.position.c === c && d.position.r === r);
         if (existingDie) removeDie(existingDie.id);
-        else addDie(c, r);
+        else if (!state.blocked.has(k)) addDie(c, r);
         renderDiceList();
         break;
       }
@@ -980,6 +1022,12 @@
         const existingColor = state.cellColors.get(key(c, r));
         if (existingColor === state.pendingCellColor) clearCellColor(c, r);
         else setCellColor(c, r, state.pendingCellColor);
+        break;
+      }
+      case 'pipcolor': {
+        const existingPipColor = state.pipColors.get(key(c, r));
+        if (existingPipColor === state.pendingPipColor) clearPipColor(c, r);
+        else setPipColor(c, r, state.pendingPipColor);
         break;
       }
       default:
@@ -1066,6 +1114,7 @@
       showBorder: state.showBorder,
       boardHeight: state.boardHeight, slabHeight: state.slabHeight,
       cellColors: [...state.cellColors.entries()].sort(),
+      pipColors: [...state.pipColors.entries()].sort(),
       dice: state.dice.map(d => [
         d.id, d.die.top, d.die.front, d.die.right, d.position.c, d.position.r, d.colors.body, d.colors.pip,
         JSON.stringify(d.faceRotation), JSON.stringify(d.blankFaces),
