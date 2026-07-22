@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Board &amp; Die Workshop</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div class="topbar-actions">
+    <button id="btn-tikz" class="btn btn-outline">Download TikZ</button>
+    <button id="btn-pdf" class="btn btn-primary">Download PDF</button>
+  </div>
+</header>
+
+<main class="layout">
+
+  <section class="stage">
+    <div id="canvas-wrap">
+      <canvas id="board-canvas"></canvas>
+      <iframe id="exact-render-frame" class="exact-render-frame hidden" title="Exact TikZ render"></iframe>
+      <div class="view-presets" role="group" aria-label="Camera views">
+        <button id="btn-view-aerial" title="Straight down, board centered as a rectangle">Aerial</button>
+        <button id="btn-view-isometric" title="&theta;=55&deg;, &phi;=135&deg; &mdash; the angle used in the thesis figures">Isometric</button>
+        <span class="view-divider" aria-hidden="true"></span>
+        <label class="auto-exact-toggle" title="Compile your real TikZ code and show the exact result, updating a moment after you stop interacting">
+          <input type="checkbox" id="auto-exact-toggle" checked />
+          Render TikZ when idle
+        </label>
+      </div>
+      <div id="compile-status" class="compile-status hidden"></div>
+    </div>
+
+    <div class="toolbelt" role="toolbar" aria-label="Board tools">
+      <button class="tool active" data-tool="orbit" title="Just look around">
+        <svg viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 9 9" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M21 7.2 18.8 13 23.2 13Z" fill="currentColor"/></svg>
+        <span>Orbit</span>
+      </button>
+      <button class="tool" data-tool="die" title="Click a square to add a die there, or click an existing die's square to remove it">
+        <svg viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9" r="1.4" fill="currentColor"/><circle cx="15" cy="15" r="1.4" fill="currentColor"/></svg>
+        <span>Die</span>
+      </button>
+      <button class="tool" data-tool="blocked" title="Toggle blocked spaces">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M6 18L18 6" stroke="currentColor" stroke-width="2"/></svg>
+        <span>Block</span>
+      </button>
+      <button class="tool" data-tool="label" title="Stamp a pip value">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="1.6" fill="currentColor"/><circle cx="15" cy="15" r="1.6" fill="currentColor"/></svg>
+        <span>Pip</span>
+      </button>
+      <button class="tool" data-tool="goal" title="Place the goal space">
+        <svg viewBox="0 0 24 24"><path d="M6 3v18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M6 4l11 4-11 4z" fill="currentColor"/></svg>
+        <span>Goal</span>
+      </button>
+      <button class="tool" data-tool="path" title="Trace a path">
+        <svg viewBox="0 0 24 24"><path d="M4 18 Q9 6 12 12 T20 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        <span>Path</span>
+      </button>
+      <button class="tool" data-tool="cellcolor" title="Paint an individual square a custom color, breaking the checkerboard pattern if you want">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="8" height="8" fill="currentColor"/><rect x="13" y="3" width="8" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="3" y="13" width="8" height="8" fill="none" stroke="currentColor" stroke-width="2"/><rect x="13" y="13" width="8" height="8" fill="currentColor"/></svg>
+        <span>Space color</span>
+      </button>
+      <button class="tool" data-tool="pipcolor" title="Give an individual square's pip a custom color, on top of whatever pip value it already has">
+        <svg viewBox="0 0 24 24"><circle cx="9" cy="9" r="1.6" fill="currentColor"/><circle cx="15" cy="15" r="1.6" fill="currentColor"/><circle cx="15" cy="15" r="4" fill="none" stroke="currentColor" stroke-width="1.5"/></svg>
+        <span>Pip color</span>
+      </button>
+      <button class="tool" data-tool="image" title="Place a custom image">
+        <svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="2" fill="none" stroke="currentColor" stroke-width="2"/><circle cx="9" cy="9.5" r="1.6" fill="currentColor"/><path d="M4.5 17 L9 12.5 L12.5 16 L15.5 13 L19.5 17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <span>Image</span>
+      </button>
+    </div>
+  </section>
+
+  <aside class="panel">
+
+    <details>
+      <summary>Board size</summary>
+      <div class="field">
+        <label for="cols">Columns <span id="cols-val">5</span></label>
+        <input type="range" id="cols" min="1" max="100" value="5">
+      </div>
+      <div class="field">
+        <label for="rows">Rows <span id="rows-val">5</span></label>
+        <input type="range" id="rows" min="1" max="100" value="5">
+      </div>
+      <div class="field row">
+        <label class="checkbox"><input type="checkbox" id="show-border" checked> Show board border</label>
+      </div>
+      <div class="field">
+        <label for="board-height">Board height <span id="board-height-val">0.45</span></label>
+        <input type="range" id="board-height" min="0" max="1.5" step="0.01" value="0.45">
+      </div>
+    </details>
+
+    <details>
+      <summary>Theme</summary>
+      <div class="field">
+        <div class="segmented" id="theme-segmented">
+          <button data-theme="classic">Classic</button>
+          <button data-theme="wood" class="active">Wood</button>
+          <button data-theme="custom">Custom</button>
+        </div>
+      </div>
+      <div class="field-grid" id="custom-colors" hidden>
+        <label>Light square <input type="color" id="c-light" value="#ff0000"></label>
+        <label>Dark square <input type="color" id="c-dark" value="#000000"></label>
+        <label>Border <input type="color" id="c-border" value="#600101"></label>
+        <label>Pip on light <input type="color" id="c-piplight" value="#000000"></label>
+        <label>Pip on dark <input type="color" id="c-pipdark" value="#ff0000"></label>
+        <label>Goal <input type="color" id="c-goal" value="#0b7a0b"></label>
+        <label>Goal inset <input type="color" id="c-goalborder" value="#003300"></label>
+        <label>Goal pip <input type="color" id="c-goalpip" value="#ffffff"></label>
+        <label>Blocked spaces <input type="color" id="c-block" value="#ac796c"></label>
+      </div>
+    </details>
+
+    <details>
+      <summary>Shading</summary>
+      <p class="help">
+        One shading model applies to the die, border, and blocked spaces
+        on every theme. Higher is lighter. Names match the default
+        Isometric view: Front Left and Front Right are the two visible
+        walls, Far Left and Far Right are hidden behind them. Click a
+        name to highlight its face.
+      </p>
+      <div class="field">
+        <div class="shade-row">
+          <button type="button" class="shade-dir-btn" data-dir="right">Front Left</button>
+          <span id="shade-right-val">75</span>
+        </div>
+        <input type="range" id="shade-right" min="0" max="100" value="75">
+      </div>
+      <div class="field">
+        <div class="shade-row">
+          <button type="button" class="shade-dir-btn" data-dir="back">Front Right</button>
+          <span id="shade-back-val">92</span>
+        </div>
+        <input type="range" id="shade-back" min="0" max="100" value="92">
+      </div>
+      <div class="field">
+        <div class="shade-row">
+          <button type="button" class="shade-dir-btn" data-dir="front">Far Left</button>
+          <span id="shade-front-val">75</span>
+        </div>
+        <input type="range" id="shade-front" min="0" max="100" value="75">
+      </div>
+      <div class="field">
+        <div class="shade-row">
+          <button type="button" class="shade-dir-btn" data-dir="left">Far Right</button>
+          <span id="shade-left-val">92</span>
+        </div>
+        <input type="range" id="shade-left" min="0" max="100" value="92">
+      </div>
+      <div class="field">
+        <div class="shade-row">
+          <button type="button" class="shade-dir-btn" data-dir="top">Top</button>
+          <span id="shade-top-val">100</span>
+        </div>
+        <input type="range" id="shade-top" min="0" max="100" value="100">
+      </div>
+      <button class="btn btn-small" id="btn-reset-shading">Reset to default shading</button>
+    </details>
+
+    <!-- ---- everything below matches the toolbelt's own left-to-right order ---- -->
+
+    <details>
+      <summary>Die</summary>
+      <div class="field row">
+        <label class="checkbox"><input type="checkbox" id="show-die" checked> Show dice on the board</label>
+      </div>
+      <div class="field" id="dice-list"></div>
+    </details>
+
+    <details>
+      <summary>Block</summary>
+      <p class="help">Click a square with the Block tool to toggle it blocked. Each blocked space's own faces can carry a custom image too, the same way a die's faces can.</p>
+      <div class="field">
+        <label for="slab-height">Blocked-space height <span id="slab-height-val">0.3</span></label>
+        <input type="range" id="slab-height" min="0" max="1.5" step="0.01" value="0.3">
+      </div>
+      <div class="field" id="block-list"></div>
+    </details>
+
+    <details>
+      <summary>Pip</summary>
+      <div class="field" id="label-options">
+        <label>Pip value to stamp</label>
+        <div class="pip-select" id="pip-select">
+          <button data-val="1">1</button>
+          <button data-val="2">2</button>
+          <button data-val="3" class="active">3</button>
+          <button data-val="4">4</button>
+          <button data-val="5">5</button>
+          <button data-val="6">6</button>
+          <button data-val="0" title="Erase the pip">Clear</button>
+        </div>
+      </div>
+    </details>
+
+    <details>
+      <summary>Goal</summary>
+      <p class="help">Click a square with the Goal tool to mark it. It's just a colored space. Stamp a pip on it with the Pip tool the same as any other square, and it'll use the "Goal pip" color from the Theme panel above.</p>
+    </details>
+
+    <details>
+      <summary>Path</summary>
+      <p class="help">Click squares in order to trace a route. Click the last square again to remove it.</p>
+      <div class="field">
+        <label for="path-endstyle">End style</label>
+        <select id="path-endstyle">
+          <option value="arrow" selected>Arrow</option>
+          <option value="plain">Plain line</option>
+          <option value="closed">Closed loop</option>
+        </select>
+      </div>
+      <div class="field-grid">
+        <label>Color <input type="color" id="c-pathcolor" value="#8c2f27"></label>
+      </div>
+      <div class="field">
+        <label for="path-thickness">Thickness <span id="path-thickness-val">2.2</span></label>
+        <input type="range" id="path-thickness" min="5" max="60" value="22">
+      </div>
+      <div class="field">
+        <label>Layer <span id="path-layer-val">3</span></label>
+        <div class="button-row">
+          <button class="btn btn-small" id="path-layer-down" title="Move the path down one layer">&#9660; Move down</button>
+          <button class="btn btn-small" id="path-layer-up" title="Move the path up one layer">&#9650; Move up</button>
+        </div>
+        <p class="help">Higher is further front. Pips and the goal sit at 2. Images have their own layer too. Blocks and the die always cover the path.</p>
+      </div>
+      <div class="button-row">
+        <button class="btn btn-small" id="btn-undo-path">Undo last</button>
+        <button class="btn btn-small" id="btn-clear-path">Clear path</button>
+      </div>
+      <div class="button-row">
+        <button class="btn btn-small" id="btn-new-path" title="Finish the current route and start a separate one">Start new segment</button>
+      </div>
+    </details>
+
+    <details>
+      <summary>Space color</summary>
+      <div class="field">
+        <label for="cell-color">Space color to paint <input type="color" id="cell-color" value="#4a7c59"></label>
+        <p class="help">Click a square to paint it. Click a square already this color to revert it.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Pip color</summary>
+      <div class="field">
+        <label for="pip-color">Pip color to paint <input type="color" id="pip-color" value="#c0392b"></label>
+        <p class="help">Click a square to give its pip this color instead of the theme's usual pip color. Doesn't change or require a pip value. Click a square already this color to revert it.</p>
+      </div>
+    </details>
+
+    <details>
+      <summary>Image</summary>
+      <p class="help">Upload a picture, set its size in squares, then use the Image tool to place it. Click a placed image to remove it.</p>
+      <div class="field">
+        <label for="image-upload">Upload image</label>
+        <input type="file" id="image-upload" accept="image/png,image/jpeg">
+      </div>
+      <div class="field" hidden>
+        <span class="help">Ready to place: <strong id="image-pending-name"></strong></span>
+      </div>
+      <div class="field">
+        <label for="sticker-wcols">Width in squares <span id="sticker-wcols-val">1</span></label>
+        <input type="range" id="sticker-wcols" min="1" max="12" value="1">
+      </div>
+      <div class="field">
+        <label for="sticker-hrows">Height in squares <span id="sticker-hrows-val">1</span></label>
+        <input type="range" id="sticker-hrows" min="1" max="12" value="1">
+      </div>
+      <div class="field">
+        <label>Rotation before placing <span id="sticker-rotation-val">0</span>&deg;</label>
+        <button class="btn btn-small" id="btn-sticker-rotate" type="button">Rotate 90&deg;</button>
+      </div>
+      <div class="field">
+        <label>Layer before placing <span id="sticker-layer-val">3</span></label>
+        <div class="button-row">
+          <button class="btn btn-small" id="sticker-layer-down" title="Move down one layer" type="button">&#9660; Move down</button>
+          <button class="btn btn-small" id="sticker-layer-up" title="Move up one layer" type="button">&#9650; Move up</button>
+        </div>
+        <p class="help">Same layering as Path above. Blocks and the die always cover everything.</p>
+      </div>
+      <div class="field">
+        <label for="sticker-fit">Fit style</label>
+        <select id="sticker-fit">
+          <option value="stretch" selected>Stretch to fill</option>
+          <option value="contain">Fit and center</option>
+          <option value="cover">Crop to fill</option>
+        </select>
+        <p class="help">Stretch fills the full size, distorting the image if its proportions don't match. Fit and center keeps proportions and pads the rest. Crop to fill covers the full size with no padding, cutting off any excess.</p>
+      </div>
+      <div class="field">
+        <label for="sticker-opacity">Opacity before placing <span id="sticker-opacity-val">100</span>%</label>
+        <input type="range" id="sticker-opacity" min="0" max="100" value="100">
+      </div>
+      <div class="field row">
+        <label class="checkbox"><input type="checkbox" id="sticker-mirror"> Mirror before placing</label>
+      </div>
+      <div class="field" id="sticker-list"></div>
+    </details>
+
+    <details>
+      <summary>Clear board</summary>
+      <p class="help">Removes blocked spaces, labels, the goal, and images. Keeps board size, theme, and the die.</p>
+      <button class="btn btn-small" id="btn-clear-board">Clear board</button>
+    </details>
+
+    <details>
+      <summary>About this tool</summary>
+      <p class="help">
+        Everything here runs in your browser. Nothing is uploaded anywhere.
+        "Download TikZ" writes a standalone <code>.tex</code> file matching
+        what you see, drawn with plain <code>tikz-3dplot</code> commands at
+        your current angle. "Download PDF" compiles that file to a vector
+        PDF client-side, using a WebAssembly build of pdfTeX. The first
+        compile fetches LaTeX packages over the network and takes longer.
+      </p>
+    </details>
+
+  </aside>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="PdfTeXEngine.js"></script>
+<script src="board.js"></script>
+<script src="tikz.js"></script>
+<script src="pdfexport.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
