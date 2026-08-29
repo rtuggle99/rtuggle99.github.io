@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<title>Pattern Explorer</title>
+<style>
+  :root{
+    --paper:#eaf4fb;
+    --ink:#16324f;
+    --rule:#a9cbe4;
+    --info:#2f6690;
+    --info-soft:#d7ebf7;
+    --danger:#a8384a;
+    --danger-soft:#f6dde1;
+    --good:#2f7a4f;
+    --good-soft:#dcf0e2;
+    --mono: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    line-height:1.5;
+    padding:32px 18px 80px;
+  }
+  .page{
+    max-width:760px;
+    margin:0 auto;
+  }
+  h1{
+    font-family:var(--serif);
+    font-size:1.7rem;
+    font-weight:700;
+    letter-spacing:0.01em;
+    margin:0 0 4px;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:10px;
+  }
+  .subtitle{
+    font-size:0.92rem;
+    color:#3d5a75;
+    font-style:italic;
+    margin:0 0 26px;
+  }
+  .note{
+    font-size:0.86rem;
+    background:var(--info-soft);
+    border-left:3px solid var(--info);
+    padding:10px 14px;
+    margin-bottom:28px;
+  }
+  .note b{color:var(--info);}
+  .note p{margin:0 0 8px;}
+  .note ul{
+    margin:0;
+    padding-left:1.2em;
+  }
+  .note-grouping{
+    margin:10px 0 14px;
+    padding:6px 0;
+    border-top:1px dashed var(--rule);
+    border-bottom:1px dashed var(--rule);
+  }
+  .note-grouping ul{
+    margin:0;
+    padding-left:1.2em;
+  }
+  .note-columns{
+    display:flex;
+    gap:22px;
+    margin-bottom:8px;
+  }
+  .note-col{ flex:1; min-width:0; }
+  .note-col .col-heading{
+    font-size:0.7rem;
+    text-transform:uppercase;
+    letter-spacing:0.09em;
+    font-weight:700;
+    color:var(--info);
+    margin-bottom:5px;
+  }
+  .note-col ul{
+    margin:0;
+    padding-left:1.2em;
+  }
+  .note li{
+    margin-bottom:3px;
+    break-inside:avoid;
+    display:flex;
+    align-items:baseline;
+  }
+  .note li > .reserved{
+    display:inline-block;
+    min-width:1.3em;
+  }
+  .reserved{
+    font-family:'Noto Sans', 'Noto Sans Symbols 2', sans-serif;
+    font-size:1.15em;
+    letter-spacing:0.03em;
+  }
+  .reserved.lower{
+    display:inline-block;
+    transform:translateY(0.15em);
+  }
+  section{
+    margin-bottom:32px;
+  }
+  .label{
+    font-size:0.78rem;
+    text-transform:uppercase;
+    letter-spacing:0.09em;
+    color:#3d5a75;
+    margin-bottom:8px;
+  }
+  .click-edit-wrap{
+    position:relative;
+  }
+  .click-edit-display{
+    cursor:pointer;
+    background:var(--info-soft);
+    border:1.5px solid var(--rule);
+    border-radius:3px;
+    padding:8px 10px;
+    font-family:'Noto Sans', 'Noto Sans Symbols 2', sans-serif;
+    font-size:1.05rem;
+    color:var(--ink);
+    min-height:1.3em;
+    word-break:break-word;
+  }
+  .click-edit-display:hover{
+    filter:brightness(0.97);
+  }
+  .click-edit-display:focus{
+    outline:2px solid var(--ink);
+    outline-offset:1px;
+  }
+  .click-edit-display .placeholder{
+    opacity:0.55;
+  }
+  .click-edit-display sup{
+    font-size:0.75em;
+    vertical-align:super;
+    line-height:0;
+  }
+  .click-edit-input{
+    display:none;
+    width:100%;
+  }
+  .click-edit-wrap.editing .click-edit-display{
+    display:none;
+  }
+  .click-edit-wrap.editing .click-edit-input{
+    display:block;
+  }
+  .field-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family:var(--mono);
+    font-size:1.05rem;
+    margin-bottom:14px;
+  }
+  .flabel{
+    font-family:var(--serif);
+    font-style:normal;
+    font-size:1.1rem;
+    white-space:nowrap;
+  }
+  input[type="text"]{
+    -webkit-appearance:none;
+    appearance:none;
+    font-family:var(--mono), 'Noto Sans Symbols 2', sans-serif !important;
+    font-size:1.05rem;
+    background:#f5fafd;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    padding:8px 10px;
+    color:var(--ink);
+  }
+  #alphabetWrap{
+    width:140px;
+  }
+  #patternWrap{
+    flex:1;
+    min-width:0;
+  }
+  .keyboard{
+    margin-top:2px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .keyboard button{
+    font-family:var(--mono);
+    font-size:1rem;
+    background:#f5fafd;
+    border:1px solid var(--rule);
+    border-radius:3px;
+    padding:6px 12px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .keyboard button:hover{
+    background:var(--info-soft);
+    border-color:var(--info);
+  }
+  .keyboard button .kb-name{
+    font-family:var(--serif);
+    font-size:0.66rem;
+    display:block;
+    color:#3d5a75;
+    margin-top:1px;
+  }
+  .error{
+    margin-top:10px;
+    color:var(--danger);
+    font-size:0.88rem;
+    font-family:var(--mono);
+  }
+  .meta{
+    margin-top:10px;
+    font-size:0.84rem;
+    color:#3d5a75;
+  }
+  .meta span{font-family:var(--mono);}
+
+  .divider{
+    border:none;
+    border-top:1px solid var(--rule);
+    margin:30px 0;
+  }
+
+  .membership-sentence{
+    font-size:1.15rem;
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  #testWrap{
+    width:160px;
+  }
+  .verdict{
+    font-weight:700;
+    padding:2px 10px;
+    border-radius:3px;
+  }
+  .verdict.yes{ background:var(--good-soft); color:var(--good); }
+  .verdict.no{ background:var(--danger-soft); color:var(--danger); }
+  .verdict.pending{ background:#eee; color:#888; }
+
+  .lang-box{
+    font-family:var(--mono);
+    font-size:0.98rem;
+    background:#f5fafd;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    padding:14px 16px;
+    max-height:220px;
+    overflow-y:auto;
+    white-space:pre-wrap;
+    word-break:break-word;
+  }
+  .lang-flag{
+    display:inline-block;
+    margin-top:8px;
+    font-size:0.8rem;
+    color:#3d5a75;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Pattern Explorer</h1>
+  <p class="subtitle">Play with patterns written in the notation of Kozen's <em>Automata and Computability</em>.</p>
+
+  <div class="note">
+    <p><b>Note:</b> parentheses are sometimes allowed to be members of Σ, but this website doesn't allow that.</p>
+    <div class="note-grouping"><ul><li><span class="reserved">( )</span> &mdash; grouping</li></ul></div>
+    <p>The following symbols can't be in Σ, since Kozen's definition reserves them as pattern syntax.</p>
+    <div class="note-columns">
+      <div class="note-col">
+        <div class="col-heading">Atomic</div>
+        <ul>
+          <li><span class="reserved">∅</span> &mdash; empty pattern</li>
+          <li><span class="reserved">ε</span> &mdash; empty string</li>
+          <li><span class="reserved">#</span> &mdash; any single symbol</li>
+          <li><span class="reserved">@</span> &mdash; any string</li>
+        </ul>
+      </div>
+      <div class="note-col">
+        <div class="col-heading">Compound</div>
+        <ul>
+          <li><span class="reserved">∪</span> &mdash; union</li>
+          <li><span class="reserved">∩</span> &mdash; intersection</li>
+          <li><span class="reserved lower">∘</span> &mdash; concatenation</li>
+          <li><span class="reserved">~</span> &mdash; complement</li>
+          <li><span class="reserved">*</span> &mdash; Kleene star</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:8px;">Anything else you type is treated as a character of the alphabet. Concatenation is written by simply placing expressions next to each other (no symbol needed), or you can write the explicit ∘ symbol if you prefer; both mean the same thing.</p>
+  </div>
+
+  <section>
+    <div class="label">Your alphabet</div>
+    <div class="lang-flag" style="margin-top:0; margin-bottom:8px;">Type each character of the alphabet one after another. It displays as a set once you click away.</div>
+    <div class="field-row">
+      <span class="flabel">Σ&nbsp;=</span>
+      <div class="click-edit-wrap" id="alphabetWrap">
+        <div class="click-edit-display" id="alphabetDisplay" tabindex="0" role="button" aria-label="Edit alphabet"></div>
+        <input type="text" class="click-edit-input" id="alphabetInput" autocomplete="off" spellcheck="false" value="01">
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="label">Your pattern</div>
+    <div class="field-row">
+      <span class="flabel">α&nbsp;=</span>
+      <div class="click-edit-wrap" id="patternWrap">
+        <div class="click-edit-display" id="patternDisplay" tabindex="0" role="button" aria-label="Edit pattern"></div>
+        <input type="text" class="click-edit-input" id="patternInput" autocomplete="off" spellcheck="false" value="((0@)∩(@1))">
+      </div>
+    </div>
+    <div class="keyboard" id="keyboard"></div>
+    <div class="error" id="errorBox"></div>
+    <div class="error" id="complementHint"></div>
+  </section>
+
+  <hr class="divider">
+
+  <section>
+    <div class="label">Test membership</div>
+    <div class="membership-sentence">
+      <span>Is</span>
+      <div class="click-edit-wrap" id="testWrap">
+        <div class="click-edit-display" id="testDisplay" tabindex="0" role="button" aria-label="Edit test string"></div>
+        <input type="text" class="click-edit-input" id="testInput" autocomplete="off" spellcheck="false" placeholder="(blank = ε)">
+      </div>
+      <span>in <em class="flabel" style="font-size:inherit; white-space:normal;">L</em>(<em class="flabel" style="font-size:inherit; white-space:normal;">α</em>)?</span>
+      <span class="verdict pending" id="verdictBox">&mdash;</span>
+    </div>
+    <div class="lang-flag">Caution: spaces you type here count as part of the string.</div>
+  </section>
+
+  <hr class="divider">
+
+  <section>
+    <div class="label">The language L(<span style="text-transform:none;">α</span>)</div>
+    <div style="font-size:1.05rem; margin-bottom:8px;"><em class="flabel" style="font-size:inherit; white-space:normal;">L</em>(<em class="flabel" style="font-size:inherit; white-space:normal;">α</em>) =</div>
+    <div class="lang-box" id="langBox"></div>
+    <div class="lang-flag" id="langFlag"></div>
+  </section>
+
+</div>
+
+<script>
+/* ---------- special-character keyboard ---------- */
+const SPECIALS = [
+  {ch:'∅', name:'empty set'},
+  {ch:'ε', name:'epsilon'},
+  {ch:'#', name:'any symbol'},
+  {ch:'@', name:'any string'},
+  {ch:'∪', name:'union'},
+  {ch:'∩', name:'intersect'},
+  {ch:'∘', name:'concat'},
+  {ch:'~', name:'complement'},
+  {ch:'*', name:'star'},
+];
+const kb = document.getElementById('keyboard');
+SPECIALS.forEach(s=>{
+  const btn = document.createElement('button');
+  btn.innerHTML = '<span class="reserved'+(s.ch==='∘' ? ' lower' : '')+'">'+s.ch+'</span><span class="kb-name">'+s.name+'</span>';
+  btn.type = 'button';
+  btn.addEventListener('mousedown', e=> e.preventDefault());
+  btn.addEventListener('click', ()=> {
+    patternWrap.classList.add('editing');
+    insertAtCursor(patternInput, s.ch);
+  });
+  kb.appendChild(btn);
+});
+
+
+function insertAtCursor(input, text){
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0,start) + text + input.value.slice(end);
+  const pos = start + text.length;
+  input.focus();
+  input.setSelectionRange(pos,pos);
+  input.dispatchEvent(new Event('input'));
+}
+
+/* ---------- tokenizer ---------- */
+const RESERVED = new Set(['∪','∩','∘','~','*','(',')','ε','∅','#','@']);
+
+function tokenize(str){
+  const tokens = [];
+  for (const ch of str){
+    if (/\s/.test(ch)) continue;
+    if (ch === '∪') tokens.push({type:'UNION'});
+    else if (ch === '∩') tokens.push({type:'INTERSECT'});
+    else if (ch === '∘') tokens.push({type:'CONCAT'});
+    else if (ch === '~') tokens.push({type:'COMPLEMENT'});
+    else if (ch === '*') tokens.push({type:'STAR'});
+    else if (ch === '(') tokens.push({type:'LPAREN'});
+    else if (ch === ')') tokens.push({type:'RPAREN'});
+    else if (ch === 'ε') tokens.push({type:'EPS'});
+    else if (ch === '∅') tokens.push({type:'EMPTYSET'});
+    else if (ch === '#') tokens.push({type:'HASH'});
+    else if (ch === '@') tokens.push({type:'AT'});
+    else tokens.push({type:'CHAR', value: ch});
+  }
+  return tokens;
+}
+
+/* ---------- recursive-descent parser ---------- */
+/* precedence, low to high: union, intersect, concat, complement, star */
+class Parser{
+  constructor(tokens, alphabetSet){ this.tokens = tokens; this.pos = 0; this.alphabetSet = alphabetSet; }
+  peek(){ return this.tokens[this.pos]; }
+  next(){ return this.tokens[this.pos++]; }
+
+  parse(){
+    if (this.tokens.length === 0){
+      throw new Error('Please enter a pattern.');
+    }
+    const node = this.parseUnion();
+    if (this.pos !== this.tokens.length){
+      const t = this.peek();
+      throw new Error('Unexpected symbol' + (t.value ? ` "${t.value}"` : '') + ' — check your parentheses and operators.');
+    }
+    return node;
+  }
+
+  parseUnion(){
+    let left = this.parseIntersect();
+    while (this.peek() && this.peek().type === 'UNION'){
+      this.next();
+      left = {type:'union', left, right:this.parseIntersect()};
+    }
+    return left;
+  }
+
+  parseIntersect(){
+    let left = this.parseConcat();
+    while (this.peek() && this.peek().type === 'INTERSECT'){
+      this.next();
+      left = {type:'intersect', left, right:this.parseConcat()};
+    }
+    return left;
+  }
+
+  parseConcat(){
+    let left = this.parseUnary();
+    while (this.peek() && (this.peek().type === 'CONCAT' || this.isUnaryStart(this.peek()))){
+      if (this.peek().type === 'CONCAT') this.next();
+      left = {type:'concat', left, right:this.parseUnary()};
+    }
+    return left;
+  }
+
+  isUnaryStart(t){
+    return ['CHAR','EPS','EMPTYSET','HASH','AT','LPAREN','COMPLEMENT'].includes(t.type);
+  }
+
+  parseUnary(){
+    if (this.peek() && this.peek().type === 'COMPLEMENT'){
+      this.next();
+      return {type:'complement', child:this.parseUnary()};
+    }
+    return this.parseStar();
+  }
+
+  parseStar(){
+    let node = this.parseAtom();
+    while (this.peek() && this.peek().type === 'STAR'){
+      this.next();
+      node = {type:'star', child: node};
+    }
+    return node;
+  }
+
+  parseAtom(){
+    const t = this.peek();
+    if (!t){
+      throw new Error('Pattern ends unexpectedly — an operand was expected.');
+    }
+    if (t.type === 'CHAR'){
+      this.next();
+      if (!this.alphabetSet.has(t.value)){
+        throw new Error(`Symbol "${t.value}" is not in the alphabet Σ you declared.`);
+      }
+      return {type:'char', value:t.value};
+    }
+    if (t.type === 'EPS'){ this.next(); return {type:'epsilon'}; }
+    if (t.type === 'EMPTYSET'){ this.next(); return {type:'emptyset'}; }
+    if (t.type === 'HASH'){ this.next(); return {type:'hash'}; }
+    if (t.type === 'AT'){ this.next(); return {type:'at'}; }
+    if (t.type === 'LPAREN'){
+      this.next();
+      const node = this.parseUnion();
+      if (!this.peek() || this.peek().type !== 'RPAREN'){
+        throw new Error('Missing closing parenthesis ")".');
+      }
+      this.next();
+      return node;
+    }
+    if (t.type === 'UNION') throw new Error('Unexpected "∪" — a union needs an expression on both sides.');
+    if (t.type === 'INTERSECT') throw new Error('Unexpected "∩" — an intersection needs an expression on both sides.');
+    if (t.type === 'CONCAT') throw new Error('Unexpected "∘" — concatenation needs an expression on both sides.');
+    if (t.type === 'STAR') throw new Error('Unexpected "*" — star must follow an expression.');
+    if (t.type === 'RPAREN') throw new Error('Unexpected ")" with no matching "(".');
+    throw new Error('Could not parse the pattern.');
+  }
+}
+
+/* ---------- DFA construction ---------- */
+function dfaEmptySet(alphabet){
+  const trans=[{}];
+  for(const c of alphabet) trans[0][c]=0;
+  return {size:1, trans, start:0, accept:[false]};
+}
+function dfaEpsilon(alphabet){
+  const trans=[{},{}];
+  for(const c of alphabet){ trans[0][c]=1; trans[1][c]=1; }
+  return {size:2, trans, start:0, accept:[true,false]};
+}
+function dfaChar(alphabet, ch){
+  const trans=[{},{},{}];
+  for(const c of alphabet){
+    trans[0][c] = (c===ch)?1:2;
+    trans[1][c] = 2;
+    trans[2][c] = 2;
+  }
+  return {size:3, trans, start:0, accept:[false,true,false]};
+}
+function dfaHash(alphabet){
+  const trans=[{},{},{}];
+  for(const c of alphabet){
+    trans[0][c] = 1;
+    trans[1][c] = 2;
+    trans[2][c] = 2;
+  }
+  return {size:3, trans, start:0, accept:[false,true,false]};
+}
+function dfaAt(alphabet){
+  const trans=[{}];
+  for(const c of alphabet) trans[0][c]=0;
+  return {size:1, trans, start:0, accept:[true]};
+}
+function dfaComplement(d){
+  return {size:d.size, trans:d.trans, start:d.start, accept:d.accept.map(a=>!a)};
+}
+function dfaProduct(d1,d2,alphabet,combine){
+  const size = d1.size*d2.size;
+  const idOf=(i,j)=> i*d2.size+j;
+  const trans = new Array(size);
+  const accept = new Array(size);
+  for(let i=0;i<d1.size;i++){
+    for(let j=0;j<d2.size;j++){
+      const id = idOf(i,j);
+      trans[id] = {};
+      for(const c of alphabet) trans[id][c] = idOf(d1.trans[i][c], d2.trans[j][c]);
+      accept[id] = combine(d1.accept[i], d2.accept[j]);
+    }
+  }
+  return {size, trans, start:idOf(d1.start,d2.start), accept};
+}
+function dfaUnion(d1,d2,alphabet){ return dfaProduct(d1,d2,alphabet,(a,b)=>a||b); }
+function dfaIntersect(d1,d2,alphabet){ return dfaProduct(d1,d2,alphabet,(a,b)=>a&&b); }
+
+function dfaToNFAFragment(d){
+  const n=d.size;
+  const eps = Array.from({length:n},()=>[]);
+  const trans = d.trans.map(row=>{
+    const o={};
+    for(const c in row) o[c]=[row[c]];
+    return o;
+  });
+  const acceptIds = d.accept.map((a,i)=>a?i:-1).filter(x=>x>=0);
+  return {n, eps, trans, start:d.start, acceptIds};
+}
+function concatNFA(d1,d2){
+  const f1 = dfaToNFAFragment(d1);
+  const f2 = dfaToNFAFragment(d2);
+  const offset = f1.n;
+  const n = f1.n + f2.n;
+  const eps = Array.from({length:n},()=>[]);
+  const trans = Array.from({length:n},()=>({}));
+  for(let i=0;i<f1.n;i++){ eps[i]=f1.eps[i].slice(); trans[i]=Object.assign({},f1.trans[i]); }
+  for(let i=0;i<f2.n;i++){
+    eps[offset+i]=f2.eps[i].map(x=>x+offset);
+    const o={}; for(const c in f2.trans[i]) o[c]=f2.trans[i][c].map(x=>x+offset);
+    trans[offset+i]=o;
+  }
+  for(const a of f1.acceptIds) eps[a].push(offset+f2.start);
+  const acceptIds = f2.acceptIds.map(x=>x+offset);
+  return {n, eps, trans, start:f1.start, acceptIds};
+}
+function starNFA(d){
+  const f = dfaToNFAFragment(d);
+  const n = f.n+1;
+  const newStart = f.n;
+  const eps = Array.from({length:n},()=>[]);
+  const trans = Array.from({length:n},()=>({}));
+  for(let i=0;i<f.n;i++){ eps[i]=f.eps[i].slice(); trans[i]=Object.assign({},f.trans[i]); }
+  eps[newStart].push(f.start);
+  for(const a of f.acceptIds) eps[a].push(newStart);
+  return {n, eps, trans, start:newStart, acceptIds:[newStart]};
+}
+function epsilonClosureNFA(nfa, ids){
+  const stack=[...ids]; const visited=new Set(ids);
+  while(stack.length){
+    const id=stack.pop();
+    for(const e of nfa.eps[id]){ if(!visited.has(e)){ visited.add(e); stack.push(e); } }
+  }
+  return visited;
+}
+function subsetConstruct(nfa, alphabet, budget){
+  const acceptSet = new Set(nfa.acceptIds);
+  const key = arr=>arr.join(',');
+  const stateOfKey = new Map();
+  const subsets = [];
+  const queue = [];
+  function idFor(subsetArr){
+    const k = key(subsetArr);
+    if (stateOfKey.has(k)) return stateOfKey.get(k);
+    if (subsets.length > budget) throw new Error('This pattern is too complex to build an automaton for.');
+    const id = subsets.length;
+    stateOfKey.set(k,id);
+    subsets.push(subsetArr);
+    queue.push(id);
+    return id;
+  }
+  const startClosure = [...epsilonClosureNFA(nfa,[nfa.start])].sort((a,b)=>a-b);
+  const startId = idFor(startClosure);
+  const trans = [];
+  const accept = [];
+  let qi = 0;
+  while (qi < queue.length){
+    const id = queue[qi++];
+    const subset = subsets[id];
+    trans[id] = {};
+    accept[id] = subset.some(s=>acceptSet.has(s));
+    for (const c of alphabet){
+      const moved = new Set();
+      for (const s of subset){ const t = nfa.trans[s][c]; if (t) for (const x of t) moved.add(x); }
+      const closure = [...epsilonClosureNFA(nfa,[...moved])].sort((a,b)=>a-b);
+      trans[id][c] = idFor(closure);
+    }
+  }
+  return {size: subsets.length, trans, start: startId, accept};
+}
+
+const SIZE_BUDGET = 8000;
+function usesComplement(node){
+  if (!node) return false;
+  if (node.type === 'complement') return true;
+  if (node.left && usesComplement(node.left)) return true;
+  if (node.right && usesComplement(node.right)) return true;
+  if (node.child && usesComplement(node.child)) return true;
+  return false;
+}
+
+function buildDFA(node, alphabet){
+  switch(node.type){
+    case 'emptyset': return dfaEmptySet(alphabet);
+    case 'epsilon': return dfaEpsilon(alphabet);
+    case 'char': return dfaChar(alphabet, node.value);
+    case 'hash':
+      if (alphabet.length===0) throw new Error('"#" requires a non-empty alphabet Σ.');
+      return dfaHash(alphabet);
+    case 'at': return dfaAt(alphabet);
+    case 'complement': return dfaComplement(buildDFA(node.child, alphabet));
+    case 'union': return dfaUnion(buildDFA(node.left,alphabet), buildDFA(node.right,alphabet), alphabet);
+    case 'intersect': return dfaIntersect(buildDFA(node.left,alphabet), buildDFA(node.right,alphabet), alphabet);
+    case 'concat': return subsetConstruct(concatNFA(buildDFA(node.left,alphabet), buildDFA(node.right,alphabet)), alphabet, SIZE_BUDGET);
+    case 'star': return subsetConstruct(starNFA(buildDFA(node.child,alphabet)), alphabet, SIZE_BUDGET);
+  }
+}
+
+/* ---------- membership ---------- */
+function testMembership(dfa, str){
+  let state = dfa.start;
+  for (const ch of str){
+    if (!(ch in dfa.trans[state])) return false; // symbol outside declared alphabet
+    state = dfa.trans[state][ch];
+  }
+  return dfa.accept[state];
+}
+
+/* ---------- finiteness / enumeration ---------- */
+function computeReachable(dfa, alphabet){
+  const seen = new Set([dfa.start]);
+  const stack=[dfa.start];
+  while(stack.length){
+    const id=stack.pop();
+    for(const c of alphabet){ const t=dfa.trans[id][c]; if(!seen.has(t)){seen.add(t); stack.push(t);} }
+  }
+  return seen;
+}
+function computeCoReachable(dfa, alphabet){
+  const n = dfa.size;
+  const rev = Array.from({length:n},()=>[]);
+  for(let s=0;s<n;s++) for(const c of alphabet) rev[dfa.trans[s][c]].push(s);
+  const acceptIds = dfa.accept.map((a,i)=>a?i:-1).filter(x=>x>=0);
+  const seen = new Set(acceptIds);
+  const stack=[...acceptIds];
+  while(stack.length){ const id=stack.pop(); for(const nb of rev[id]){ if(!seen.has(nb)){seen.add(nb); stack.push(nb);} } }
+  return seen;
+}
+function isFiniteDFA(dfa, alphabet){
+  const reachable = computeReachable(dfa, alphabet);
+  const coReachable = computeCoReachable(dfa, alphabet);
+  const trimmed = new Set([...reachable].filter(id=>coReachable.has(id)));
+  if (!trimmed.has(dfa.start)) return true;
+  const n = dfa.size;
+  const WHITE=0,GRAY=1,BLACK=2;
+  const color = new Array(n).fill(WHITE);
+  let hasCycle = false;
+  function dfsVisit(u){
+    color[u]=GRAY;
+    for(const c of alphabet){
+      if (hasCycle) return;
+      const v = dfa.trans[u][c];
+      if (!trimmed.has(v)) continue;
+      if (color[v]===WHITE) dfsVisit(v);
+      else if (color[v]===GRAY) hasCycle = true;
+    }
+    color[u]=BLACK;
+  }
+  dfsVisit(dfa.start);
+  return !hasCycle;
+}
+function enumerateDFA(dfa, alphabet, finite){
+  const results=[];
+  const MAX_RESULTS_INFINITE=15;
+  const MAX_LEN_FINITE=40;
+  const BUDGET=200000;
+  let truncated=false; let budget=BUDGET;
+  const coReachable = computeCoReachable(dfa, alphabet);
+  if (!coReachable.has(dfa.start)) return {strings:[], truncated:false};
+  if (dfa.accept[dfa.start]) results.push('');
+  const queue=[{state:dfa.start, str:''}];
+  let qi=0;
+  while(qi<queue.length){
+    const {state,str}=queue[qi++];
+    budget--; if(budget<=0){ truncated=true; break; }
+    if (!finite && results.length>=MAX_RESULTS_INFINITE) break;
+    if (finite && str.length>=MAX_LEN_FINITE) continue;
+    if (!finite && str.length>=60) continue;
+    for(const c of alphabet){
+      const next = dfa.trans[state][c];
+      if (!coReachable.has(next)) continue;
+      const newStr = str+c;
+      if (dfa.accept[next]) results.push(newStr);
+      queue.push({state:next, str:newStr});
+      if (!finite && results.length>=MAX_RESULTS_INFINITE) break;
+    }
+  }
+  return {strings:results, truncated};
+}
+
+/* ---------- UI glue ---------- */
+const alphabetInput = document.getElementById('alphabetInput');
+const patternInput = document.getElementById('patternInput');
+const testInput = document.getElementById('testInput');
+const alphabetWrap = document.getElementById('alphabetWrap');
+const alphabetDisplay = document.getElementById('alphabetDisplay');
+const patternWrap = document.getElementById('patternWrap');
+const patternDisplay = document.getElementById('patternDisplay');
+const testWrap = document.getElementById('testWrap');
+const testDisplay = document.getElementById('testDisplay');
+const errorBox = document.getElementById('errorBox');
+const complementHint = document.getElementById('complementHint');
+const verdictBox = document.getElementById('verdictBox');
+const langBox = document.getElementById('langBox');
+const langFlag = document.getElementById('langFlag');
+
+let currentDFA = null;
+
+function formatList(strings){
+  return strings.map(s => s === '' ? 'ε' : s).join(', ');
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ---------- generic click-to-edit behavior ---------- */
+function setupClickToEdit(wrap, displayEl, inputEl, formatFn){
+  function showDisplay(){
+    wrap.classList.remove('editing');
+    displayEl.innerHTML = formatFn(inputEl.value);
+  }
+  function showInput(){
+    wrap.classList.add('editing');
+    inputEl.focus();
+    inputEl.select();
+  }
+  displayEl.addEventListener('click', showInput);
+  displayEl.addEventListener('keydown', e=>{
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); showInput(); }
+  });
+  inputEl.addEventListener('blur', showDisplay);
+  inputEl.addEventListener('keydown', e=>{
+    if (e.key === 'Enter'){ e.preventDefault(); inputEl.blur(); }
+  });
+  showDisplay();
+}
+
+function formatAlphabetDisplay(raw){
+  if (raw === '') return '<span class="placeholder">click to type your alphabet</span>';
+  try{
+    const alphabet = parseAlphabetString(raw);
+    return '{ ' + (alphabet.length ? escapeHtml(alphabet.join(', ')) : '&mdash;') + ' }';
+  } catch(err){
+    return '<span style="color:var(--danger);">' + escapeHtml(err.message) + '</span>';
+  }
+}
+function formatPatternDisplay(raw){
+  if (raw === '') return '<span class="placeholder">click to type a pattern</span>';
+  return escapeHtml(raw).replace(/\*/g, '<sup>*</sup>');
+}
+function formatTestDisplay(raw){
+  if (raw === '') return 'ε';
+  return escapeHtml(raw);
+}
+
+
+function parseAlphabetString(raw){
+  const chars = [...raw].filter(c => !/\s/.test(c));
+  const bad = chars.filter(c => RESERVED.has(c));
+  if (bad.length){
+    throw new Error('Σ cannot include reserved symbols (found "' + bad[0] + '").');
+  }
+  return [...new Set(chars)].sort();
+}
+
+function getAlphabet(){
+  return parseAlphabetString(alphabetInput.value);
+}
+
+function render(){
+  errorBox.textContent = '';
+  complementHint.textContent = '';
+
+  try{
+    const alphabet = getAlphabet();
+    const alphabetSet = new Set(alphabet);
+    const tokens = tokenize(patternInput.value);
+    const ast = new Parser(tokens, alphabetSet).parse();
+    if (usesComplement(ast)){
+      complementHint.textContent = 'Caution: ~ only applies to the single term right after it, so ~XY means (~X)Y and ~X∪Y means (~X)∪Y. The one exception is star, so ~X* means ~(X*). Use parentheses to control the grouping, like ~(XY) or (~X)*.';
+    }
+    const dfa = buildDFA(ast, alphabet);
+    const finite = isFiniteDFA(dfa, alphabet);
+    const {strings, truncated} = enumerateDFA(dfa, alphabet, finite);
+
+    currentDFA = dfa;
+
+    if (strings.length === 0 && finite){
+      langBox.textContent = '{} (this language contains no strings)';
+    } else {
+      langBox.textContent = '{' + formatList(strings) + (!finite ? ', …' : '') + '}';
+    }
+
+    langFlag.textContent = finite
+      ? 'This language is finite (' + strings.length + ' string' + (strings.length===1?'':'s') + '), listed shortest-first, then alphabetically.'
+      : 'This language is infinite: the first ' + strings.length + ' strings are shown, listed shortest-first, then alphabetically.';
+    if (truncated){
+      langFlag.textContent += ' (Enumeration stopped early — this expression is very complex.)';
+    }
+
+  } catch(err){
+    currentDFA = null;
+    errorBox.textContent = err.message;
+    complementHint.textContent = '';
+    langBox.textContent = '{}';
+    langFlag.textContent = '';
+  }
+
+  updateVerdict();
+}
+
+function updateVerdict(){
+  const val = testInput.value;
+  if (!currentDFA){
+    verdictBox.textContent = '\u2014';
+    verdictBox.className = 'verdict pending';
+    return;
+  }
+  for (const ch of val){
+    if (RESERVED.has(ch)){
+      verdictBox.textContent = 'invalid char';
+      verdictBox.className = 'verdict pending';
+      return;
+    }
+  }
+  const inLang = testMembership(currentDFA, val);
+  verdictBox.textContent = inLang ? 'Yes' : 'No';
+  verdictBox.className = 'verdict ' + (inLang ? 'yes' : 'no');
+}
+
+alphabetInput.addEventListener('input', render);
+patternInput.addEventListener('input', render);
+testInput.addEventListener('input', updateVerdict);
+setupClickToEdit(alphabetWrap, alphabetDisplay, alphabetInput, formatAlphabetDisplay);
+setupClickToEdit(patternWrap, patternDisplay, patternInput, formatPatternDisplay);
+setupClickToEdit(testWrap, testDisplay, testInput, formatTestDisplay);
+
+render();
+</script>
+</body>
+</html>
