@@ -1,0 +1,891 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
+<title>Regular Expression Explorer</title>
+<style>
+  :root{
+    --paper:#eaf4fb;
+    --ink:#16324f;
+    --rule:#a9cbe4;
+    --info:#2f6690;
+    --info-soft:#d7ebf7;
+    --danger:#a8384a;
+    --danger-soft:#f6dde1;
+    --good:#2f7a4f;
+    --good-soft:#dcf0e2;
+    --mono: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    line-height:1.5;
+    padding:32px 18px 80px;
+  }
+  .page{
+    max-width:760px;
+    margin:0 auto;
+  }
+  h1{
+    font-family:var(--serif);
+    font-size:1.7rem;
+    font-weight:700;
+    letter-spacing:0.01em;
+    margin:0 0 4px;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:10px;
+  }
+  .subtitle{
+    font-size:0.92rem;
+    color:#3d5a75;
+    font-style:italic;
+    margin:0 0 26px;
+  }
+  .note{
+    font-size:0.86rem;
+    background:var(--info-soft);
+    border-left:3px solid var(--info);
+    padding:10px 14px;
+    margin-bottom:28px;
+  }
+  .note b{color:var(--info);}
+  .note p{margin:0 0 8px;}
+  .note ul{
+    margin:0;
+    padding-left:1.2em;
+  }
+  .note-grouping{
+    margin:10px 0 14px;
+    padding:6px 0;
+    border-top:1px dashed var(--rule);
+    border-bottom:1px dashed var(--rule);
+  }
+  .note-grouping ul{
+    margin:0;
+    padding-left:0;
+    list-style:none;
+  }
+  .note-columns{
+    display:flex;
+    gap:22px;
+    margin-bottom:8px;
+  }
+  .note-col{ flex:1; min-width:0; }
+  .note-col .col-heading{
+    font-size:0.7rem;
+    text-transform:uppercase;
+    letter-spacing:0.09em;
+    font-weight:700;
+    color:var(--info);
+    margin-bottom:5px;
+  }
+  .note-col ul{
+    margin:0;
+    padding-left:0;
+    list-style:none;
+  }
+  .note li{
+    margin-bottom:3px;
+    display:flex;
+    align-items:baseline;
+  }
+  .note li > .reserved{
+    display:inline-block;
+    min-width:1.3em;
+    text-align:center;
+  }
+  .reserved{
+    font-family:'Noto Sans', 'Noto Sans Symbols 2', sans-serif;
+    font-size:1.15em;
+    letter-spacing:0.03em;
+  }
+
+
+  section{
+    margin-bottom:32px;
+  }
+  .label{
+    font-size:0.78rem;
+    text-transform:uppercase;
+    letter-spacing:0.09em;
+    color:#3d5a75;
+    margin-bottom:8px;
+  }
+  .regex-row{
+    display:flex;
+    align-items:center;
+    gap:10px;
+    font-family:var(--mono);
+    font-size:1.15rem;
+  }
+  .click-edit-wrap{
+    position:relative;
+  }
+  .click-edit-display{
+    cursor:pointer;
+    background:var(--info-soft);
+    border:1.5px solid var(--rule);
+    border-radius:3px;
+    padding:8px 10px;
+    font-family:'Noto Sans', 'Noto Sans Symbols 2', sans-serif;
+    font-size:1.05rem;
+    color:var(--ink);
+    min-height:1.3em;
+    word-break:break-word;
+  }
+  .click-edit-display:hover{
+    filter:brightness(0.97);
+  }
+  .click-edit-display:focus{
+    outline:2px solid var(--ink);
+    outline-offset:1px;
+  }
+  .click-edit-display .placeholder{
+    opacity:0.55;
+  }
+  .click-edit-display sup{
+    font-size:0.75em;
+    vertical-align:super;
+    line-height:0;
+  }
+  .click-edit-input{
+    display:none;
+    width:100%;
+  }
+  .click-edit-wrap.editing .click-edit-display{
+    display:none;
+  }
+  .click-edit-wrap.editing .click-edit-input{
+    display:block;
+  }
+  .rlabel{
+    font-family:var(--serif);
+    font-style:normal;
+    font-size:1.15rem;
+  }
+  input[type="text"]{
+    -webkit-appearance:none;
+    appearance:none;
+    font-family:var(--mono), 'Noto Sans Symbols 2', sans-serif !important;
+    font-size:1.05rem;
+    background:#f5fafd;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    padding:8px 10px;
+    color:var(--ink);
+  }
+  #regexWrap{
+    flex:1;
+    min-width:0;
+  }
+  .keyboard{
+    margin-top:12px;
+    display:flex;
+    flex-wrap:wrap;
+    gap:6px;
+  }
+  .keyboard button{
+    font-family:var(--mono);
+    font-size:1rem;
+    background:#f5fafd;
+    border:1px solid var(--rule);
+    border-radius:3px;
+    padding:6px 12px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  .keyboard button:hover{
+    background:var(--info-soft);
+    border-color:var(--info);
+  }
+  .keyboard button .kb-name{
+    font-family:var(--serif);
+    font-size:0.68rem;
+    display:block;
+    color:#4d6a82;
+    margin-top:1px;
+  }
+  .error{
+    margin-top:10px;
+    color:var(--danger);
+    font-size:0.88rem;
+    font-family:var(--mono);
+  }
+  .meta{
+    margin-top:10px;
+    font-size:0.84rem;
+    color:#3d5a75;
+  }
+  .meta span{font-family:var(--mono);}
+
+  .divider{
+    border:none;
+    border-top:1px solid var(--rule);
+    margin:30px 0;
+  }
+
+  .membership-sentence{
+    font-size:1.15rem;
+    display:flex;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:8px;
+  }
+  #testWrap{
+    width:160px;
+  }
+  .verdict{
+    font-weight:700;
+    padding:2px 10px;
+    border-radius:3px;
+  }
+  .verdict.yes{ background:var(--good-soft); color:var(--good); }
+  .verdict.no{ background:var(--danger-soft); color:var(--danger); }
+  .verdict.pending{ background:#eee; color:#888; }
+
+  .lang-box{
+    font-family:var(--mono);
+    font-size:0.98rem;
+    background:#ffffff;
+    border:1px solid var(--rule);
+    border-radius:3px;
+    padding:14px 16px;
+    max-height:220px;
+    overflow-y:auto;
+    white-space:pre-wrap;
+    word-break:break-word;
+    cursor:default;
+  }
+  .lang-flag{
+    display:inline-block;
+    margin-top:8px;
+    font-size:0.8rem;
+    color:#3d5a75;
+  }
+  footer{
+    margin-top:50px;
+    font-size:0.78rem;
+    color:#6f93ab;
+    border-top:1px solid var(--rule);
+    padding-top:14px;
+  }
+</style>
+</head>
+<body>
+<div class="page">
+
+  <h1>Regular Expression Explorer</h1>
+  <p class="subtitle">Play with regular expressions written in the notation of Sipser's <em>Introduction to the Theory of Computation</em>.</p>
+
+  <div class="note">
+    <p><b>Note:</b> parentheses are sometimes allowed to be members of Σ, but this website doesn't allow that.</p>
+    <div class="note-grouping"><ul><li><span class="reserved">( )</span> &mdash; grouping</li></ul></div>
+    <p>The following symbols can't be in Σ, since Sipser's definition reserves them as RegEx syntax.</p>
+    <div class="note-columns">
+      <div class="note-col">
+        <div class="col-heading">Atomic</div>
+        <ul>
+          <li><span class="reserved">∅</span> &mdash; empty set</li>
+          <li><span class="reserved">ε</span> &mdash; empty string</li>
+        </ul>
+      </div>
+      <div class="note-col">
+        <div class="col-heading">Compound</div>
+        <ul>
+          <li><span class="reserved">∪</span> &mdash; union</li>
+          <li><span class="reserved">∘</span> &mdash; concatenation</li>
+          <li><span class="reserved">*</span> &mdash; Kleene star</li>
+        </ul>
+      </div>
+    </div>
+    <p style="margin-top:8px;">Anything else you type is treated as a character of the alphabet. Concatenation is written by simply placing expressions next to each other (no symbol needed), or you can write the explicit <span class="reserved">∘</span> symbol if you prefer; both mean the same thing.</p>
+  </div>
+
+  <section>
+    <div class="label">Your regular expression</div>
+    <div class="regex-row">
+      <span class="rlabel">R&nbsp;=</span>
+      <div class="click-edit-wrap" id="regexWrap">
+        <div class="click-edit-display" id="regexDisplay" tabindex="0" role="button" aria-label="Edit regular expression"></div>
+        <input type="text" class="click-edit-input" id="regexInput" autocomplete="off" spellcheck="false" value="(0∪1)*1">
+      </div>
+    </div>
+    <div class="keyboard" id="keyboard"></div>
+    <div class="error" id="errorBox"></div>
+    <div class="meta" id="metaBox"></div>
+  </section>
+
+  <hr class="divider">
+
+  <section>
+    <div class="label">Test membership</div>
+    <div class="membership-sentence">
+      <span>Is</span>
+      <div class="click-edit-wrap" id="testWrap">
+        <div class="click-edit-display" id="testDisplay" tabindex="0" role="button" aria-label="Edit test string"></div>
+        <input type="text" class="click-edit-input" id="testInput" autocomplete="off" spellcheck="false" placeholder="(blank = ε)">
+      </div>
+      <span>in <em class="rlabel" style="font-size:inherit;">L</em>(<em class="rlabel" style="font-size:inherit;">R</em>)?</span>
+      <span class="verdict pending" id="verdictBox">&mdash;</span>
+    </div>
+    <div class="lang-flag">Note: spaces you type here are ignored.</div>
+  </section>
+
+  <hr class="divider">
+
+  <section>
+    <div class="label">The language L(R)</div>
+    <div style="font-size:1.05rem; margin-bottom:8px;"><em class="rlabel" style="font-size:inherit;">L</em>(<em class="rlabel" style="font-size:inherit;">R</em>) =</div>
+    <div class="lang-box" id="langBox"></div>
+    <div class="lang-flag" id="langFlag"></div>
+  </section>
+</div>
+
+<script>
+/* ---------- special-character keyboard ---------- */
+const SPECIALS = [
+  {ch:'∅', name:'empty set'},
+  {ch:'ε', name:'epsilon'},
+  {ch:'∪', name:'union'},
+  {ch:'∘', name:'concat'},
+  {ch:'*', name:'star'},
+];
+const kb = document.getElementById('keyboard');
+SPECIALS.forEach(s=>{
+  const btn = document.createElement('button');
+  btn.innerHTML = '<span class="reserved">'+s.ch+'</span><span class="kb-name">'+s.name+'</span>';
+  btn.type = 'button';
+  btn.addEventListener('mousedown', e=> e.preventDefault());
+  btn.addEventListener('click', ()=> {
+    regexWrap.classList.add('editing');
+    insertAtCursor(regexInput, s.ch);
+  });
+  kb.appendChild(btn);
+});
+
+
+function insertAtCursor(input, text){
+  const start = input.selectionStart ?? input.value.length;
+  const end = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0,start) + text + input.value.slice(end);
+  const pos = start + text.length;
+  input.focus();
+  input.setSelectionRange(pos,pos);
+  input.dispatchEvent(new Event('input'));
+}
+
+/* ---------- tokenizer ---------- */
+const RESERVED = new Set(['∪','∘','*','(',')','ε','∅']);
+
+function tokenize(str){
+  const tokens = [];
+  for (const ch of str){
+    if (/\s/.test(ch)) continue;
+    if (ch === '∪') tokens.push({type:'UNION'});
+    else if (ch === '∘') tokens.push({type:'CONCAT'});
+    else if (ch === '*') tokens.push({type:'STAR'});
+    else if (ch === '(') tokens.push({type:'LPAREN'});
+    else if (ch === ')') tokens.push({type:'RPAREN'});
+    else if (ch === 'ε') tokens.push({type:'EPS'});
+    else if (ch === '∅') tokens.push({type:'EMPTYSET'});
+    else tokens.push({type:'CHAR', value: ch});
+  }
+  return tokens;
+}
+
+/* ---------- recursive-descent parser ---------- */
+class Parser{
+  constructor(tokens){ this.tokens = tokens; this.pos = 0; }
+  peek(){ return this.tokens[this.pos]; }
+  next(){ return this.tokens[this.pos++]; }
+
+  parse(){
+    if (this.tokens.length === 0){
+      throw new Error('Please enter a regular expression.');
+    }
+    const node = this.parseUnion();
+    if (this.pos !== this.tokens.length){
+      const t = this.peek();
+      throw new Error('Unexpected symbol' + (t.value ? ` "${t.value}"` : '') + ' — check your parentheses.');
+    }
+    return node;
+  }
+
+  parseUnion(){
+    let left = this.parseConcat();
+    while (this.peek() && this.peek().type === 'UNION'){
+      this.next();
+      const right = this.parseConcat();
+      left = {type:'union', left, right};
+    }
+    return left;
+  }
+
+  parseConcat(){
+    let left = this.parseStar();
+    while (this.peek() && (this.peek().type === 'CONCAT' || ['CHAR','EPS','EMPTYSET','LPAREN'].includes(this.peek().type))){
+      const explicit = this.peek().type === 'CONCAT';
+      if (explicit) this.next();
+      const right = this.parseStar();
+      left = {type:'concat', left, right, explicitOp: explicit};
+    }
+    return left;
+  }
+
+  parseStar(){
+    let node = this.parseAtom();
+    while (this.peek() && this.peek().type === 'STAR'){
+      this.next();
+      node = {type:'star', child: node};
+    }
+    return node;
+  }
+
+  parseAtom(){
+    const t = this.peek();
+    if (!t){
+      throw new Error('Regular expression ends unexpectedly — an operand was expected.');
+    }
+    if (t.type === 'CHAR'){ this.next(); return {type:'char', value:t.value}; }
+    if (t.type === 'EPS'){ this.next(); return {type:'epsilon'}; }
+    if (t.type === 'EMPTYSET'){ this.next(); return {type:'emptyset'}; }
+    if (t.type === 'LPAREN'){
+      this.next();
+      const node = this.parseUnion();
+      if (!this.peek() || this.peek().type !== 'RPAREN'){
+        throw new Error('Missing closing parenthesis ")".');
+      }
+      this.next();
+      node.paren = true;
+      return node;
+    }
+    if (t.type === 'UNION') throw new Error('Unexpected "∪" — a union needs an expression on both sides.');
+    if (t.type === 'CONCAT') throw new Error('Unexpected "∘" — concatenation needs an expression on both sides.');
+    if (t.type === 'STAR') throw new Error('Unexpected "*" — star must follow an expression.');
+    if (t.type === 'RPAREN') throw new Error('Unexpected ")" with no matching "(".');
+    throw new Error('Could not parse the expression.');
+  }
+}
+
+/* ---------- LaTeX rendering of the parsed expression (for the display box) ---------- */
+const TEX_ESCAPES = {'\\':'\\backslash{}','{':'\\{','}':'\\}','#':'\\#','$':'\\$','%':'\\%','&':'\\&','_':'\\_','^':'\\^{}','~':'\\~{}'};
+function texEscapeChar(c){ return TEX_ESCAPES[c] || c; }
+// flattens a chain of the same associative operator into its pieces, but stops (treats as opaque)
+// at any node the person explicitly wrapped in parens, so that grouping is never silently dropped.
+// each concat piece also records whether an explicit '∘' preceded it (vs. plain juxtaposition),
+// since a single concat chain can freely mix both and that distinction must be preserved.
+function flattenConcat(n){
+  const parts = [];
+  function visit(node, explicitBefore){
+    if (node.type==='concat' && !node.paren){
+      visit(node.left, explicitBefore);
+      visit(node.right, node.explicitOp);
+    } else {
+      parts.push({node, explicitBefore});
+    }
+  }
+  visit(n.left, false);
+  visit(n.right, n.explicitOp);
+  return parts;
+}
+function flattenUnion(n){
+  const parts = [];
+  (function visit(node){ if (node.type==='union' && !node.paren){ visit(node.left); visit(node.right); } else parts.push(node); })(n.left);
+  (function visit(node){ if (node.type==='union' && !node.paren){ visit(node.left); visit(node.right); } else parts.push(node); })(n.right);
+  return parts;
+}
+// the ONLY parens ever emitted are ones the person actually typed (tracked via node.paren)
+function toLatex(n){
+  if (!n) return '';
+  const core = toLatexCore(n);
+  return n.paren ? '\\left('+core+'\\right)' : core;
+}
+function toLatexCore(n){
+  switch(n.type){
+    case 'epsilon': return '\\varepsilon';
+    case 'emptyset': return '\\emptyset';
+    case 'char': return texEscapeChar(n.value);
+    case 'star': return toLatex(n.child) + '^{*}';
+    case 'concat': return flattenConcat(n).map(p=>(p.explicitBefore ? ' \\circ ' : '') + toLatex(p.node)).join('');
+    case 'union': return flattenUnion(n).map(toLatex).join(' \\cup ');
+  }
+}
+
+// LaTeX for each reserved symbol, used to render both the top-of-page legend and the
+// on-screen keyboard buttons (both reuse the .reserved class for their symbol badges)
+const RESERVED_SYMBOL_LATEX = {
+  '( )': '(\\;)', '∅':'\\emptyset', 'ε':'\\varepsilon', '∪':'\\cup', '∘':'\\circ', '*':'*'
+};
+function renderReservedSymbolBadges(){
+  if (typeof katex === 'undefined') return;
+  document.querySelectorAll('.note .reserved, #keyboard .reserved').forEach(el=>{
+    const latex = RESERVED_SYMBOL_LATEX[el.textContent];
+    if (latex !== undefined) el.innerHTML = katex.renderToString(latex, {throwOnError:false});
+  });
+}
+renderReservedSymbolBadges();
+
+/* ---------- Thompson construction ---------- */
+function buildNFA(ast){
+  let idCounter = 0;
+  const states = [];
+  function newState(){
+    const s = {id: idCounter++, trans:{}, eps:[]};
+    states.push(s);
+    return s;
+  }
+  function build(node){
+    switch(node.type){
+      case 'char': {
+        const s0 = newState(), s1 = newState();
+        s0.trans[node.value] = [s1.id];
+        return {start:s0, accept:s1};
+      }
+      case 'epsilon': {
+        const s0 = newState(), s1 = newState();
+        s0.eps.push(s1.id);
+        return {start:s0, accept:s1};
+      }
+      case 'emptyset': {
+        const s0 = newState(), s1 = newState();
+        return {start:s0, accept:s1};
+      }
+      case 'concat': {
+        const l = build(node.left), r = build(node.right);
+        l.accept.eps.push(r.start.id);
+        return {start:l.start, accept:r.accept};
+      }
+      case 'union': {
+        const s0 = newState(), s1 = newState();
+        const l = build(node.left), r = build(node.right);
+        s0.eps.push(l.start.id, r.start.id);
+        l.accept.eps.push(s1.id);
+        r.accept.eps.push(s1.id);
+        return {start:s0, accept:s1};
+      }
+      case 'star': {
+        const s0 = newState(), s1 = newState();
+        const c = build(node.child);
+        s0.eps.push(c.start.id, s1.id);
+        c.accept.eps.push(c.start.id, s1.id);
+        return {start:s0, accept:s1};
+      }
+    }
+  }
+  const frag = build(ast);
+  return {states, startId: frag.start.id, acceptId: frag.accept.id};
+}
+
+/* ---------- epsilon closure / simulation ---------- */
+function epsilonClosure(nfa, ids){
+  const stack = [...ids];
+  const visited = new Set(ids);
+  while (stack.length){
+    const id = stack.pop();
+    const s = nfa.states[id];
+    for (const e of s.eps){
+      if (!visited.has(e)){ visited.add(e); stack.push(e); }
+    }
+  }
+  return visited;
+}
+
+function move(nfa, idSet, symbol){
+  const result = new Set();
+  for (const id of idSet){
+    const s = nfa.states[id];
+    const targets = s.trans[symbol];
+    if (targets) for (const t of targets) result.add(t);
+  }
+  return result;
+}
+
+function testMembership(nfa, str){
+  let current = epsilonClosure(nfa, [nfa.startId]);
+  for (const ch of str){
+    if (current.size === 0) break;
+    const moved = move(nfa, current, ch);
+    current = epsilonClosure(nfa, [...moved]);
+  }
+  return current.has(nfa.acceptId);
+}
+
+/* ---------- alphabet extraction ---------- */
+function collectAlphabet(ast){
+  const set = new Set();
+  (function walk(n){
+    if (!n) return;
+    if (n.type === 'char') set.add(n.value);
+    if (n.left) walk(n.left);
+    if (n.right) walk(n.right);
+    if (n.child) walk(n.child);
+  })(ast);
+  return [...set].sort();
+}
+
+/* ---------- finiteness check ---------- */
+function isFinite_(nfa){
+  // build trimmed graph: states reachable from start AND able to reach accept
+  const n = nfa.states.length;
+  const fwdEdges = nfa.states.map(s=>{
+    const list = [];
+    for (const e of s.eps) list.push({to:e, type:'eps'});
+    for (const sym in s.trans) for (const t of s.trans[sym]) list.push({to:t, type:'sym'});
+    return list;
+  });
+  const revEdges = Array.from({length:n}, ()=>[]);
+  fwdEdges.forEach((list, from)=>{
+    list.forEach(({to,type})=> revEdges[to].push({to:from, type}));
+  });
+
+  function bfs(startIds, edges){
+    const seen = new Set(startIds);
+    const stack = [...startIds];
+    while (stack.length){
+      const id = stack.pop();
+      for (const {to} of edges[id]){
+        if (!seen.has(to)){ seen.add(to); stack.push(to); }
+      }
+    }
+    return seen;
+  }
+
+  const reachable = bfs([nfa.startId], fwdEdges);
+  const coReachable = bfs([nfa.acceptId], revEdges);
+  const trimmed = new Set([...reachable].filter(id => coReachable.has(id)));
+
+  if (!trimmed.has(nfa.startId)) return true; // no path start->accept at all => language is empty => finite
+
+  const WHITE=0, GRAY=1, BLACK=2;
+  const color = new Array(n).fill(WHITE);
+  let infinite = false;
+
+  function dfs(nodeId, path, edgeTypes){
+    color[nodeId] = GRAY;
+    path.push(nodeId);
+    for (const {to, type} of fwdEdges[nodeId]){
+      if (!trimmed.has(to)) continue;
+      if (infinite) return;
+      if (color[to] === WHITE){
+        edgeTypes.push(type);
+        dfs(to, path, edgeTypes);
+        edgeTypes.pop();
+      } else if (color[to] === GRAY){
+        const idx = path.indexOf(to);
+        const cycleTypes = edgeTypes.slice(idx).concat([type]);
+        if (cycleTypes.includes('sym')) infinite = true;
+      }
+    }
+    color[nodeId] = BLACK;
+    path.pop();
+  }
+
+  dfs(nfa.startId, [], []);
+  return !infinite;
+}
+
+/* ---------- language enumeration ---------- */
+function computeCoReachableNFA(nfa){
+  const n = nfa.states.length;
+  const rev = Array.from({length:n}, () => []);
+  for (let s = 0; s < n; s++){
+    const st = nfa.states[s];
+    for (const e of st.eps) rev[e].push(s);
+    for (const sym in st.trans) for (const t of st.trans[sym]) rev[t].push(s);
+  }
+  const seen = new Set([nfa.acceptId]);
+  const stack = [nfa.acceptId];
+  while (stack.length){
+    const id = stack.pop();
+    for (const nb of rev[id]){ if (!seen.has(nb)){ seen.add(nb); stack.push(nb); } }
+  }
+  return seen;
+}
+
+function enumerateLanguage(nfa, alphabet, finite){
+  const results = [];
+  const MAX_RESULTS_INFINITE = 15;
+  const MAX_LEN_SAFETY = 2000;
+  const BUDGET = 200000;
+  let truncated = false;
+  let budget = BUDGET;
+
+  const coReachable = computeCoReachableNFA(nfa);
+
+  const startSet = epsilonClosure(nfa, [nfa.startId]);
+  if (startSet.has(nfa.acceptId)) results.push('');
+
+  const queue = [{set:startSet, str:''}];
+  let qi = 0;
+
+  while (qi < queue.length){
+    const {set, str} = queue[qi++];
+    budget--;
+    if (budget <= 0){ truncated = true; break; }
+
+    if (!finite && results.length >= MAX_RESULTS_INFINITE) break;
+    if (str.length >= MAX_LEN_SAFETY) continue;
+    if (!finite && str.length >= 60) continue; // safety net
+
+    for (const sym of alphabet){
+      const moved = move(nfa, set, sym);
+      if (moved.size === 0) continue;
+      const closure = epsilonClosure(nfa, [...moved]);
+      if (finite && ![...closure].some(id => coReachable.has(id))) continue;
+      const newStr = str + sym;
+      if (closure.has(nfa.acceptId)) results.push(newStr);
+      queue.push({set: closure, str: newStr});
+      if (!finite && results.length >= MAX_RESULTS_INFINITE) break;
+    }
+  }
+
+  return {strings: results, truncated};
+}
+
+/* ---------- UI glue ---------- */
+const regexInput = document.getElementById('regexInput');
+const testInput = document.getElementById('testInput');
+const regexWrap = document.getElementById('regexWrap');
+const regexDisplay = document.getElementById('regexDisplay');
+const testWrap = document.getElementById('testWrap');
+const testDisplay = document.getElementById('testDisplay');
+const errorBox = document.getElementById('errorBox');
+const metaBox = document.getElementById('metaBox');
+const verdictBox = document.getElementById('verdictBox');
+const langBox = document.getElementById('langBox');
+const langFlag = document.getElementById('langFlag');
+
+let currentNFA = null;
+
+function formatList(strings){
+  return strings.map(s => s === '' ? 'ε' : s).join(', ');
+}
+
+function escapeHtml(s){
+  return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+/* ---------- generic click-to-edit behavior ---------- */
+function setupClickToEdit(wrap, displayEl, inputEl, formatFn){
+  function showDisplay(){
+    wrap.classList.remove('editing');
+    displayEl.innerHTML = formatFn(inputEl.value);
+  }
+  function showInput(){
+    wrap.classList.add('editing');
+    inputEl.focus();
+    inputEl.select();
+  }
+  displayEl.addEventListener('click', showInput);
+  displayEl.addEventListener('keydown', e=>{
+    if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); showInput(); }
+  });
+  inputEl.addEventListener('blur', showDisplay);
+  inputEl.addEventListener('keydown', e=>{
+    if (e.key === 'Enter'){ e.preventDefault(); inputEl.blur(); }
+  });
+  showDisplay();
+}
+
+function formatRegexDisplay(raw){
+  if (raw === '') return '<span class="placeholder">click to type a regular expression</span>';
+  try{
+    const tokens = tokenize(raw);
+    const ast = new Parser(tokens).parse();
+    if (typeof katex !== 'undefined'){
+      return katex.renderToString(toLatex(ast), {throwOnError:false});
+    }
+  } catch(e){ /* still typing an incomplete/invalid expression: fall through to plain echo */ }
+  return escapeHtml(raw).replace(/\*/g, '<sup>*</sup>');
+}
+function formatTestDisplay(raw){
+  const stripped = raw.replace(/\s+/g, '');
+  if (typeof katex !== 'undefined'){
+    const latex = stripped === '' ? '\\varepsilon' : [...stripped].map(texEscapeChar).join('');
+    return katex.renderToString(latex, {throwOnError:false});
+  }
+  if (stripped === '') return 'ε';
+  return escapeHtml(stripped);
+}
+
+
+function render(){
+  const raw = regexInput.value;
+  errorBox.textContent = '';
+  metaBox.textContent = '';
+
+  try{
+    const tokens = tokenize(raw);
+    const ast = new Parser(tokens).parse();
+    const nfa = buildNFA(ast);
+    const alphabet = collectAlphabet(ast);
+    const finite = isFinite_(nfa);
+    const {strings, truncated} = enumerateLanguage(nfa, alphabet, finite);
+
+    currentNFA = nfa;
+
+    metaBox.innerHTML = 'Alphabet used in R: ' + (typeof katex !== 'undefined'
+      ? katex.renderToString('\\{' + (alphabet.length ? alphabet.map(texEscapeChar).join(', ') : '\\text{---}') + '\\}', {throwOnError:false})
+      : '<span>{' + (alphabet.length ? escapeHtml(alphabet.join(', ')) : '&mdash;') + '}</span>');
+
+    if (strings.length === 0 && finite){
+      langBox.textContent = '{} (this language contains no strings)';
+    } else {
+      langBox.textContent = '{' + formatList(strings) + (!finite ? ', …' : '') + '}';
+    }
+
+    langFlag.textContent = finite
+      ? 'This language is finite (' + strings.length + ' string' + (strings.length===1?'':'s') + '), listed shortest-first, then alphabetically.'
+      : 'This language is infinite: the first ' + strings.length + ' strings are shown, listed shortest-first, then alphabetically.';
+    if (truncated){
+      langFlag.textContent += ' (Enumeration stopped early — this expression is very complex.)';
+    }
+
+  } catch(err){
+    currentNFA = null;
+    errorBox.textContent = err.message;
+    langBox.textContent = '{}';
+    langFlag.textContent = '';
+  }
+
+  updateVerdict();
+}
+
+function updateVerdict(){
+  const val = testInput.value.replace(/\s+/g, '');
+  if (!currentNFA){
+    verdictBox.textContent = '\u2014';
+    verdictBox.className = 'verdict pending';
+    return;
+  }
+  for (const ch of val){
+    if (RESERVED.has(ch)){
+      verdictBox.textContent = 'invalid char';
+      verdictBox.className = 'verdict pending';
+      return;
+    }
+  }
+  const inLang = testMembership(currentNFA, val);
+  verdictBox.textContent = inLang ? 'Yes' : 'No';
+  verdictBox.className = 'verdict ' + (inLang ? 'yes' : 'no');
+}
+
+regexInput.addEventListener('input', render);
+testInput.addEventListener('input', updateVerdict);
+setupClickToEdit(regexWrap, regexDisplay, regexInput, formatRegexDisplay);
+setupClickToEdit(testWrap, testDisplay, testInput, formatTestDisplay);
+
+render();
+</script>
+</body>
+</html>
