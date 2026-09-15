@@ -90,9 +90,9 @@
         /* ── section titles ── */
         .section-label {
             font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem;
+            font-size: 1.2rem;
             font-weight: 400;
-            letter-spacing: 0.18em;
+            letter-spacing: 0.1em;
             text-transform: uppercase;
             color: var(--ink);
             border-bottom: 2px solid var(--accent);
@@ -100,16 +100,12 @@
             margin-bottom: 1.25rem;
         }
 
-        .section-label.emphasized {
-            font-weight: 700;
-        }
-
         /* ── about ── */
         .about {
             margin-bottom: 3.5rem;
         }
 
-        .about p {
+        .about p:not(.section-label) {
             font-size: 1.05rem;
             color: var(--ink);
             max-width: 58ch;
@@ -187,6 +183,42 @@
             color: var(--rule);
             transition: transform 0.15s ease, color 0.15s ease;
             flex-shrink: 0;
+        }
+
+        /* ── section tabs ── */
+        .section-tabs {
+            display: flex;
+            gap: 1.75rem;
+            margin-bottom: 2.5rem;
+            border-bottom: 1px solid var(--rule);
+        }
+
+        .tab-btn {
+            font-family: 'JetBrains Mono', monospace;
+            font-size: 0.95rem;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            color: var(--muted);
+            background: none;
+            border: none;
+            border-bottom: 2px solid transparent;
+            padding: 0 0 0.85rem;
+            margin-bottom: -1px;
+            cursor: pointer;
+            transition: color 0.15s ease, border-color 0.15s ease;
+        }
+
+        .tab-btn:hover {
+            color: var(--ink);
+        }
+
+        .tab-btn[aria-selected="true"] {
+            color: var(--ink);
+            border-bottom-color: var(--accent);
+        }
+
+        .tab-panel[hidden] {
+            display: none;
         }
 
         /* ── publications ── */
@@ -280,8 +312,6 @@
 
         header       { animation: fadein 0.5s ease both; }
         .about       { animation: fadein 0.5s ease 0.1s both; }
-        .publications{ animation: fadein 0.5s ease 0.2s both; }
-        .notebooks   { animation: fadein 0.5s ease 0.3s both; }
         footer       { animation: fadein 0.5s ease 0.4s both; }
     </style>
 </head>
@@ -307,8 +337,14 @@
         </p>
     </section>
 
-    <section class="publications">
-        <p class="section-label emphasized">Selected Publications</p>
+    <nav class="section-tabs" role="tablist" aria-label="Content sections">
+        <button class="tab-btn" data-tab="publications" role="tab" aria-selected="true">Publications</button>
+        <button class="tab-btn" data-tab="teaching" role="tab" aria-selected="false">Teaching Materials</button>
+        <button class="tab-btn" data-tab="notebooks" role="tab" aria-selected="false">Notebooks</button>
+    </nav>
+
+    <section class="publications tab-panel" data-panel="publications">
+        <p class="section-label">Selected Publications</p>
         <ul class="pub-list">
 
             <li class="pub-item">
@@ -374,8 +410,8 @@
         </ul>
     </section>
 
-    <section class="teaching">
-        <p class="section-label emphasized">Selected Teaching Materials</p>
+    <section class="teaching tab-panel" data-panel="teaching" hidden>
+        <p class="section-label">Selected Teaching Materials</p>
         <ul class="notebook-list">
 
             <li class="notebook-item">
@@ -413,8 +449,8 @@
         </ul>
     </section>
 
-    <section class="notebooks">
-        <p class="section-label emphasized">Interactive Notebooks</p>
+    <section class="notebooks tab-panel" data-panel="notebooks" hidden>
+        <p class="section-label">Interactive Notebooks</p>
         <ul class="notebook-list">
 
             <li class="notebook-item">
@@ -465,5 +501,21 @@
     </footer>
 
 </div>
+
+<script>
+    const tabButtons = document.querySelectorAll('.tab-btn');
+    const tabPanels = document.querySelectorAll('.tab-panel');
+
+    tabButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const target = btn.dataset.tab;
+
+            tabButtons.forEach(b => b.setAttribute('aria-selected', b === btn ? 'true' : 'false'));
+            tabPanels.forEach(panel => {
+                panel.hidden = panel.dataset.panel !== target;
+            });
+        });
+    });
+</script>
 </body>
 </html>
