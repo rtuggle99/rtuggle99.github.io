@@ -6,7 +6,7 @@
     <title>Randal Tuggle</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=JetBrains+Mono:wght@300;400;700&display=swap" rel="stylesheet">
     <style>
         :root {
             --ink:       #16324f;
@@ -94,10 +94,14 @@
             font-weight: 400;
             letter-spacing: 0.18em;
             text-transform: uppercase;
-            color: var(--muted);
+            color: var(--ink);
             border-bottom: 2px solid var(--accent);
             padding-bottom: 0.75rem;
             margin-bottom: 1.25rem;
+        }
+
+        .section-label.emphasized {
+            font-weight: 700;
         }
 
         /* ── about ── */
@@ -117,6 +121,11 @@
 
         /* ── notebooks ── */
         .notebooks {
+            margin-bottom: 3.5rem;
+        }
+
+        /* ── teaching ── */
+        .teaching {
             margin-bottom: 3.5rem;
         }
 
@@ -286,7 +295,7 @@
 
     <section class="about">
         <div class="photo">
-            <img src="picture.png" alt="Randal Tuggle">
+            <img src="picture.jpg" alt="Randal Tuggle">
         </div>
         <p class="section-label">About</p>
         <p>
@@ -299,7 +308,7 @@
     </section>
 
     <section class="publications">
-        <p class="section-label">Selected Publications</p>
+        <p class="section-label emphasized">Selected Publications</p>
         <ul class="pub-list">
 
             <li class="pub-item">
@@ -345,8 +354,47 @@
         </ul>
     </section>
 
+    <section class="teaching">
+        <p class="section-label emphasized">Selected Teaching Materials</p>
+        <ul class="notebook-list">
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="https://rtuggle99.github.io/comp455/" target="_blank">
+                    <span class="notebook-title">Regular Languages &amp; Regular Expressions</span>
+                    <span class="notebook-tag">Course Slides</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="https://rtuggle99.github.io/pattern-explorer.html" target="_blank">
+                    <span class="notebook-title">Pattern Explorer</span>
+                    <span class="notebook-tag">Web Tool</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="https://rtuggle99.github.io/regex-explorer.html" target="_blank">
+                    <span class="notebook-title">Regular Expression Explorer</span>
+                    <span class="notebook-tag">Web Tool</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+            <li class="notebook-item">
+                <a class="notebook-link" href="https://rtuggle99.github.io/convert-to-regex.html" target="_blank">
+                    <span class="notebook-title">Convert to Regex</span>
+                    <span class="notebook-tag">Web Tool</span>
+                    <span class="notebook-arrow">→</span>
+                </a>
+            </li>
+
+        </ul>
+    </section>
+
     <section class="notebooks">
-        <p class="section-label">Interactive Notebooks</p>
+        <p class="section-label emphasized">Interactive Notebooks</p>
         <ul class="notebook-list">
 
             <li class="notebook-item">
