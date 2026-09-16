@@ -205,7 +205,13 @@
             padding: 0 0 0.85rem;
             margin-bottom: -1px;
             cursor: pointer;
+            white-space: nowrap;
             transition: color 0.15s ease, border-color 0.15s ease;
+        }
+
+        @media (max-width: 480px) {
+            .section-tabs { gap: 0.55rem; }
+            .tab-btn { font-size: 0.62rem; letter-spacing: 0.02em; }
         }
 
         .tab-btn:hover {
@@ -279,31 +285,6 @@
             color: var(--muted);
         }
 
-        /* ── footer ── */
-        footer {
-            border-top: 3px solid var(--accent);
-            padding-top: 2rem;
-            margin-top: 1rem;
-        }
-
-        footer p {
-            font-family: 'JetBrains Mono', monospace;
-            font-size: 0.65rem;
-            font-weight: 300;
-            letter-spacing: 0.08em;
-            color: var(--muted);
-        }
-
-        footer a {
-            color: var(--muted);
-            text-decoration: underline;
-            text-underline-offset: 3px;
-        }
-
-        footer a:hover {
-            color: var(--accent);
-        }
-
         /* ── subtle page-load animation ── */
         @keyframes fadein {
             from { opacity: 0; transform: translateY(10px); }
@@ -312,7 +293,6 @@
 
         header       { animation: fadein 0.5s ease both; }
         .about       { animation: fadein 0.5s ease 0.1s both; }
-        footer       { animation: fadein 0.5s ease 0.4s both; }
     </style>
 </head>
 <body>
@@ -344,7 +324,6 @@
     </nav>
 
     <section class="publications tab-panel" data-panel="publications">
-        <p class="section-label">Selected Publications</p>
         <ul class="pub-list">
 
             <li class="pub-item">
@@ -411,7 +390,6 @@
     </section>
 
     <section class="teaching tab-panel" data-panel="teaching" hidden>
-        <p class="section-label">Selected Teaching Materials</p>
         <ul class="notebook-list">
 
             <li class="notebook-item">
@@ -450,7 +428,6 @@
     </section>
 
     <section class="notebooks tab-panel" data-panel="notebooks" hidden>
-        <p class="section-label">Interactive Notebooks</p>
         <ul class="notebook-list">
 
             <li class="notebook-item">
@@ -495,10 +472,6 @@
 
         </ul>
     </section>
-
-    <footer>
-        <p>University of North Carolina at Chapel Hill &nbsp;·&nbsp; Department of Computer Science</p>
-    </footer>
 
 </div>
 
