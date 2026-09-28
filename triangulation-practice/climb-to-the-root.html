@@ -1,0 +1,870 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/delaunator@5.1.0/delaunator.min.js"></script>
+<title>Climb to the Root</title>
+<style>
+  :root{
+    --paper:#eaf4fb;
+    --ink:#16324f;
+    --rule:#a9cbe4;
+    --info:#2f6690;
+    --info-soft:#d7ebf7;
+    --danger:#a8384a;
+    --danger-soft:#f6dde1;
+    --good:#1f5c38;
+    --good-soft:#dcf0e2;
+    --neutral:#c9d9e6;
+    --ink-soft:#3d5a75;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  }
+  *{box-sizing:border-box;}
+  /* rapid clicks on the board or buttons shouldn't start a text selection
+     that spills onto nearby labels, scores, and status text */
+  button, svg{ user-select:none; -webkit-user-select:none; }
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    line-height:1.5;
+    padding:32px 18px 80px;
+  }
+  .page{ max-width:820px; margin:0 auto; }
+  h1{
+    font-family:var(--serif);
+    font-size:1.55rem;
+    font-weight:700;
+    letter-spacing:0.01em;
+    margin:0 0 4px;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:10px;
+  }
+  .subtitle{ font-size:0.92rem; color:#3d5a75; font-style:italic; margin:0 0 22px; }
+  .note{
+    font-size:0.88rem;
+    background:var(--info-soft);
+    border-left:3px solid var(--info);
+    padding:12px 14px;
+    margin-bottom:20px;
+  }
+  .note p{margin:0 0 8px;}
+  .note p:last-child{margin-bottom:0;}
+  .strip-wrap{
+    overflow-x:auto;
+    background:#fff;
+    border:1.5px solid var(--ink);
+    border-radius:4px;
+    padding:12px 12px 8px;
+    margin-bottom:16px;
+  }
+  .strip{ display:flex; gap:10px; width:max-content; }
+  .strip-item{ flex:0 0 auto; width:66px; text-align:center; transition:opacity 0.15s; }
+  .strip-item svg{
+    width:66px; height:66px; display:block;
+    background:#f5fafd; border:1.5px solid var(--rule); border-radius:3px;
+  }
+  .strip-item.member svg{ border-color:var(--info); box-shadow:0 0 0 2px var(--info-soft) inset; }
+  .strip-item.dimmed{ opacity:0.35; }
+  .strip-idx{ font-size:0.72rem; color:#3d5a75; margin-top:3px; }
+  .board{
+    background:#fff;
+    border:1.5px solid var(--ink);
+    border-radius:4px;
+    padding:14px;
+    margin-bottom:16px;
+  }
+  svg{ display:block; width:100%; height:auto; background:#f5fafd; border-radius:3px; }
+  .tri-poly{ transition:fill 0.15s; }
+  .tri-poly.clickable{ cursor:pointer; }
+  .controls{ display:flex; gap:10px; align-items:center; flex-wrap:wrap; margin-bottom:14px; }
+  button{
+    font-family:var(--serif); font-size:0.98rem; background:#f5fafd;
+    border:1.5px solid var(--ink); border-radius:3px; padding:9px 18px; cursor:pointer; color:var(--ink);
+  }
+  button:disabled{ opacity:0.4; cursor:default; }
+  button.primary{ background:var(--ink); border-color:var(--ink); color:#fff; }
+  .spacer{ flex:1 1 auto; }
+  .strip-header{ margin-bottom:10px; }
+  .hint{ font-size:0.82rem; color:var(--ink-soft); }
+  .strip-header .hint{ margin:0 0 8px; text-align:center; }
+  .mode-switch-row{ display:flex; justify-content:center; margin:0; }
+  .mode-switch{ display:inline-flex; align-items:center; gap:10px; cursor:pointer; user-select:none; }
+  .mode-switch-label{ font-size:0.82rem; color:var(--ink-soft); transition:color 0.15s ease, font-weight 0.15s ease; }
+  .mode-switch input:not(:checked) ~ .mode-switch-label-left,
+  .mode-switch input:checked ~ .mode-switch-label-right{ color:var(--ink); font-weight:700; }
+  .mode-switch-track{ position:relative; display:inline-block; width:42px; height:24px; flex-shrink:0; }
+  .mode-switch input{ position:absolute; opacity:0; width:1px; height:1px; margin:-1px; padding:0; border:0;
+    overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; }
+  .mode-switch-thumb{ position:absolute; inset:0; background:var(--rule); border-radius:999px; transition:background 0.15s ease; }
+  .mode-switch-thumb::before{ content:""; position:absolute; top:3px; left:3px; width:18px; height:18px; border-radius:50%;
+    background:#fff; box-shadow:0 1px 2px rgba(22,50,79,0.35); transition:transform 0.15s ease; }
+  .mode-switch input:checked ~ .mode-switch-track .mode-switch-thumb{ background:var(--info); }
+  .mode-switch input:checked ~ .mode-switch-track .mode-switch-thumb::before{ transform:translateX(18px); }
+  .mode-switch input:focus-visible ~ .mode-switch-track .mode-switch-thumb{ box-shadow:0 0 0 3px var(--info-soft); }
+  .score{ font-size:0.85rem; color:#3d5a75; text-align:right; margin-bottom:4px; }
+  .feedback{
+    font-size:0.94rem; border-radius:4px; padding:14px 16px; margin-bottom:18px; display:none;
+  }
+  .feedback.show{ display:block; }
+  .feedback.correct{ background:var(--good-soft); border-left:3px solid var(--good); }
+  .feedback.incorrect{ background:var(--danger-soft); border-left:3px solid var(--danger); }
+  .feedback .verdict{ font-weight:700; }
+  .review-panel{
+    background:#fff; border:1.5px solid var(--ink); border-radius:4px; padding:4px 14px; margin-bottom:16px;
+  }
+  .review-item{
+    display:flex; justify-content:space-between; align-items:center;
+    padding:14px 4px; border-bottom:1px solid var(--rule); cursor:pointer;
+  }
+  .review-item:last-child{ border-bottom:none; }
+  .review-right{ display:flex; align-items:center; gap:10px; }
+  .review-chevron{ color:#3d5a75; font-size:0.9rem; }
+  .review-x{ color:var(--danger); font-weight:700; }
+  .review-detail-header{ font-size:0.94rem; font-weight:700; margin-bottom:10px; }
+  .review-subhead{ font-size:0.85rem; font-weight:700; color:var(--ink); margin:16px 0 8px; }
+  .path-wrap{ background:#fff; border:1.5px solid var(--ink); border-radius:4px; padding:18px 14px; margin-bottom:16px; }
+  .path-strip{ display:flex; flex-direction:column; align-items:center; }
+  .path-item{ text-align:center; position:relative; }
+  .path-item svg{ width:150px; height:150px; display:block; background:#f5fafd; border:1.5px solid var(--rule); border-radius:3px; }
+  .path-connector{ display:flex; justify-content:center; }
+  .path-connector svg{ width:26px; height:38px; display:block; background:transparent; }
+  .path-x-badge{
+    position:absolute; top:-8px; right:-8px; width:22px; height:22px; border-radius:50%;
+    background:var(--danger); color:#fff; font-size:0.8rem; font-weight:700;
+    display:flex; align-items:center; justify-content:center; box-shadow:0 1px 2px rgba(0,0,0,0.3);
+  }
+  @media (hover: hover) {
+    button:hover:not(:disabled){ background:var(--info-soft); border-color:var(--info); }
+    button.primary:hover:not(:disabled){ background:var(--info); border-color:var(--info); }
+    .review-item:hover{ background:var(--info-soft); }
+    .tri-poly.clickable:not(.selected):hover{ fill:var(--info-soft) !important; }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Climb to the Root</h1>
+  <p class="subtitle">Practice finding the parent of a node.</p>
+
+  <div class="note">
+    <p>Every valid triangle is given an index. (I assigned indices based on the number of other triangles a
+    given triangle conflicts with, but any other way of assigning indices would've been fine too.)
+    Keep removing the largest-indexed removable triangle until only one triangle is left.</p>
+  </div>
+
+  <div class="strip-header">
+    <p class="hint">Highlighted thumbnails are the triangles still on the board below. Switch to see every valid triangle for this point set.</p>
+    <div class="mode-switch-row">
+      <label class="mode-switch">
+        <input type="checkbox" id="stripModeToggle" onchange="toggleStripMode()">
+        <span class="mode-switch-label mode-switch-label-left">Present only</span>
+        <span class="mode-switch-track"><span class="mode-switch-thumb"></span></span>
+        <span class="mode-switch-label mode-switch-label-right">All valid triangles</span>
+      </label>
+    </div>
+  </div>
+  <div class="strip-wrap" id="stripWrap">
+    <div class="strip" id="strip"></div>
+  </div>
+
+  <div class="board" id="boardSection">
+    <svg id="canvas" viewBox="0 0 700 700"></svg>
+  </div>
+
+  <div class="score" id="score">0 / 0 steps correct on first try</div>
+  <div class="feedback" id="feedback"></div>
+
+  <div class="controls" id="controlsSection">
+    <div class="spacer"></div>
+    <button class="primary" id="btnSubmit" onclick="submitStep()" disabled>Submit</button>
+    <button id="btnNext" onclick="nextRound()" style="display:none;">Next</button>
+  </div>
+
+  <div id="bottomActions" style="margin-bottom:14px;">
+    <button id="btnReview" onclick="showReviewList()" style="display:none;">Review past rounds</button>
+    <button id="btnBackToList" onclick="backToList()" style="display:none;">Back to list</button>
+  </div>
+
+  <div id="reviewListPanel" style="display:none;">
+    <div class="review-panel" id="reviewListItems"></div>
+    <button onclick="backToPractice()">Back to practice</button>
+  </div>
+
+  <div id="reviewDetailPanel" style="display:none;">
+    <div class="review-detail-header" id="reviewDetailHeader"></div>
+
+    <div class="review-subhead">Triangle ordering for this round</div>
+    <div class="strip-wrap">
+      <div class="strip" id="reviewStrip"></div>
+    </div>
+
+    <div class="review-subhead">Path from root to leaf</div>
+    <div class="path-wrap">
+      <div class="path-strip" id="reviewPath"></div>
+    </div>
+  </div>
+</div>
+
+<script>
+// A double or triple click (or a fast run of clicks) on the board or a
+// button makes the browser start a text selection and snap it to the
+// nearest text, highlighting scores, status lines, or button labels.
+// Cancel that multi-click selection everywhere except the explanatory
+// note; single clicks, drags, and text selection inside the note are
+// unaffected.
+document.addEventListener("mousedown", (e) => {
+  if (e.detail > 1 && !e.target.closest(".note")) e.preventDefault();
+});
+// ============================================================
+// geometry (reused and verified against the earlier four sites)
+// ============================================================
+function cross(o, a, b) { return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); }
+function dist2(a, b) { const dx = a.x - b.x, dy = a.y - b.y; return dx * dx + dy * dy; }
+function randRange(a, b) { return a + Math.random() * (b - a); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function convexHull(points) {
+  const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const n = pts.length;
+  if (n < 3) return pts;
+  const lower = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+}
+function pointInConvexPolygon(p, poly) {
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (cross(a, b, p) <= 1e-9) return false;
+  }
+  return true;
+}
+function collinear(a, b, c, eps = 1e-7) { return Math.abs(cross(a, b, c)) < eps; }
+function anyThreeCollinear(points, eps = 1e-7) {
+  for (let i = 0; i < points.length; i++)
+    for (let j = i + 1; j < points.length; j++)
+      for (let k = j + 1; k < points.length; k++)
+        if (collinear(points[i], points[j], points[k], eps)) return true;
+  return false;
+}
+function delaunay(points) {
+  if (points.length < 3) return [];
+  const coords = new Float64Array(points.length * 2);
+  points.forEach((p, i) => { coords[2 * i] = p.x; coords[2 * i + 1] = p.y; });
+  const d = new Delaunator(coords);
+  const triangles = [];
+  for (let i = 0; i < d.triangles.length; i += 3) {
+    triangles.push([points[d.triangles[i]], points[d.triangles[i + 1]], points[d.triangles[i + 2]]]);
+  }
+  return triangles;
+}
+function edgeKeyOf(a, b, idxOf) {
+  const ia = idxOf.get(a), ib = idxOf.get(b);
+  return ia < ib ? `${ia}_${ib}` : `${ib}_${ia}`;
+}
+function buildEdgeInfo(triangles, allPoints) {
+  const idxOf = new Map(allPoints.map((p, i) => [p, i]));
+  const edgeUse = new Map();
+  triangles.forEach((t, ti) => {
+    for (const [u, v] of [[t[0], t[1]], [t[1], t[2]], [t[2], t[0]]]) {
+      const k = edgeKeyOf(u, v, idxOf);
+      if (!edgeUse.has(k)) edgeUse.set(k, []);
+      edgeUse.get(k).push(ti);
+    }
+  });
+  return { idxOf, edgeUse };
+}
+function boundaryEdgeCount(tri, idxOf, edgeUse) {
+  let count = 0;
+  for (const [u, v] of [[tri[0], tri[1]], [tri[1], tri[2]], [tri[2], tri[0]]]) {
+    const info = edgeUse.get(edgeKeyOf(u, v, idxOf));
+    if (info && info.length === 1) count++;
+  }
+  return count;
+}
+function boundaryVertexSet(idxOf, edgeUse) {
+  const s = new Set();
+  for (const [key, tris] of edgeUse) {
+    if (tris.length !== 1) continue;
+    const [a, b] = key.split("_").map(Number);
+    s.add(a); s.add(b);
+  }
+  return s;
+}
+function findRemovableTriangles(triangles, allPoints) {
+  const { idxOf, edgeUse } = buildEdgeInfo(triangles, allPoints);
+  const bvs = boundaryVertexSet(idxOf, edgeUse);
+  const removable = [];
+  for (const t of triangles) {
+    const bec = boundaryEdgeCount(t, idxOf, edgeUse);
+    // isolated (T={t}) is never removable: removing the last triangle
+    // leaves the empty set, and a partial triangulated surface is
+    // defined as a NONEMPTY set of triangles, so this doesn't qualify
+    if (bec === 2) { removable.push(t); continue; }
+    if (bec === 1) {
+      const edges = [[t[0], t[1]], [t[1], t[2]], [t[2], t[0]]];
+      const boundaryEdge = edges.find(([u, v]) => edgeUse.get(edgeKeyOf(u, v, idxOf)).length === 1);
+      const opp = t.find(v => !boundaryEdge.includes(v));
+      if (!bvs.has(idxOf.get(opp))) removable.push(t);
+    }
+  }
+  return removable;
+}
+
+// polygon-clipping intersection-area test (Sutherland-Hodgman), verified
+// against hand-checked cases: shared edge, shared vertex, crossing,
+// containment, disjoint. This is exactly what "conflict" between two
+// valid triangles means: nonzero overlap area, not just a shared vertex
+// or a shared edge (both of which clip down to zero area).
+function lineIntersect(p1, p2, p3, p4) {
+  const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+  const denom = d1x * d2y - d1y * d2x;
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
+  return { x: p1.x + t * d1x, y: p1.y + t * d1y };
+}
+function clipPolygon(poly, a, b) {
+  const output = [];
+  const n = poly.length;
+  if (n === 0) return output;
+  for (let i = 0; i < n; i++) {
+    const cur = poly[i], prev = poly[(i - 1 + n) % n];
+    const curInside = cross(a, b, cur) >= 0;
+    const prevInside = cross(a, b, prev) >= 0;
+    if (curInside) {
+      if (!prevInside) output.push(lineIntersect(prev, cur, a, b));
+      output.push(cur);
+    } else if (prevInside) {
+      output.push(lineIntersect(prev, cur, a, b));
+    }
+  }
+  return output;
+}
+function triangleIntersectionArea(t1, t2) {
+  let poly = cross(t1[0], t1[1], t1[2]) > 0 ? [t1[0], t1[1], t1[2]] : [t1[0], t1[2], t1[1]];
+  const clipTri = cross(t2[0], t2[1], t2[2]) > 0 ? [t2[0], t2[1], t2[2]] : [t2[0], t2[2], t2[1]];
+  for (let i = 0; i < 3 && poly.length > 0; i++) {
+    const a = clipTri[i], b = clipTri[(i + 1) % 3];
+    poly = clipPolygon(poly, a, b);
+  }
+  let area = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    area += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(area) / 2;
+}
+
+// ============================================================
+// enumerating every valid triangle and ranking it by conflict count
+// (new groundwork, not reused from another site: no site needed this
+// before. A valid triangle is any triple of points with no other point
+// of the set strictly inside it. Since no three points are ever
+// collinear, "strictly inside" needs no boundary special-case.)
+// ============================================================
+function strictlyInside(t, p, eps = 1e-7) {
+  const d1 = cross(t[0], t[1], p), d2 = cross(t[1], t[2], p), d3 = cross(t[2], t[0], p);
+  return (d1 > eps && d2 > eps && d3 > eps) || (d1 < -eps && d2 < -eps && d3 < -eps);
+}
+function comboKey(idxs) { return idxs.slice().sort((a, b) => a - b).join("_"); }
+function triangleKey(t, idxOf) { return comboKey([idxOf.get(t[0]), idxOf.get(t[1]), idxOf.get(t[2])]); }
+
+function buildOrdering(points) {
+  const n = points.length;
+  const validList = [];
+  for (let i = 0; i < n; i++) for (let j = i + 1; j < n; j++) for (let k = j + 1; k < n; k++) {
+    const t = [points[i], points[j], points[k]];
+    let hasInside = false;
+    for (let m = 0; m < n; m++) {
+      if (m === i || m === j || m === k) continue;
+      if (strictlyInside(t, points[m])) { hasInside = true; break; }
+    }
+    if (hasInside) continue;
+    validList.push({ idxs: [i, j, k], pts: t, conflict: 0 });
+  }
+  for (let a = 0; a < validList.length; a++) {
+    for (let b = a + 1; b < validList.length; b++) {
+      if (triangleIntersectionArea(validList[a].pts, validList[b].pts) > 1e-4) {
+        validList[a].conflict++; validList[b].conflict++;
+      }
+    }
+  }
+  // ranked by conflict count, largest first; ties broken by point
+  // indices only so the ordering is deterministic for a given point set
+  validList.sort((a, b) => b.conflict - a.conflict
+    || a.idxs[0] - b.idxs[0] || a.idxs[1] - b.idxs[1] || a.idxs[2] - b.idxs[2]);
+  validList.forEach((v, i) => v.globalIndex = i + 1);
+  const lookup = new Map();
+  validList.forEach(v => lookup.set(comboKey(v.idxs), v));
+  return { validList, lookup };
+}
+
+// ============================================================
+// point set generation
+// ============================================================
+function generatePointSet() {
+  // interior-point count, not total n, is what makes the exercise
+  // non-trivial: with only 1 interior point, the boundary triangles
+  // that are actually removable also tend to be the lowest-conflict
+  // (highest-indexed) ones almost every time, so "largest index still
+  // present" trivially IS the answer and removability never needs
+  // checking. Verified by simulation: interior=1 configs were ~0-10%
+  // likely to ever require rejecting a higher-indexed non-removable
+  // triangle in a full climb; interior>=3 configs were 60-70%. So every
+  // config below has at least 2 interior points, most have 3+
+  const configs = [[6, 4], [7, 4], [7, 5], [8, 4], [8, 5], [9, 6]];
+  for (let attempt = 0; attempt < 400; attempt++) {
+    const [n, hullSize] = pick(configs);
+    const interiorCount = n - hullSize;
+    let angles = [];
+    for (let i = 0; i < hullSize; i++) angles.push(Math.random() * 2 * Math.PI);
+    angles.sort((a, b) => a - b);
+    let ok = true;
+    for (let i = 0; i < hullSize; i++) {
+      const a1 = angles[i], a2 = angles[(i + 1) % hullSize];
+      const gap = (i === hullSize - 1) ? (a1 - a2 + 2 * Math.PI) : (a2 - a1);
+      if (gap < 0.35) { ok = false; break; }
+    }
+    if (!ok) continue;
+    const R = 260;
+    const hullPts = angles.map(a => ({
+      x: 350 + Math.cos(a) * R * randRange(0.85, 1.0),
+      y: 350 + Math.sin(a) * R * randRange(0.85, 1.0),
+    }));
+    const hull = convexHull(hullPts);
+    if (hull.length !== hullSize) continue;
+    const interior = [];
+    let interiorOk = true;
+    for (let i = 0; i < interiorCount; i++) {
+      let placed = false;
+      for (let tries = 0; tries < 200; tries++) {
+        const cand = { x: randRange(210, 490), y: randRange(210, 490) };
+        if (pointInConvexPolygon(cand, hull) && !interior.some(q => dist2(q, cand) < 45 * 45)) {
+          interior.push(cand); placed = true; break;
+        }
+      }
+      if (!placed) { interiorOk = false; break; }
+    }
+    if (!interiorOk) continue;
+    const all = hull.concat(interior);
+    if (anyThreeCollinear(all)) continue;
+    const fullTriangulation = delaunay(all);
+    // reject slivers, same two independent checks as the other sites:
+    // raw area, then area-over-longest-edge-squared (scale-invariant
+    // shape quality, ~0.433 for equilateral, near 0 for a dart)
+    const minArea = Math.min(...fullTriangulation.map(t => Math.abs(cross(t[0], t[1], t[2])) / 2));
+    if (minArea < 200) continue;
+    const minQuality = Math.min(...fullTriangulation.map(t => {
+      const e2 = [dist2(t[0], t[1]), dist2(t[1], t[2]), dist2(t[2], t[0])];
+      return (Math.abs(cross(t[0], t[1], t[2])) / 2) / Math.max(...e2);
+    }));
+    if (minQuality < 0.05) continue;
+    const ordering = buildOrdering(all);
+    // "all valid triangles" mode is a horizontally-scrolling strip, not
+    // the default view, so this cap only guards against truly extreme
+    // outliers rather than keeping every round small
+    if (ordering.validList.length > 50) continue;
+    return { all, fullTriangulation, ordering };
+  }
+  throw new Error("failed to generate a point set");
+}
+
+// ============================================================
+// round state + UI
+// ============================================================
+let round = null;          // { allPoints, idxOf, ordering }
+let triangles = [];        // current live triangle set for this climb
+let stepAttempts = 0;      // wrong submissions so far on the current step
+let stepLog = [];          // completed steps this round
+let selectedIdx = null;    // index into `triangles` of the currently selected (not yet submitted) guess
+let stripMode = "present"; // "all" | "present" — matches the toggle's default unchecked state
+let locked = false;
+let firstTryCorrectThisRound = 0;
+let cumulativeFirstTry = 0, cumulativeSteps = 0;
+let history = [];
+
+function renderMiniSVG(allPoints, trianglePts) {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 700 700");
+  const poly = document.createElementNS(ns, "polygon");
+  poly.setAttribute("points", trianglePts.map(p => `${p.x},${p.y}`).join(" "));
+  // isolated-color, not an arbitrary accent: a triangle shown on its own
+  // with nothing else present is boundary-edge-count 3 by definition,
+  // exactly what "isolated" means, and this strip's own review panel
+  // colors "link" triangles blue elsewhere on this same page
+  poly.setAttribute("fill", "#c675ff");
+  poly.setAttribute("stroke", "#16324f");
+  poly.setAttribute("stroke-width", "4");
+  svg.appendChild(poly);
+  for (const p of allPoints) {
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 11);
+    c.setAttribute("fill", "#16324f");
+    svg.appendChild(c);
+  }
+  return svg;
+}
+
+// isolated/ear/link/buried, classified purely by boundary-edge count
+// (3/2/1/0), exactly as Site 3 ("Label the Triangles") teaches it. Used
+// to color every triangle in a leaf-to-root path node the same way the
+// lecture's own DAG figure colors its nodes.
+const TYPE_HEX = { isolated: "#c675ff", ear: "#f3db8a", link: "#6d92ce", buried: "#9c9c9c" };
+function classifyTriangleType(bec) {
+  return bec === 3 ? "isolated" : bec === 2 ? "ear" : bec === 1 ? "link" : "buried";
+}
+
+// Renders one full triangulation state (as index-triples into allPoints)
+// with every triangle colored by its isolated/ear/link/buried type, and
+// a bold dark outline on whichever triangle key is being highlighted
+// (the one about to be removed at this step, or the root itself).
+function renderMiniBoardSVG(allPoints, triangleIdxArrays) {
+  const triangles = triangleIdxArrays.map(idxs => idxs.map(ix => allPoints[ix]));
+  const { idxOf, edgeUse } = buildEdgeInfo(triangles, allPoints);
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 700 700");
+  triangleIdxArrays.forEach((idxs, i) => {
+    const t = triangles[i];
+    const bec = boundaryEdgeCount(t, idxOf, edgeUse);
+    const poly = document.createElementNS(ns, "polygon");
+    poly.setAttribute("points", t.map(p => `${p.x},${p.y}`).join(" "));
+    poly.setAttribute("fill", TYPE_HEX[classifyTriangleType(bec)]);
+    poly.setAttribute("stroke", "#16324f");
+    poly.setAttribute("stroke-width", "4");
+    svg.appendChild(poly);
+  });
+  for (const p of allPoints) {
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 11);
+    c.setAttribute("fill", "#16324f");
+    svg.appendChild(c);
+  }
+  return svg;
+}
+
+function toggleStripMode() {
+  stripMode = document.getElementById("stripModeToggle").checked ? "all" : "present";
+  renderStrip();
+}
+
+// Generic strip renderer: paints `ordering`'s valid triangles into any
+// container element, given which triangle keys currently count as
+// "present" and which mode to show. Used both for the live practice
+// strip and for a past round's fixed ordering in the review panel.
+// A vertical edge in the thesis's own DAG style: boundarypurple
+// (#633694), a thick line with a solid Stealth-style arrowhead. Points
+// up toward the root, matching the actual direction of the climb
+// (root is drawn at top; this arrow shows "removing gets you here").
+function renderPathConnector() {
+  const ns = "http://www.w3.org/2000/svg";
+  const svg = document.createElementNS(ns, "svg");
+  svg.setAttribute("viewBox", "0 0 26 38");
+  const head = document.createElementNS(ns, "path");
+  head.setAttribute("d", "M13 1 L5 15 L21 15 Z");
+  head.setAttribute("fill", "#633694");
+  svg.appendChild(head);
+  const line = document.createElementNS(ns, "line");
+  line.setAttribute("x1", "13"); line.setAttribute("y1", "15");
+  line.setAttribute("x2", "13"); line.setAttribute("y2", "37");
+  line.setAttribute("stroke", "#633694");
+  line.setAttribute("stroke-width", "3.5");
+  svg.appendChild(line);
+  return svg;
+}
+
+function renderStripInto(container, ordering, allPoints, currentKeys, mode) {
+  container.innerHTML = "";
+  const list = mode === "present"
+    ? ordering.validList.filter(v => currentKeys.has(comboKey(v.idxs)))
+    : ordering.validList;
+  list.forEach(v => {
+    const key = comboKey(v.idxs);
+    const item = document.createElement("div");
+    item.className = "strip-item " + (currentKeys.has(key) ? "member" : "dimmed");
+    item.appendChild(renderMiniSVG(allPoints, v.pts));
+    const lbl = document.createElement("div");
+    lbl.className = "strip-idx";
+    lbl.textContent = "#" + v.globalIndex;
+    item.appendChild(lbl);
+    container.appendChild(item);
+  });
+}
+
+function renderStrip() {
+  const currentKeys = new Set(triangles.map(t => triangleKey(t, round.idxOf)));
+  renderStripInto(document.getElementById("strip"), round.ordering, round.allPoints, currentKeys, stripMode);
+}
+
+// Generic board renderer: paints a set of triangles plus every point
+// into any SVG element. Used for the live, clickable practice board and
+// for the read-only "original triangulation" board in the review panel
+// (clickable is always false there, so the live selection highlight
+// never leaks into a past round's board).
+function drawBoardInto(svg, triangleArr, allPoints, clickable) {
+  svg.innerHTML = "";
+  const ns = "http://www.w3.org/2000/svg";
+  triangleArr.forEach((t, i) => {
+    const poly = document.createElementNS(ns, "polygon");
+    poly.setAttribute("points", t.map(p => `${p.x},${p.y}`).join(" "));
+    const isSelected = clickable && i === selectedIdx;
+    poly.setAttribute("class", "tri-poly" + (clickable ? " clickable" : "") + (isSelected ? " selected" : ""));
+    const fill = isSelected ? "#4fb08a" : "#c9d9e6";
+    poly.setAttribute("fill", fill);
+    poly.setAttribute("stroke", "#16324f");
+    poly.setAttribute("stroke-width", "1.5");
+    if (clickable) poly.addEventListener("click", () => onTriClick(i));
+    svg.appendChild(poly);
+  });
+  for (const p of allPoints) {
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("cx", p.x); c.setAttribute("cy", p.y); c.setAttribute("r", 3.5);
+    c.setAttribute("fill", "#16324f");
+    svg.appendChild(c);
+  }
+}
+
+function drawBoard(triangleArr, allPoints, clickable) {
+  drawBoardInto(document.getElementById("canvas"), triangleArr, allPoints, clickable);
+}
+
+function render() {
+  drawBoard(triangles, round.allPoints, !locked);
+  renderStrip();
+}
+
+function showFeedback(correct, message) {
+  const fb = document.getElementById("feedback");
+  fb.className = "feedback show " + (correct ? "correct" : "incorrect");
+  fb.innerHTML = `<div class="verdict">${message}</div>`;
+}
+
+function updateScoreDisplay() {
+  document.getElementById("score").textContent =
+    `${cumulativeFirstTry} / ${cumulativeSteps} steps correct on first try`;
+}
+
+function onTriClick(i) {
+  if (locked) return;
+  selectedIdx = (selectedIdx === i) ? null : i;
+  render();
+  updateSubmitEnabled();
+}
+
+function updateSubmitEnabled() {
+  document.getElementById("btnSubmit").disabled = (selectedIdx === null);
+}
+
+function submitStep() {
+  if (locked || selectedIdx === null) return;
+  const i = selectedIdx;
+  const t = triangles[i];
+  const idxOf = round.idxOf;
+  const removable = findRemovableTriangles(triangles, round.allPoints);
+  const clickedKey = triangleKey(t, idxOf);
+  const removableKeys = new Set(removable.map(rt => triangleKey(rt, idxOf)));
+  const isRemovable = removableKeys.has(clickedKey);
+
+  let bestKey = null, bestIdx = -1;
+  removable.forEach(rt => {
+    const k = triangleKey(rt, idxOf);
+    const gi = round.ordering.lookup.get(k).globalIndex;
+    if (gi > bestIdx) { bestIdx = gi; bestKey = k; }
+  });
+
+  const isCorrect = isRemovable && clickedKey === bestKey;
+  selectedIdx = null;
+  if (isCorrect) {
+    stepLog.push({
+      removedIdxs: t.map(p => idxOf.get(p)),
+      attempts: stepAttempts + 1,
+      firstTry: stepAttempts === 0,
+    });
+    if (stepAttempts === 0) firstTryCorrectThisRound++;
+    triangles = triangles.filter((_, j) => j !== i);
+    stepAttempts = 0;
+    if (triangles.length === 1) {
+      finishRound();
+      return;
+    }
+    showFeedback(true, `Correct. Removed triangle #${bestIdx}.`);
+  } else {
+    stepAttempts++;
+    const msg = !isRemovable
+      ? "That triangle isn't removable right now: taking it out would break the boundary loop, or it's the very last triangle left."
+      : "That triangle is removable, but it isn't the largest-indexed removable one here. Try another.";
+    showFeedback(false, msg);
+  }
+  render();
+  updateSubmitEnabled();
+}
+
+function finishRound() {
+  locked = true;
+  selectedIdx = null;
+  const totalSteps = stepLog.length;
+  cumulativeFirstTry += firstTryCorrectThisRound;
+  cumulativeSteps += totalSteps;
+  updateScoreDisplay();
+  const allFirstTry = firstTryCorrectThisRound === totalSteps;
+  const rootIdxs = triangles[0].map(p => round.idxOf.get(p));
+  render();
+  showFeedback(allFirstTry,
+    `${firstTryCorrectThisRound} / ${totalSteps} steps correct on first try.`);
+  history.push({
+    allPoints: round.allPoints,
+    ordering: round.ordering,
+    stepLog: [...stepLog],
+    totalSteps,
+    firstTryCorrect: firstTryCorrectThisRound,
+    roundCorrect: allFirstTry,
+    rootIdxs,
+  });
+  document.getElementById("btnReview").style.display = "inline-block";
+  document.getElementById("btnSubmit").style.display = "none";
+  document.getElementById("btnNext").style.display = "inline-block";
+}
+
+function nextRound() {
+  const gen = generatePointSet();
+  round = { allPoints: gen.all, ordering: gen.ordering, idxOf: new Map(gen.all.map((p, i) => [p, i])) };
+  triangles = gen.fullTriangulation.slice();
+  stepAttempts = 0;
+  stepLog = [];
+  selectedIdx = null;
+  locked = false;
+  firstTryCorrectThisRound = 0;
+  document.getElementById("btnSubmit").style.display = "inline-block";
+  document.getElementById("btnNext").style.display = "none";
+  document.getElementById("feedback").className = "feedback";
+  render();
+  updateSubmitEnabled();
+}
+
+// ============================================================
+// review feature (same pattern as the other four sites: a numbered
+// list of past rounds, red X on any round not fully correct, click to
+// reopen read-only, back-to-list / back-to-practice navigation)
+// ============================================================
+function showReviewList() {
+  selectedIdx = null;
+  document.getElementById("boardSection").style.display = "none";
+  document.getElementById("stripWrap").style.display = "none";
+  document.querySelector(".strip-header").style.display = "none";
+  document.getElementById("controlsSection").style.display = "none";
+  document.getElementById("score").style.display = "none";
+  document.getElementById("feedback").className = "feedback";
+  document.getElementById("btnReview").style.display = "none";
+  document.getElementById("btnBackToList").style.display = "none";
+  document.getElementById("reviewDetailPanel").style.display = "none";
+  document.getElementById("reviewListPanel").style.display = "block";
+  const itemsDiv = document.getElementById("reviewListItems");
+  itemsDiv.innerHTML = history.map((h, i) =>
+    `<div class="review-item" onclick="showReviewDetail(${i})">
+       <span>Round ${i + 1}</span>
+       <span class="review-right">
+         ${h.roundCorrect ? "" : '<span class="review-x">\u2717</span>'}
+         <span class="review-chevron">\u203a</span>
+       </span>
+     </div>`
+  ).join("");
+}
+
+function showReviewDetail(i) {
+  const h = history[i];
+  document.getElementById("reviewListPanel").style.display = "none";
+  document.getElementById("btnBackToList").style.display = "inline-block";
+  document.getElementById("reviewDetailPanel").style.display = "block";
+  document.getElementById("reviewDetailHeader").textContent =
+    `Round ${i + 1}: ${h.firstTryCorrect} / ${h.totalSteps} steps correct on first try.`;
+
+  // reconstruct the round's starting triangulation: it's exactly the
+  // root plus every triangle removed along the way, since each step
+  // removes one triangle and the round started with all of them present
+  const originalIdxs = [h.rootIdxs, ...h.stepLog.map(s => s.removedIdxs)];
+  const originalKeys = new Set(originalIdxs.map(idxs => comboKey(idxs)));
+  renderStripInto(document.getElementById("reviewStrip"), h.ordering, h.allPoints, originalKeys, "all");
+
+  // walk the path root -> leaf: start at the root and add triangles back
+  // in the reverse of the order they were removed. This is the addition
+  // DAG's own edge direction (node = partial triangulation, edge = add
+  // one triangle), which is why root sits at top and the arrows point
+  // down toward the fuller leaf triangulation.
+  const pathDiv = document.getElementById("reviewPath");
+  pathDiv.innerHTML = "";
+
+  const rootItem = document.createElement("div");
+  rootItem.className = "path-item";
+  rootItem.appendChild(renderMiniBoardSVG(h.allPoints, [h.rootIdxs]));
+  pathDiv.appendChild(rootItem);
+
+  let currentState = [h.rootIdxs];
+  for (let k = h.stepLog.length - 1; k >= 0; k--) {
+    const s = h.stepLog[k];
+
+    const connector = document.createElement("div");
+    connector.className = "path-connector";
+    connector.appendChild(renderPathConnector());
+    pathDiv.appendChild(connector);
+
+    currentState = [...currentState, s.removedIdxs];
+    const item = document.createElement("div");
+    item.className = "path-item";
+    item.appendChild(renderMiniBoardSVG(h.allPoints, currentState));
+    if (!s.firstTry) {
+      const badge = document.createElement("div");
+      badge.className = "path-x-badge";
+      badge.textContent = "\u2717";
+      item.appendChild(badge);
+    }
+    pathDiv.appendChild(item);
+  }
+}
+
+function backToList() {
+  document.getElementById("reviewDetailPanel").style.display = "none";
+  document.getElementById("btnBackToList").style.display = "none";
+  showReviewList();
+}
+
+function backToPractice() {
+  document.getElementById("reviewListPanel").style.display = "none";
+  document.getElementById("reviewDetailPanel").style.display = "none";
+  document.getElementById("btnBackToList").style.display = "none";
+  document.getElementById("boardSection").style.display = "block";
+  document.getElementById("stripWrap").style.display = "block";
+  document.querySelector(".strip-header").style.display = "block";
+  document.getElementById("controlsSection").style.display = "flex";
+  document.getElementById("score").style.display = "block";
+  document.getElementById("btnReview").style.display = history.length ? "inline-block" : "none";
+  render();
+  if (locked) {
+    const last = history[history.length - 1];
+    document.getElementById("btnSubmit").style.display = "none";
+    document.getElementById("btnNext").style.display = "inline-block";
+    showFeedback(last.roundCorrect,
+      `${last.firstTryCorrect} / ${last.totalSteps} steps correct on first try.`);
+  } else {
+    document.getElementById("btnSubmit").style.display = "inline-block";
+    updateSubmitEnabled();
+    document.getElementById("feedback").className = "feedback";
+  }
+}
+
+window.addEventListener("load", nextRound);
+</script>
+</body>
+</html>
