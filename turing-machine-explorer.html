@@ -451,7 +451,7 @@
 
   <footer>
     <p>The tape is infinite to the right only. The input starts at the left end with the head on its first symbol, and <span class="sym">⊔</span> is the blank. Moving left from the first cell leaves the head where it is. The machine halts as soon as it enters <i>q</i><sub>acc</sub> or <i>q</i><sub>rej</sub>.</p>
-    <p>"Loops forever" means a configuration repeated exactly, which proves the machine never halts. A machine can also run forever without repeating, and no program can always detect that (the halting problem), so after 20,000 steps you get "no verdict" instead.</p>
+    <p>A string gets labeled “Loops forever” when the machine runs on it and reaches the same configuration twice, which proves the machine never halts on that string. A machine can also run forever on a string without repeating, and no program can always detect that (the halting problem), so after 20,000 steps you get “No verdict” instead.</p>
   </footer>
 </div>
 
