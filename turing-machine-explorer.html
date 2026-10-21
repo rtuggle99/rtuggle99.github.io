@@ -1,0 +1,1897 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<title>Turing Machine Explorer</title>
+<style>
+  :root{
+    --paper:#eaf4fb;
+    --panel:#ffffff;
+    --ink:#16324f;
+    --ink-soft:#3d5a75;
+    --rule:#a9cbe4;
+    --muted:#8fb0c8;
+    --info:#2f6690;
+    --info-soft:#d7ebf7;
+    --danger:#a8384a;
+    --danger-soft:#f6dde1;
+    --good:#2f7a4f;
+    --good-soft:#dcf0e2;
+    --warn:#946312;
+    --warn-soft:#f8ecd2;
+    --mono: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+    --symbols: 'Noto Sans', 'Noto Sans Symbols 2', sans-serif;
+    --cell: 42px;
+    --step-ms: 450ms;
+  }
+  *{box-sizing:border-box;}
+  [hidden]{display:none !important;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--serif);line-height:1.5;}
+  .page{max-width:1040px;margin:0 auto;padding:24px 18px 70px;}
+  header h1{font-weight:700;font-size:1.65rem;letter-spacing:0.01em;margin:0;border-bottom:3px solid var(--ink);padding-bottom:9px;}
+  header p{color:var(--ink-soft);font-style:italic;font-size:0.92rem;margin:12px 0 22px;max-width:72ch;}
+
+  .panels{display:flex;flex-direction:column;gap:22px;}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px 18px 18px;position:relative;}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px;}
+  .panel-toggle{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:8px;border-radius:3px;padding:2px 4px;margin:-2px -4px;}
+  .panel-toggle:hover h2, .panel-toggle:hover .chev{color:var(--info);}
+  .panel-toggle:focus-visible{outline:2px solid var(--info);outline-offset:2px;}
+  .panel-toggle .chev{font-size:0.8rem;color:var(--ink-soft);display:inline-block;transition:transform 0.15s ease;width:0.8em;}
+  .panel-toggle[aria-expanded="true"] .chev{transform:rotate(90deg);}
+  .panel:has(.panel-toggle[aria-expanded="false"]) .panel-head{margin-bottom:0;}
+  .panel-head h2{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:var(--ink-soft);margin:0;}
+
+  /* ---------- controls ---------- */
+  .btn{font-family:var(--mono);font-size:0.86rem;padding:7px 13px;border-radius:3px;border:1px solid var(--rule);
+    background:#f5fafd;color:var(--ink);cursor:pointer;white-space:nowrap;line-height:1.2;}
+  .btn:hover{background:var(--info-soft);border-color:var(--info);}
+  .btn.primary{background:var(--info);border-color:var(--info);color:#fff;}
+  .btn.primary:hover{background:#255277;}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;background:#f5fafd;border-color:var(--rule);}
+  .btn.primary:disabled{background:var(--info);border-color:var(--info);}
+  .btn.small{padding:5px 10px;font-size:0.8rem;}
+  .btn.icon{min-width:38px;padding:7px 9px;text-align:center;}
+  .btn.danger{color:var(--danger);border-color:var(--danger-soft);}
+  .btn.danger:hover{background:var(--danger-soft);border-color:var(--danger);}
+  select.btn{padding-right:6px;}
+  #exampleSelect{width:9.5em;}
+  .sym{font-family:var(--symbols);}
+  .text-in{-webkit-appearance:none;appearance:none;font-family:var(--mono);font-size:1rem;background:#f5fafd;
+    border:1.5px solid var(--ink);border-radius:3px;padding:6px 10px;color:var(--ink);min-width:0;}
+  .text-in:focus{outline:none;box-shadow:0 0 0 3px var(--info-soft);}
+  .text-in.bad{border-color:var(--danger);background:var(--danger-soft);}
+  .text-in:disabled{opacity:0.7;}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .spacer{flex:1;}
+  .label{font-size:0.95rem;white-space:nowrap;}
+  .note{font-size:0.8rem;color:var(--ink-soft);}
+  .q{font-style:italic;} .q sub, i sub{font-style:normal;font-size:0.72em;}
+
+  /* ---------- builder ---------- */
+  /* toolbar and hint styled exactly as on the regex page */
+  .tools{display:flex;gap:6px;flex-wrap:wrap;}
+  .tool{font-family:var(--mono);font-size:0.82rem;padding:6px 11px;border-radius:3px;
+    border:1px solid var(--rule);background:#f5fafd;color:var(--ink);cursor:pointer;}
+  .tool:hover{background:var(--info-soft);border-color:var(--info);}
+  .tool.active{background:var(--info);border-color:var(--info);color:#fff;}
+  .hint.warn{color:var(--danger);}
+  .hint{color:var(--ink-soft);font-size:0.84rem;margin:8px 0 12px;min-height:2.6em;line-height:1.4;}
+  #lockable{position:relative;}
+  #buildPanel.collapsed #lockable{display:none;}
+  #buildPanel.collapsed .panel-head{margin-bottom:6px;}
+  #buildPanel.collapsed .lock-row, #buildPanel.collapsed #sigmaRow{display:none;}
+  .lock-icon{font-size:15px;opacity:0.85;display:none;}
+  #buildPanel.is-locked:not(.collapsed) .lock-icon{display:inline;}
+  #buildPanel.is-locked #exampleSelect, #buildPanel.is-locked #shareFallback{display:none;}
+  #buildPanel.is-locked #lockable{pointer-events:none;}
+  #buildPanel.is-locked #toolRow, #buildPanel.is-locked .hint, #buildPanel.is-locked .missing-note, #buildPanel.is-locked .problems{display:none;}
+  #buildPanel.is-locked #builderSvg{opacity:0.85;}
+  #lockZone{position:relative;}
+  #buildPanel.is-locked:not(.collapsed) #lockZone::before{content:'';position:absolute;inset:-16px -18px -8px -18px;
+    background:rgba(90,100,118,0.13);border-radius:3px 3px 0 0;pointer-events:none;z-index:1;}
+  @media (max-width:600px){ #buildPanel.is-locked:not(.collapsed) #lockZone::before{inset:-14px -12px -8px -12px;} }
+  svg.stage{width:100%;height:auto;display:block;background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+    cursor:crosshair;touch-action:none;-webkit-user-select:none;user-select:none;}
+  svg.stage.mode-move{cursor:default;}
+  .editor{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--info-soft);border-left:3px solid var(--info);
+    border-radius:0 3px 3px 0;padding:9px 12px;margin-bottom:10px;}
+  .editor .te-label{font-size:0.88rem;white-space:nowrap;}
+  .editor .te-input{font-family:var(--symbols);font-size:0.95rem;flex:1;min-width:150px;}
+  .editor .te-hint{flex-basis:100%;color:var(--ink-soft);font-size:0.8rem;}
+  .editor .te-error{flex-basis:100%;color:var(--danger);font-size:0.82rem;}
+  .rules-editor{display:block;}
+  .re-head{margin-bottom:6px;}
+  /* rem, not em: the headers use a smaller font, and em columns made them narrower than the boxes below */
+  .rule-cols, .rule-row{display:grid;grid-template-columns:4.6rem 1.2rem 4.6rem 0.6rem 4.6rem 1fr;align-items:center;column-gap:6px;}
+  .rr-move{display:flex;width:100%;}
+  .rr-move button{flex:1;padding-left:0;padding-right:0;}
+  .rule-cols{font-size:0.72rem;color:var(--ink-soft);text-transform:uppercase;letter-spacing:0.06em;}
+  .rule-cols span{text-align:center;}
+  .rule-row{margin:5px 0;}
+  .rr-box{position:relative;display:block;font-size:1.02rem;}
+  .rr-box.dot::after{content:'';position:absolute;left:50%;top:calc(50% - 0.61em);width:0.17em;height:0.17em;margin-left:-0.085em;border-radius:50%;background:var(--ink);pointer-events:none;}
+  .rule-row .sep{text-align:center;color:var(--ink-soft);font-family:var(--symbols);}
+  .rr-in{width:100%;text-align:center;font-family:var(--symbols);font-size:1.02rem;padding:4px 6px;}
+  .rr-in::placeholder{color:var(--muted);font-family:var(--serif);font-style:italic;font-size:0.85rem;}
+  .rr-tail{display:flex;align-items:center;gap:8px;min-width:0;}
+  .rr-del{border:none;background:none;color:var(--muted);cursor:pointer;font-size:1rem;padding:2px 6px;border-radius:3px;}
+  .rr-del:hover{color:var(--danger);background:var(--danger-soft);}
+  .rr-err{grid-column:1 / -1;font-size:0.8rem;color:var(--danger);margin-top:3px;}
+  .rr-err:empty{display:none;}
+  .seg{display:inline-flex;border:1px solid var(--rule);border-radius:3px;overflow:hidden;}
+  .seg button{font-family:var(--mono);font-size:0.85rem;padding:4px 11px;border:none;background:#f5fafd;color:var(--ink);cursor:pointer;}
+  .seg button + button{border-left:1px solid var(--rule);}
+  .seg button.on{background:var(--info);color:#fff;}
+  .seg button:focus-visible{outline:2px solid var(--info);outline-offset:-2px;}
+  @media (hover:none){ .kbd-tip{display:none;} }
+  .re-actions{display:flex;gap:8px;align-items:center;margin:8px 0 2px;}
+  .missing-note{font-size:0.82rem;color:var(--ink-soft);margin:10px 0 0;padding:7px 12px;background:#f5fafd;border-left:3px solid var(--rule);border-radius:0 3px 3px 0;}
+  .problems{margin:10px 0 0;padding:0;list-style:none;font-size:0.84rem;color:var(--danger);}
+  .problems li::before{content:'⚠ ';}
+  .sigma-row{gap:8px;margin-top:14px;}
+  .sigma-label{font-style:normal;font-size:1.05rem;}
+  .lock-row{margin-top:14px;}
+  .set-input{display:inline-flex;align-items:center;min-width:5.5em;max-width:100%;flex-wrap:wrap;font-family:var(--symbols);font-size:1.05rem;
+    background:#f5fafd;border:1.5px solid var(--ink);border-radius:3px;padding:4px 10px;cursor:text;color:var(--ink);}
+  .set-input.focused{box-shadow:0 0 0 3px var(--info-soft);}
+  .set-input .brace{color:var(--ink-soft);}
+  .set-input .brace:first-child{margin-right:3px;}
+  .set-input .brace:last-child{margin-left:2px;}
+  .set-input .s-item{white-space:pre;}
+  .set-input .ghost{color:var(--muted);white-space:pre;}
+  .set-input input{border:none;background:transparent;outline:none;font:inherit;color:inherit;width:2px;padding:0;margin:0 0 0 1px;caret-color:var(--info);}
+  .set-input:not(.focused) input{width:0;margin:0;}
+  .set-input.bad{border-color:var(--danger);background:var(--danger-soft);}
+  .set-input.shake{animation:shake 0.3s;}
+  @keyframes shake{20%{transform:translateX(-4px);}40%{transform:translateX(4px);}60%{transform:translateX(-3px);}80%{transform:translateX(2px);}}
+  .set-input.disabled{background:transparent;border-color:transparent;padding-left:0;cursor:default;}
+  .set-input.disabled input{display:none;}
+  #sigmaHint{min-height:1em;}
+  .head-actions{position:relative;}
+  .toast{position:absolute;top:calc(100% + 6px);right:0;z-index:5;max-width:320px;width:max-content;
+    font-size:0.8rem;color:var(--ink);background:var(--panel);border:1px solid var(--rule);border-radius:3px;
+    padding:5px 10px;box-shadow:0 2px 6px rgba(22,50,79,0.12);pointer-events:none;}
+  .share-fallback{margin:0 0 10px;display:flex;flex-direction:column;gap:6px;font-size:0.82rem;color:var(--ink-soft);}
+  .share-fallback input{font-size:0.8rem;width:100%;}
+
+  /* ---------- diagram shapes (shared by builder and run copy) ---------- */
+  .state-circle{fill:var(--panel);stroke:var(--ink);stroke-width:2.2;transition:fill 0.2s,stroke 0.2s;}
+  .state-inner{fill:none;stroke:var(--ink);stroke-width:1.6;}
+  .state-hit{fill:transparent;stroke:none;}
+  .state-label{font-family:var(--serif);font-style:italic;font-size:17px;fill:var(--ink);text-anchor:middle;pointer-events:none;}
+  .state-label .sub{font-style:normal;}
+  .st-accept .state-circle{fill:#f3faf5;stroke:var(--good);}
+  .st-accept .state-inner{stroke:var(--good);}
+  .st-reject .state-circle{fill:#fcf3f5;stroke:var(--danger);}
+  .st-reject .state-inner{stroke:var(--danger);}
+  .st-current .state-circle{fill:var(--info-soft);stroke:var(--info);stroke-width:3.4;}
+  .st-halt-accept .state-circle{fill:var(--good-soft);stroke:var(--good);stroke-width:3.4;}
+  .st-halt-accept .state-inner{stroke:var(--good);}
+  .st-halt-reject .state-circle{fill:var(--danger-soft);stroke:var(--danger);stroke-width:3.4;}
+  .st-halt-reject .state-inner{stroke:var(--danger);}
+  .st-halt-loop .state-circle{fill:var(--warn-soft);stroke:var(--warn);stroke-width:3.4;}
+  .st-selected .state-circle{stroke:var(--info);stroke-width:3.2;}
+  .edge-path{fill:none;stroke:var(--ink-soft);stroke-width:1.6;}
+  .edge-path.used{stroke:var(--info);stroke-width:3;}
+  .edge-path.conflict{stroke:var(--danger);stroke-dasharray:6 4;}
+  .edge-hit{fill:none;stroke:transparent;stroke-width:22;cursor:pointer;}
+  .edge-hit:hover + .edge-path{stroke:var(--info);}
+  .edge-label{font-family:var(--symbols);font-size:13px;fill:var(--ink);text-anchor:middle;}
+  .edge-label .rule-used{fill:var(--info);font-weight:700;}
+  .dotted{position:relative;display:inline-block;}
+  .dotted::after{content:'';position:absolute;left:50%;top:0.01em;width:0.17em;height:0.17em;margin-left:-0.085em;border-radius:50%;background:currentColor;}
+  .edge-dot{fill:var(--ink);}
+  .edge-dot.rule-used{fill:var(--info);}
+  .edge-label-bg{fill:var(--panel);fill-opacity:0.92;}
+  .edge-label-placeholder{font-family:var(--serif);font-style:italic;font-size:12px;fill:var(--ink-soft);text-anchor:middle;}
+  .start-arrow{stroke:var(--ink);stroke-width:2.2;}
+  .start-hit{stroke:transparent;stroke-width:22;cursor:grab;}
+  .snap-guide{stroke:var(--info);stroke-width:1.2;stroke-dasharray:5 4;opacity:0.75;pointer-events:none;}
+  .token{fill:var(--info);stroke:#fff;stroke-width:2;pointer-events:none;}
+
+  /* ---------- run ---------- */
+  #inputString{flex:1 1 200px;max-width:360px;letter-spacing:0.08em;}
+  .input-err{font-size:0.82rem;color:var(--danger);}
+  .stage-box{margin-top:12px;border:1px solid var(--rule);border-radius:3px;overflow:hidden;background:var(--panel);}
+  .tape-wrap{position:relative;overflow:hidden;height:calc(var(--cell) + 61px);background:#f8fbfd;border-bottom:1px solid #e1edf5;cursor:grab;touch-action:pan-y;-webkit-user-select:none;user-select:none;}
+  .tape-wrap.panning{cursor:grabbing;}
+  .tape-wrap.panning .tape-strip{transition:none;}
+  .tape-strip{position:absolute;left:14px;top:18px;transition:transform calc(var(--step-ms) * 0.7) cubic-bezier(.25,.1,.25,1);}
+  .tape-cells{position:relative;height:var(--cell);}
+  .cell{position:absolute;top:0;width:var(--cell);height:var(--cell);border:1.5px solid var(--ink);background:var(--panel);
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1.15rem;font-weight:700;box-sizing:border-box;}
+  .cell.left-end{border-left-width:4px;}
+  .cell.blank{color:var(--muted);font-weight:400;font-family:var(--symbols);font-size:1rem;}
+  .cell .idx{position:absolute;top:-15px;left:0;right:0;text-align:center;font-size:0.6rem;color:var(--muted);font-weight:400;font-family:var(--mono);}
+  .cell.flash{animation:flash calc(var(--step-ms) * 1.4) ease-out;}
+  @keyframes flash{0%{background:var(--info-soft);box-shadow:inset 0 0 0 3px var(--info);}100%{background:var(--panel);box-shadow:inset 0 0 0 0 var(--info);}}
+  .head{position:absolute;top:calc(var(--cell) + 3px);left:0;width:var(--cell);display:flex;flex-direction:column;align-items:center;pointer-events:none;
+    transition:transform calc(var(--step-ms) * 0.6) ease;}
+  .head .tri{width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:9px solid var(--ink);}
+  .head .box{margin-top:-1px;padding:0 8px 1px;line-height:1.5;border:2px solid var(--ink);border-radius:3px;background:var(--panel);font-style:italic;font-size:0.95rem;white-space:nowrap;}
+  .head .box sub{font-style:normal;font-size:0.7em;line-height:0;}
+  .head.accept .tri{border-bottom-color:var(--good);} .head.accept .box{border-color:var(--good);background:var(--good-soft);color:var(--good);}
+  .head.reject .tri{border-bottom-color:var(--danger);} .head.reject .box{border-color:var(--danger);background:var(--danger-soft);color:var(--danger);}
+  .head.loop .tri{border-bottom-color:var(--warn);} .head.loop .box{border-color:var(--warn);background:var(--warn-soft);color:var(--warn);}
+  svg.copy{width:100%;height:auto;max-height:max(280px, calc(100vh - 330px));display:block;}
+  .player{margin-top:12px;}
+  .scrub{flex:1 1 160px;accent-color:var(--info);min-width:120px;}
+  .stepcount{font-family:var(--mono);font-size:0.8rem;color:var(--ink-soft);white-space:nowrap;min-width:12ch;text-align:right;}
+  .verdict{font-family:var(--mono);font-size:0.8rem;font-weight:700;padding:5px 10px;border-radius:3px;white-space:nowrap;cursor:help;}
+  .verdict.accept{background:var(--good-soft);color:var(--good);}
+  .verdict.reject{background:var(--danger-soft);color:var(--danger);}
+  .verdict.loop{background:var(--warn-soft);color:var(--warn);}
+
+  /* ---------- test ---------- */
+  .count-row{gap:8px;margin-bottom:12px;}
+  .custom-box{margin:0 0 12px;display:flex;flex-direction:column;gap:8px;max-width:420px;}
+  .test-summary{margin-top:2px;}
+  .gen{display:flex;flex-direction:column;gap:8px;}
+  textarea.strings{width:100%;height:170px;resize:vertical;font-family:var(--mono);font-size:0.92rem;line-height:1.45;
+    background:#f5fafd;border:1.5px solid var(--ink);border-radius:3px;padding:8px 10px;color:var(--ink);}
+  textarea.strings:focus{outline:none;box-shadow:0 0 0 3px var(--info-soft);}
+  .cols{display:grid;grid-template-columns:repeat(3, minmax(0,1fr));gap:12px;}
+  @media (max-width:520px){ .cols{grid-template-columns:minmax(0,1fr);} }
+  .col h3{margin:0 0 6px;font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.08em;display:flex;justify-content:space-between;
+    padding-bottom:4px;border-bottom:2px solid currentColor;}
+  .col.accept h3{color:var(--good);} .col.reject h3{color:var(--danger);} .col.loop h3{color:var(--warn);}
+  .chips{display:flex;flex-wrap:wrap;gap:5px;}
+  .chip{font-family:var(--mono);font-size:0.86rem;padding:2px 8px;max-width:100%;overflow-wrap:anywhere;text-align:left;border-radius:3px;border:1px solid transparent;cursor:pointer;color:var(--ink);}
+  .col.accept .chip{background:var(--good-soft);} .col.reject .chip{background:var(--danger-soft);} .col.loop .chip{background:var(--warn-soft);}
+  .chip:hover{border-color:var(--ink);}
+  .chip sup{font-family:var(--serif);font-size:0.72em;line-height:0;margin-left:1px;}
+  .chip.eps{font-family:var(--serif);font-style:italic;}
+  .col .none{font-size:0.8rem;color:var(--muted);font-style:italic;}
+  .col .subhead{font-size:0.78rem;color:var(--warn);font-style:italic;margin:8px 0 4px;}
+  .col .subhead:first-of-type{margin-top:0;}
+  .test-summary{font-size:0.86rem;color:var(--ink-soft);margin:0 0 10px;}
+
+  /* ---------- formal definition ---------- */
+  .tuple{font-size:1.05rem;margin:0 0 10px;}
+  dl.parts{display:grid;grid-template-columns:2.1em 1fr;gap:4px 12px;margin:0 0 10px;padding-left:1.6em;font-size:0.95rem;}
+  dl.parts.after{margin:14px 0 0;}
+  table.delta td.halted{color:var(--muted);}
+  dl.parts dt{text-align:left;font-family:var(--symbols);}
+  dl.parts dt i{font-family:var(--serif);}
+  dl.parts dt sub{font-size:0.72em;}
+  dl.parts dd{margin:0;font-family:var(--symbols);font-size:0.92rem;}
+  dl.parts dd i{font-family:var(--serif);}
+  dl.parts dd .why{font-family:var(--serif);color:var(--ink-soft);font-size:0.84rem;font-style:italic;}
+  .tbl-wrap{overflow:auto;border:1px solid var(--rule);border-radius:3px;}
+  table.delta{border-collapse:collapse;width:100%;font-size:0.9rem;}
+  table.delta th, table.delta td{border:1px solid #dbe9f3;padding:5px 10px;text-align:center;white-space:nowrap;}
+  table.delta{font-family:Georgia, 'Noto Sans Symbols 2', 'Noto Sans', serif;}
+  table.delta thead th{background:#f5fafd;font-weight:400;color:var(--ink-soft);}
+  table.delta thead th.corner{font-size:0.82rem;}
+  table.delta tbody th{font-weight:400;text-align:left;background:#f5fafd;}
+  table.delta .qq{font-style:italic;}
+  table.delta sub{font-style:normal;font-size:0.72em;}
+  table.delta .to-acc{background:#edf7f0;color:var(--good);}
+  table.delta .to-rej{background:#fbeff2;color:var(--danger);}
+  table.delta td.to-rej.implicit{color:#ad5064;background:#fdf7f8;}
+  .tbl-note{font-size:0.82rem;color:var(--ink-soft);margin:8px 0 0;}
+  .swatch{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-1px;margin:0 4px 0 0;}
+  .swatch.acc{background:#edf7f0;border:1px solid #b9dcc4;} .swatch.rej{background:#fbeff2;border:1px solid #e9c9cf;}
+  .tbl-note span.k{white-space:nowrap;margin-right:14px;}
+
+  footer{margin-top:40px;color:#6f93ab;font-size:0.78rem;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;}
+  footer p{margin:0 0 6px;}
+
+  @media (max-width:600px){
+    :root{--cell:36px;}
+    .page{padding:16px 10px 50px;}
+    header h1{font-size:1.4rem;}
+    .panel{padding:14px 12px 16px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    .tape-strip,.head{transition:none;}
+    .cell.flash{animation:none;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Turing Machine Explorer</h1>
+    <p>Draw a deterministic Turing machine and lock it in, then give it inputs and watch it accept, reject, or run forever. Any arrow you leave out goes to <i>q</i><sub>rej</sub>.</p>
+  </header>
+
+  <main class="panels">
+    <!-- =============== 1. BUILD =============== -->
+    <section class="panel" id="buildPanel">
+      <div id="lockZone">
+      <div class="panel-head">
+        <button class="panel-toggle" type="button" id="buildToggle" aria-expanded="true"><span class="chev" aria-hidden="true">▸</span><h2>Your Turing machine</h2></button>
+        <span class="spacer"></span>
+        <div class="row head-actions" style="gap:8px;">
+          <span class="toast" id="toast" role="status" hidden></span>
+          <select class="btn small" id="exampleSelect" aria-label="Load an example">
+            <option value="">Examples…</option>
+            <optgroup label="Deciders">
+              <option value="pow2">Powers of two (0^(2ⁿ))</option>
+              <option value="even">Even number of 0s</option>
+              <option value="anbn">Equal 0s then 1s (0ⁿ1ⁿ)</option>
+              <option value="wsw">Same string twice (w#w)</option>
+            </optgroup>
+            <optgroup label="Recognizers but not deciders">
+              <option value="loop">Only b's (b*)</option>
+              <option value="forever">Never halts (∅)</option>
+            </optgroup>
+            <optgroup label="Computes a function">
+              <option value="add">Unary addition (1ᵐ+1ⁿ → 1ᵐ⁺ⁿ)</option>
+              <option value="binadd">Binary addition (101+11 → 1000)</option>
+            </optgroup>
+            <option value="blank">Start from scratch</option>
+          </select>
+          <button class="btn small" id="shareBtn" title="Copy a link to this machine">Share</button>
+          <span class="lock-icon" aria-label="Locked" title="Locked in. Press “Edit machine” to change it.">🔒</span>
+        </div>
+      </div>
+      <div class="share-fallback" id="shareFallback" hidden>
+        <label for="shareUrl">Your browser blocked automatic copying. Copy this link instead:</label>
+        <input class="text-in" id="shareUrl" type="text" readonly>
+      </div>
+
+      <div id="lockable">
+        <div class="row" id="toolRow">
+          <div class="tools" id="tools">
+            <button class="tool active" data-tool="move">Move</button>
+            <button class="tool" data-tool="state">Add state</button>
+            <button class="tool" data-tool="arrow">Draw arrow</button>
+            <button class="tool" data-tool="start">Toggle start</button>
+            <button class="tool" data-tool="delete">Delete</button>
+          </div>
+          <span class="spacer"></span>
+          <button class="btn small" id="undoBtn" title="Undo (Ctrl+Z)">↶ Undo</button>
+        </div>
+        <p class="hint" id="hint"></p>
+
+        <div class="editor rules-editor" id="edgeEditor" hidden>
+          <div class="re-head"><span class="te-label" id="edgeLabel"></span></div>
+          <div class="rule-cols" aria-hidden="true"><span>read</span><span></span><span>write</span><span></span><span>move</span></div>
+          <div id="ruleRows"></div>
+          <div class="re-actions">
+            <button class="btn small" id="addRule" type="button">+ Add rule</button>
+            <span class="spacer"></span>
+            <button class="btn small danger" id="edgeDelete" type="button">Delete arrow</button>
+            <button class="btn small primary" id="edgeSave" type="button">Done</button>
+          </div>
+          <span class="te-hint">Type <b>_</b> for the blank <span class="sym">⊔</span>.<span class="kbd-tip"> Enter adds a rule, and Enter on an empty rule finishes.</span></span>
+          <span class="te-error" id="edgeError" hidden></span>
+        </div>
+
+        <svg class="stage mode-move" id="builderSvg" viewBox="0 0 900 470"></svg>
+        <ul class="problems" id="problems" hidden></ul>
+      </div>
+
+        <div class="row sigma-row" id="sigmaRow">
+          <label class="label sigma-label" for="sigmaType" title="The input alphabet"><span class="sym">Σ =</span></label>
+          <div class="set-input" id="sigmaBox">
+            <span class="brace">{</span><span id="sigmaSyms"></span><span class="ghost" id="sigmaGhost"></span><input id="sigmaType" type="text" autocomplete="off" spellcheck="false" autocapitalize="off" aria-label="Input alphabet Σ: type a symbol to add it"><span class="brace">}</span>
+          </div>
+          <span class="note" id="sigmaHint"></span>
+          <input type="hidden" id="sigmaIn">
+        </div>
+      </div>
+      <div class="row lock-row">
+        <span class="spacer"></span>
+        <div class="row" style="gap:8px;">
+          <span class="note" id="lockErr" style="color:var(--danger)"></span>
+          <button class="btn primary" id="lockBtn">Lock in machine</button>
+          <button class="btn primary" id="editBtn" hidden>Edit machine</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =============== 2. RUN =============== -->
+    <section class="panel" id="runPanel" hidden>
+      <div class="panel-head"><h2>Simulate on a string</h2></div>
+      <div class="row">
+        <label class="label" for="inputString">Input:</label>
+        <input class="text-in" id="inputString" type="text" autocomplete="off" spellcheck="false" placeholder="ε (empty string)">
+        <span class="input-err" id="inputErr"></span>
+      </div>
+
+      <div class="stage-box">
+        <div class="tape-wrap" id="tapeWrap" title="Drag to scroll the tape">
+          <div class="tape-strip" id="tapeStrip">
+            <div class="tape-cells" id="tapeCells"></div>
+            <div class="head" id="head"><div class="tri"></div><div class="box" id="headBox"></div></div>
+          </div>
+        </div>
+        <svg class="copy" id="copySvg" viewBox="0 0 900 470"></svg>
+      </div>
+
+      <div class="row player">
+        <button class="btn icon" id="resetBtn" title="Back to the start (R)">⏮</button>
+        <button class="btn icon" id="backBtn" title="Step back (←)">◀</button>
+        <button class="btn primary" id="playBtn" title="Play / pause (Space)" style="min-width:96px;">▶ Play</button>
+        <button class="btn icon" id="stepBtn" title="Step forward (→)">▶</button>
+        <button class="btn icon" id="endBtn" title="Jump to the end">⏭</button>
+        <input class="scrub" id="scrub" type="range" min="0" max="0" value="0" aria-label="Step">
+        <span class="stepcount" id="stepCount"></span>
+        <span class="verdict" id="verdict" hidden></span>
+        <button class="btn small" id="speedBtn" title="Change playback speed">Speed: normal</button>
+      </div>
+    </section>
+
+    <!-- =============== 3. TEST =============== -->
+    <section class="panel" id="testPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="testBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Test many strings</h2></button></div>
+      <div class="panel-body" id="testBody" hidden>
+      <div class="row count-row">
+        <span class="note">Strings to test:</span>
+        <div class="seg" id="countSeg" role="radiogroup" aria-label="How many strings">
+          <button type="button" data-n="10">10</button><button type="button" data-n="25">25</button><button type="button" data-n="50">50</button><button type="button" data-n="100">100</button><button type="button" data-n="250">250</button><button type="button" data-n="custom">Custom</button>
+        </div>
+        <span class="note" id="countNote">the first <span id="countN">50</span> strings over <span class="sym" id="sigmaShow"></span>, shortest first</span>
+      </div>
+      <div class="custom-box" id="customBox" hidden>
+        <textarea class="strings" id="stringsIn" spellcheck="false" aria-label="Strings to test, one per line"></textarea>
+        <div class="row" style="justify-content:space-between;">
+          <span class="note">One string per line; ε is the empty string.</span>
+          <button class="btn primary small" id="testBtn">Test</button>
+        </div>
+      </div>
+      <p class="test-summary" id="testSummary"></p>
+      <div class="cols" id="testCols"></div>
+      </div>
+    </section>
+
+    <!-- =============== 4. FORMAL DEFINITION =============== -->
+    <section class="panel" id="formalPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="formalBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Tuple definition</h2></button></div>
+      <div class="panel-body" id="formalBody" hidden><div id="formal"></div></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>The tape is infinite to the right only. The input starts at the left end with the head on its first symbol, and <span class="sym">⊔</span> is the blank. Moving left from the first cell leaves the head where it is. The machine halts as soon as it enters <i>q</i><sub>acc</sub> or <i>q</i><sub>rej</sub>.</p>
+    <p>A string gets labeled “Loops forever” when the machine runs on it and reaches the same configuration twice, which proves the machine never halts on that string. A machine can also run forever on a string without repeating, and no program can always detect that (the halting problem), so after 20,000 steps you get “No verdict” instead.</p>
+  </footer>
+</div>
+
+<script>
+(function(){
+  'use strict';
+  const SVG_NS = 'http://www.w3.org/2000/svg';
+  const BLANK = '⊔';
+  const W = 900, H = 470, R = 24;
+  const MOVES = ['L','R','S'];
+  const STEP_CAP = 20000;
+  const $ = id => document.getElementById(id);
+
+  // ======================================================================
+  //  helpers
+  // ======================================================================
+  function el(tag, attrs){ const e = document.createElementNS(SVG_NS, tag); for(const k in attrs) e.setAttribute(k, attrs[k]); return e; }
+  function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
+  function esc(s){ return String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+  // a symbol with a combining dot above (0̇) is drawn with our own dot, since fonts place the combining one unreliably
+  const DOT = '\u0307';
+  function symHTML(s){ return esc(s).replace(/([^\u0307])\u0307/g, '<span class="dotted">$1</span>'); }
+  // split into symbols as people see them, so a dotted 0̇ (0 plus a combining dot) counts as one symbol
+  const graphemes = typeof Intl!=='undefined' && Intl.Segmenter ? new Intl.Segmenter() : null;
+  function chars(s){ return graphemes ? Array.from(graphemes.segment(s), g=>g.segment) : Array.from(s); }
+  function splitLabel(label){
+    let m = /^(.*?)_\{?([^}]*)\}?$/.exec(label);
+    if(m && m[1]) return [m[1], m[2]];
+    m = /^(.*?)(\d+)$/.exec(label);
+    if(m && m[1]) return [m[1], m[2]];
+    return [label, ''];
+  }
+  function labelHTML(label){ const [a,b] = splitLabel(label); return esc(a) + (b ? '<sub>'+esc(b)+'</sub>' : ''); }
+  function qHTML(label){ return `<span class="q">${labelHTML(label)}</span>`; }
+  function setSvgLabel(t, label){
+    const [a,b] = splitLabel(label);
+    const main = document.createElementNS(SVG_NS,'tspan'); main.textContent = a; t.appendChild(main);
+    if(b){
+      const sub = document.createElementNS(SVG_NS,'tspan');
+      sub.setAttribute('class','sub'); sub.setAttribute('dy','0.3em');
+      sub.setAttribute('font-size', b.length>2 ? '0.68em' : '0.74em');
+      sub.textContent = b; t.appendChild(sub);
+    }
+  }
+  function ruleText(r){ return `${r.read} → ${r.write}, ${r.move}`; }
+  function shortlex(a, b){
+    const A = chars(a), B = chars(b);
+    if(A.length !== B.length) return A.length - B.length;
+    return a < b ? -1 : a > b ? 1 : 0;
+  }
+  function plural(n, w){ return `${n.toLocaleString()} ${w}${n===1?'':'s'}`; }
+  function setList(arr){ return '{' + arr.join(', ') + '}'; }
+  const qi = l => `<i>${labelHTML(l)}</i>`;
+  function plainLabel(l){ const [a,b]=splitLabel(l); return b ? a+b : a; }
+
+  // ======================================================================
+  //  machine model
+  // ======================================================================
+  // state: {id,x,y,label,kind:'normal'|'accept'|'reject',startAngle}
+  // edge:  {id,from,to,rules:[{read,write,move}],curve,curveManual,labelSide,loopAngle,loopRadius,lastObstructed}
+  // Every machine has exactly one accept state and exactly one reject state.
+  function emptyMachine(){ return {states:[], edges:[], startId:null, nextS:0, nextE:0}; }
+  function starterMachine(){
+    const m = emptyMachine();
+    m.states.push({id:'s0', x:170, y:235, label:'q0', kind:'normal', startAngle:null, isStart:true});
+    m.states.push({id:'s1', x:720, y:140, label:'q_acc', kind:'accept', startAngle:null});
+    m.states.push({id:'s2', x:720, y:330, label:'q_rej', kind:'reject', startAngle:null});
+    m.startId = 's0'; m.nextS = 3;
+    return m;
+  }
+  let M = starterMachine();
+  const findState = id => M.states.find(s=>s.id===id);
+  const findEdge = id => M.edges.find(e=>e.id===id);
+  const edgeBetween = (a,b) => M.edges.find(e=>e.from===a && e.to===b);
+  const acceptState = () => M.states.find(s=>s.kind==='accept');
+  const rejectState = () => M.states.find(s=>s.kind==='reject');
+
+  function freshNumberedLabel(){
+    const used = new Set(M.states.map(s=>s.label));
+    let i = 0; while(used.has('q'+i)) i++;
+    return 'q'+i;
+  }
+  function freeSpot(m){
+    let best = {x:W-90, y:H-60}, bestD = -1;
+    for(let x=80; x<=W-80; x+=40) for(let y=60; y<=H-60; y+=40){
+      const d = m.states.length ? Math.min(...m.states.map(s=>Math.hypot(s.x-x, s.y-y))) : 9999;
+      if(d > bestD){ bestD = d; best = {x, y}; }
+    }
+    return best;
+  }
+  // repairs machines from old saves or share links so there's exactly one accept and one reject state
+  function ensureSpecials(m){
+    ['accept','reject'].forEach(kind=>{
+      const list = m.states.filter(s=>s.kind===kind);
+      list.slice(1).forEach(s=>{ s.kind = 'normal'; });
+      if(list.length===0){
+        const p = freeSpot(m);
+        const base = kind==='accept' ? 'q_acc' : 'q_rej';
+        let label = base, i = 2; while(m.states.some(s=>s.label===label)) label = base + (i++);
+        m.states.push({id:'s'+(m.nextS++), x:p.x, y:p.y, label, kind, startAngle:null});
+      }
+    });
+    // start states are marked on the states themselves (several can be marked while building);
+    // machines from examples and old links only carry startId
+    m.states.forEach(s=>{ if(s.isStart===undefined) s.isStart = s.id===m.startId; if(s.kind!=='normal') s.isStart = false; });
+    syncStart(m);
+    return m;
+  }
+  // startId is the machine's start state once exactly one state is marked
+  function syncStart(m){
+    const st = m.states.filter(s=>s.isStart);
+    m.startId = st.length===1 ? st[0].id : null;
+  }
+
+  function normalizeRuleText(raw){ return raw.replace(/->/g,'→').replace(/_/g, BLANK).replace(/␣/g, BLANK); }
+  function parseRules(raw){
+    const parts = normalizeRuleText(raw).split(/[;\n]/).map(s=>s.trim()).filter(Boolean);
+    if(parts.length===0) return {error:'Add at least one rule, or press Delete to remove this arrow.'};
+    const rules = [], seen = new Set();
+    for(const p of parts){
+      const sides = p.split('→');
+      if(sides.length!==2) return {error:`"${p}" needs exactly one arrow →, like 0 → 1, R.`};
+      const reads = sides[0].split(',').map(s=>s.trim()).filter(Boolean);
+      const rhs = sides[1].split(',').map(s=>s.trim()).filter(Boolean);
+      if(reads.length===0) return {error:`"${p}" is missing the symbol to read before →.`};
+      for(const r of reads) if(chars(r).length!==1) return {error:`Tape symbols are single characters, but "${r}" is ${chars(r).length}.`};
+      let write = null, move;
+      if(rhs.length===1) move = rhs[0].toUpperCase();
+      else if(rhs.length===2){ write = rhs[0]; move = rhs[1].toUpperCase(); }
+      else return {error:`"${p}": after → write a symbol and a move, like ⊔, R.`};
+      if(write!==null && chars(write).length!==1) return {error:`Can only write one symbol, but "${write}" is ${chars(write).length}.`};
+      if(!MOVES.includes(move)) return {error:`"${rhs[rhs.length-1]}" isn't a move. Use L or R.`};
+      for(const r of reads){
+        if(seen.has(r)) return {error:`This arrow reads "${r}" twice. A machine needs exactly one rule per symbol.`};
+        seen.add(r);
+        rules.push({read:r, write: write===null ? r : write, move});
+      }
+    }
+    return {rules};
+  }
+
+  function analyze(){
+    const problems = [], conflictEdges = new Set();
+    const byKey = {};
+    M.edges.forEach(e=>{
+      const from = findState(e.from); if(!from) return;
+      if(from.kind!=='normal'){
+        problems.push(`${plainLabel(from.label)} is a halting state, so it can't have arrows leaving it.`);
+        conflictEdges.add(e.id);
+      }
+      e.rules.forEach(r=>{ const k = e.from+'\u0000'+r.read; (byKey[k] = byKey[k]||[]).push(e); });
+    });
+    Object.entries(byKey).forEach(([k,list])=>{
+      if(list.length>1){
+        const [sid, sym] = k.split('\u0000');
+        problems.push(`${plainLabel(findState(sid).label)} has ${list.length} arrows that read “${sym}”. Keep only one.`);
+        list.forEach(e=>conflictEdges.add(e.id));
+      }
+    });
+    return {problems:[...new Set(problems)], conflictEdges};
+  }
+  function compile(){
+    const delta = new Map();
+    M.states.forEach(s=>delta.set(s.id, new Map()));
+    M.edges.forEach(e=>e.rules.forEach((r,i)=>{
+      const m = delta.get(e.from);
+      if(m && !m.has(r.read)) m.set(r.read, {edgeId:e.id, ruleIdx:i, to:e.to, write:r.write, move:r.move, read:r.read});
+    }));
+    return {delta, kinds:new Map(M.states.map(s=>[s.id, s.kind])), start:M.startId, reject:rejectState().id};
+  }
+
+  // ---------- alphabets ----------
+  function parseSigma(str){ return [...new Set(chars(str.replace(/[\s,{}]/g,'')))].sort(); }
+  function guessSigma(){
+    const reads = new Set(), markers = new Set();
+    M.edges.forEach(e=>e.rules.forEach(r=>{ reads.add(r.read); if(r.write!==r.read) markers.add(r.write); }));
+    let s = [...reads].filter(c=>c!==BLANK && !markers.has(c));
+    if(!s.length) s = [...reads].filter(c=>c!==BLANK);
+    return s.sort().join(',');
+  }
+  function gammaOf(sigma){
+    const set = new Set(sigma);
+    M.edges.forEach(e=>e.rules.forEach(r=>{ set.add(r.read); set.add(r.write); }));
+    set.delete(BLANK);
+    return [...set].sort().concat([BLANK]);
+  }
+
+  // ======================================================================
+  //  simulation
+  // ======================================================================
+  function symAt(tape, i){ return i < tape.length ? tape[i] : BLANK; }
+  function trimmed(tape){ let end = tape.length; while(end>0 && tape[end-1]===BLANK) end--; return tape.slice(0,end); }
+  // The tape after j steps, rebuilt by re-running the machine (used only to confirm a suspected loop).
+  function replay(C, input, j){
+    const tape = chars(input); let state = C.start, head = 0;
+    for(let i=0;i<j;i++){
+      const t = C.delta.get(state).get(symAt(tape, head));
+      while(tape.length <= head) tape.push(BLANK);
+      tape[head] = t.write;
+      if(t.move==='R') head++; else if(t.move==='L') head = Math.max(0, head-1);
+      state = t.to;
+    }
+    return tape;
+  }
+  // Configurations are fingerprinted by (state, head, tape hash). The hash is updated in O(1) per
+  // write and ignores trailing blanks, so long runs stay fast. A fingerprint match is confirmed
+  // against the real tape before we ever say "loops forever".
+  const M1 = 67108859, M2 = 67108837, B1 = 131, B2 = 137;
+  const SNAP_EVERY = 250;
+  function trace(C, input, keepSteps){
+    const tape = chars(input);
+    const codes = new Map();
+    const code = c => { if(c===BLANK) return 0; let v = codes.get(c); if(v===undefined){ v = codes.size+1; codes.set(c, v); } return v; };
+    const p1 = [1], p2 = [1];
+    const pw = i => { while(p1.length <= i){ p1.push(p1[p1.length-1]*B1 % M1); p2.push(p2[p2.length-1]*B2 % M2); } };
+    let h1 = 0, h2 = 0;
+    tape.forEach((c,i)=>{ pw(i); h1 = (h1 + code(c)*p1[i]) % M1; h2 = (h2 + code(c)*p2[i]) % M2; });
+    let state = C.start, head = 0, i = 0;
+    const T = keepSteps ? {states:[state], heads:[0], writes:[null], used:[null], snaps:new Map([[0, tape.slice()]])} : null;
+    const key = () => state+'|'+head+'|'+h1+'|'+h2;
+    const seen = new Map([[key(), 0]]);
+    while(true){
+      const kind = C.kinds.get(state);
+      if(kind==='accept') return finish({type:'accept'});
+      if(kind==='reject') return finish({type:'reject'});
+      const read = symAt(tape, head);
+      const t = C.delta.get(state).get(read);
+      if(!t){
+        const from = state; state = C.reject; i++;
+        if(T){ T.states.push(state); T.heads.push(head); T.writes.push(null); T.used.push({implicit:true, from, read}); }
+        return finish({type:'reject', implicit:true, from, read});
+      }
+      if(i >= STEP_CAP) return finish({type:'limit'});
+      while(tape.length <= head) tape.push(BLANK);
+      const d = code(t.write) - code(read);
+      if(d){ pw(head); h1 = ((h1 + d*p1[head]) % M1 + M1) % M1; h2 = ((h2 + d*p2[head]) % M2 + M2) % M2; }
+      tape[head] = t.write;
+      const pos = head;
+      if(t.move==='R') head++; else if(t.move==='L') head = Math.max(0, head-1);
+      const from = state; state = t.to; i++;
+      if(T){
+        T.states.push(state); T.heads.push(head); T.writes.push({pos, sym:t.write});
+        T.used.push({edgeId:t.edgeId, ruleIdx:t.ruleIdx, from, to:t.to, read, write:t.write, move:t.move, pos, bumped: t.move==='L' && pos===0});
+        if(i % SNAP_EVERY === 0) T.snaps.set(i, tape.slice());
+      }
+      const k = key();
+      if(seen.has(k)){
+        const j = seen.get(k);
+        const then = trimmed(T ? tapeAt(T, j) : replay(C, input, j)), now = trimmed(tape);
+        if(then.length===now.length && then.every((c,x)=>c===now[x])) return finish({type:'loop', repeatOf:j});
+      }
+      seen.set(k, i);
+    }
+    function finish(v){ v.steps = i; if(T){ T.verdict = v; T.last = i; return T; } return v; }
+  }
+  function tapeAt(T, i){
+    const base = Math.floor(i/SNAP_EVERY)*SNAP_EVERY;
+    const tape = T.snaps.get(base).slice();
+    for(let j=base+1; j<=i; j++){
+      const w = T.writes[j]; if(!w) continue;
+      while(tape.length <= w.pos) tape.push(BLANK);
+      tape[w.pos] = w.sym;
+    }
+    return tape;
+  }
+
+  // ======================================================================
+  //  diagram drawing (shared by the builder and the read-only copy)
+  // ======================================================================
+  const MARKERS = {arrow:'#3d5a75', 'arrow-info':'#2f6690', 'arrow-danger':'#a8384a', 'arrow-ink':'#16324f'};
+  function addDefs(svg, prefix){
+    const defs = el('defs',{});
+    for(const id in MARKERS){
+      const m = el('marker',{id:prefix+id, viewBox:'0 0 10 10', refX:'9', refY:'5', markerWidth:'7', markerHeight:'7', orient:'auto-start-reverse'});
+      m.appendChild(el('path',{d:'M0,0 L10,5 L0,10 z', fill:MARKERS[id]}));
+      defs.appendChild(m);
+    }
+    svg.appendChild(defs);
+  }
+  // Edges as arcs of circles (madebyevan-style). `curve` keeps its meaning: the arc's peak sits
+  // curve/2 off the straight line between the states, the same spot the old curves peaked at.
+  function edgeGeometry(x1,y1,x2,y2,curve,side){
+    const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len, nxs=-uy, nys=ux;
+    const h = curve/2;
+    if(Math.abs(h) < 0.5){
+      const sx=x1+ux*R, sy=y1+uy*R, ex=x2-ux*(R+1), ey=y2-uy*(R+1), sign=side||1;
+      return {d:`M ${sx} ${sy} L ${ex} ${ey}`, px:(sx+ex)/2, py:(sy+ey)/2, nx:nxs*sign, ny:nys*sign};
+    }
+    const x3=(x1+x2)/2+nxs*h, y3=(y1+y2)/2+nys*h;
+    const D = 2*(x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2));
+    const cx = ((x1*x1+y1*y1)*(y2-y3)+(x2*x2+y2*y2)*(y3-y1)+(x3*x3+y3*y3)*(y1-y2))/D;
+    const cy = ((x1*x1+y1*y1)*(x3-x2)+(x2*x2+y2*y2)*(x1-x3)+(x3*x3+y3*y3)*(x2-x1))/D;
+    const r = Math.hypot(x1-cx, y1-cy);
+    const TAU = 2*Math.PI, norm = a => ((a % TAU) + TAU) % TAU;
+    const a1 = Math.atan2(y1-cy, x1-cx), a2 = Math.atan2(y2-cy, x2-cx), a3 = Math.atan2(y3-cy, x3-cx);
+    const dir = norm(a3-a1) < norm(a2-a1) ? 1 : -1;            // which way round the circle passes the peak
+    const s0 = a1 + dir*R/r, e0 = a2 - dir*(R+1)/r;              // trim to the state circles
+    const sx=cx+r*Math.cos(s0), sy=cy+r*Math.sin(s0), ex=cx+r*Math.cos(e0), ey=cy+r*Math.sin(e0);
+    const span = dir>0 ? norm(e0-s0) : norm(s0-e0);
+    const d = `M ${sx} ${sy} A ${r} ${r} 0 ${span>Math.PI?1:0} ${dir>0?1:0} ${ex} ${ey}`;
+    return {d, px:x3, py:y3, nx:(x3-cx)/r, ny:(y3-cy)/r};
+  }
+  // Self-loops as most of a small circle sitting on the state, like madebyevan's designer.
+  function loopGeometry(x,y,angleDeg,h){
+    const a = angleDeg*Math.PI/180, rl = 0.75*R, cx = x+Math.cos(a)*1.5*R, cy = y+Math.sin(a)*1.5*R;
+    const s0 = a - 0.8*Math.PI, e0 = a + 0.8*Math.PI;
+    const sx=cx+rl*Math.cos(s0), sy=cy+rl*Math.sin(s0), ex=cx+rl*Math.cos(e0), ey=cy+rl*Math.sin(e0);
+    // arrowhead: tip on the loop's end point, turned 0.4π past the circle's direction there (as madebyevan does)
+    return {d:`M ${sx} ${sy} A ${rl} ${rl} 0 1 1 ${ex} ${ey}`, loop:true, tipX:ex, tipY:ey, tipAngle:e0 + 0.4*Math.PI,
+      px:cx+Math.cos(a)*rl, py:cy+Math.sin(a)*rl, nx:Math.cos(a), ny:Math.sin(a)};
+  }
+  function obstructed(ax, ay, bx, by, aId, bId){
+    const lx=bx-ax, ly=by-ay, len2=lx*lx+ly*ly;
+    if(len2<1) return false;
+    return M.states.some(p=>{
+      if(p.id===aId || p.id===bId) return false;
+      const t=((p.x-ax)*lx+(p.y-ay)*ly)/len2;
+      if(t<=0.08 || t>=0.92) return false;
+      return Math.hypot(p.x-(ax+t*lx), p.y-(ay+t*ly)) < R+14;
+    });
+  }
+  function drawLabel(svg, x, y, lines, nx, ny, edgeId, usedIdx, placeholder){
+    const g = el('g', edgeId ? {'data-edge-id':edgeId} : {});
+    const t = el('text',{class: placeholder ? 'edge-label-placeholder' : 'edge-label', x, y});
+    const LH = 15;
+    lines.forEach((line,i)=>{
+      const ts = document.createElementNS(SVG_NS,'tspan');
+      ts.setAttribute('x', x); ts.setAttribute('dy', i===0 ? 0 : LH);
+      if(i===usedIdx) ts.setAttribute('class','rule-used');
+      ts.textContent = line.split(DOT).join(''); t.appendChild(ts);
+    });
+    g.appendChild(t); svg.appendChild(g);
+    let bb; try{ bb = t.getBBox(); }catch(e){ bb = null; }
+    if(!bb || !bb.width){ const w = 7*Math.max(...lines.map(l=>l.length)); bb = {x:x-w/2, y:y-11, width:w, height:LH*lines.length}; }
+    const off = 7 + Math.abs(nx)*bb.width/2 + Math.abs(ny)*bb.height/2;
+    const dx = x + nx*off - (bb.x + bb.width/2), dy = y + ny*off - (bb.y + bb.height/2);
+    t.setAttribute('y', y+dy);
+    [...t.children].forEach(ts=>ts.setAttribute('x', x+dx));
+    g.insertBefore(el('rect',{class:'edge-label-bg', x:bb.x+dx-3, y:bb.y+dy-3, width:bb.width+6, height:bb.height+6, rx:4}), t);
+    // dots over dotted symbols, placed over the character they belong to
+    let base = 0;
+    lines.forEach((line,i)=>{
+      let k = 0;
+      for(const ch of line){
+        if(ch===DOT){
+          try{ const ex = t.getExtentOfChar(base + k - 1);
+            g.appendChild(el('circle',{class:'edge-dot'+(i===usedIdx?' rule-used':''), cx:ex.x+ex.width/2, cy:ex.y+ex.height*0.085, r:1.3})); }catch(e){}
+        } else k += ch.length;
+      }
+      base += k;
+    });
+  }
+  // opts: {interactive, prefix, cur, used, haltCls, conflictEdges, selected, pending}
+  function drawMachine(svg, opts){
+    svg.innerHTML = '';
+    const P = opts.prefix;
+    addDefs(svg, P);
+    let usedPath = null;
+    M.edges.forEach(edge=>{
+      const a = findState(edge.from), b = findState(edge.to);
+      if(!a||!b) return;
+      const isUsed = !!(opts.used && opts.used.edgeId===edge.id);
+      let g;
+      if(edge.from===edge.to){
+        g = loopGeometry(a.x, a.y, edge.loopAngle!=null ? edge.loopAngle : -90, edge.loopRadius!=null ? edge.loopRadius : 66);
+      } else {
+        let def = 0;
+        if(edgeBetween(edge.to, edge.from)) def = 32;
+        else {
+          const ob = obstructed(a.x,a.y,b.x,b.y,edge.from,edge.to);
+          if(opts.interactive){
+            if(ob && !edge.lastObstructed) edge.curveManual = false;
+            edge.lastObstructed = ob;
+          }
+          if(ob) def = 50;
+        }
+        g = edgeGeometry(a.x,a.y,b.x,b.y, edge.curveManual ? edge.curve : def, edge.labelSide);
+      }
+      if(opts.interactive) svg.appendChild(el('path',{class:'edge-hit', d:g.d, 'data-edge-id':edge.id}));
+      const bad = opts.conflictEdges && opts.conflictEdges.has(edge.id);
+      const markerId = isUsed ? 'arrow-info' : bad ? 'arrow-danger' : 'arrow';
+      const p = el('path',{class:'edge-path'+(isUsed?' used':'')+(bad?' conflict':''), d:g.d});
+      if(!g.loop) p.setAttribute('marker-end', `url(#${P}${markerId})`);
+      svg.appendChild(p);
+      if(g.loop){
+        const L = isUsed ? 13 : 11, Wd = isUsed ? 6.5 : 5.5, ux = Math.cos(g.tipAngle), uy = Math.sin(g.tipAngle);
+        const bx = g.tipX - ux*L, by = g.tipY - uy*L;
+        svg.appendChild(el('path',{d:`M ${g.tipX} ${g.tipY} L ${bx - uy*Wd} ${by + ux*Wd} L ${bx + uy*Wd} ${by - ux*Wd} Z`, fill:MARKERS[markerId], 'pointer-events':'none'}));
+      }
+      if(isUsed) usedPath = p;
+      const lines = edge.rules.length ? edge.rules.map(ruleText) : ['add rules'];
+      drawLabel(svg, g.px, g.py, lines, g.nx, g.ny, opts.interactive ? edge.id : null, isUsed ? opts.used.ruleIdx : -1, edge.rules.length===0);
+    });
+    M.states.filter(s=>s.isStart).forEach(s0=>{
+      const ang = (s0.startAngle!=null ? s0.startAngle : 180)*Math.PI/180;
+      const fx=s0.x+Math.cos(ang)*(R+44), fy=s0.y+Math.sin(ang)*(R+44), nx=s0.x+Math.cos(ang)*(R+2), ny=s0.y+Math.sin(ang)*(R+2);
+      if(opts.interactive) svg.appendChild(el('line',{class:'start-hit', 'data-start-id':s0.id, x1:fx, y1:fy, x2:nx, y2:ny}));
+      svg.appendChild(el('line',{class:'start-arrow', x1:fx, y1:fy, x2:nx, y2:ny, 'marker-end':`url(#${P}arrow-ink)`}));
+    });
+    M.states.forEach(s=>{
+      let cls = 'st st-'+s.kind;
+      if(s.id===opts.cur) cls += ' ' + (opts.haltCls || 'st-current');
+      if(opts.selected===s.id || opts.pending===s.id) cls += ' st-selected';
+      const g = el('g',{class:cls});
+      if(opts.interactive){
+        g.setAttribute('data-state-id', s.id);
+        g.setAttribute('style', 'cursor:'+(tool==='move'?'grab':'pointer'));
+        g.appendChild(el('circle',{class:'state-hit', cx:s.x, cy:s.y, r:R+12}));
+      }
+      g.appendChild(el('circle',{class:'state-circle', cx:s.x, cy:s.y, r:R}));
+      if(s.kind==='accept') g.appendChild(el('circle',{class:'state-inner', cx:s.x, cy:s.y, r:R-5}));
+      const sub = splitLabel(s.label)[1];
+      // baseline placed explicitly (not dominant-baseline, which Safari positions differently) so the whole label (letter, tail and subscript) is centered
+      const t = el('text',{class:'state-label', x:s.x, y:s.y + (sub ? 2.2 : 4)});
+      if(sub && sub.length>2) t.setAttribute('font-size','16');
+      setSvgLabel(t, s.label);
+      g.appendChild(t);
+      svg.appendChild(g);
+    });
+    return usedPath;
+  }
+
+  // ======================================================================
+  //  builder
+  // ======================================================================
+  const builderSvg = $('builderSvg'), hintEl = $('hint'), problemsEl = $('problems');
+  let tool = 'move', pendingFrom = null, snapX = null, snapY = null;
+  let locked = false;
+
+  function renderBuilder(){
+    const {conflictEdges} = analyze();
+    drawMachine(builderSvg, {interactive:true, prefix:'b-', conflictEdges, pending:pendingFrom});
+    if(snapX!=null) builderSvg.appendChild(el('line',{class:'snap-guide', x1:snapX, y1:0, x2:snapX, y2:H}));
+    if(snapY!=null) builderSvg.appendChild(el('line',{class:'snap-guide', x1:0, y1:snapY, x2:W, y2:snapY}));
+  }
+  let noteTimer = null;
+  const HINTS = {
+    move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to edit its rules.',
+    state: 'Tap empty space to place a new state.',
+    arrow: 'Tap a state, then tap another (or the same one again) to draw a new arrow.',
+    start: 'Tap a state to toggle whether it is a start state.',
+    delete: 'Tap a state or an arrow to delete it. The accept and reject states always stay.'
+  };
+  function setTool(t){
+    tool = t; pendingFrom = null;
+    document.querySelectorAll('#tools .tool').forEach(b=>b.classList.toggle('active', b.dataset.tool===t));
+    builderSvg.classList.toggle('mode-move', t==='move');
+    clearTimeout(noteTimer); hintEl.classList.remove('warn'); hintEl.textContent = HINTS[t];
+    if(t!=='move') closeEditors();
+    renderBuilder();
+  }
+  $('tools').addEventListener('click', e=>{ const b = e.target.closest('.tool'); if(b) setTool(b.dataset.tool); });
+
+  const undoStack = [];
+  function pushUndo(){ undoStack.push(JSON.stringify(M)); if(undoStack.length>100) undoStack.shift(); }
+  function undo(){ if(locked || !undoStack.length) return; M = JSON.parse(undoStack.pop()); closeEditors(); changed(); }
+  $('undoBtn').addEventListener('click', undo);
+
+  function changed(){
+    syncStart(M);
+    const {problems} = analyze();
+    problemsEl.hidden = problems.length===0;
+    problemsEl.innerHTML = problems.map(p=>`<li>${esc(p)}</li>`).join('');
+    $('lockErr').textContent = '';
+    renderBuilder();
+    if(typeof renderSigma==='function') renderSigma();
+    save();
+  }
+
+  function svgPoint(evt){
+    const pt = builderSvg.createSVGPoint(); pt.x = evt.clientX; pt.y = evt.clientY;
+    const loc = pt.matrixTransform(builderSvg.getScreenCTM().inverse());
+    return {x:loc.x, y:loc.y};
+  }
+  function addStateAt(x,y){
+    pushUndo();
+    const id = 's'+(M.nextS++);
+    M.states.push({id, x:clamp(x,R+4,W-R-4), y:clamp(y,R+4,H-R-4), label:freshNumberedLabel(), kind:'normal', startAngle:null});
+    if(!M.states.some(s=>s.isStart)) M.states[M.states.length-1].isStart = true;
+    changed();
+  }
+  function deleteState(id){
+    const s = findState(id); if(!s) return;
+    if(s.kind!=='normal'){ note(`Every machine needs exactly one ${s.kind} state, so ${qi(s.label)} can't be deleted.`); return; }
+    pushUndo();
+    M.states = M.states.filter(x=>x.id!==id);
+    M.edges = M.edges.filter(e=>e.from!==id && e.to!==id);
+    closeEditors(); changed();
+  }
+  function deleteEdge(id){ pushUndo(); M.edges = M.edges.filter(e=>e.id!==id); closeEditors(); changed(); }
+
+  let pointer = null, downX=0, downY=0, dragKind=null, dragId=null, dragMoved=false, dragUndo=false;
+  builderSvg.addEventListener('pointerdown', e=>{
+    if(locked) return;
+    const sT = e.target.closest('[data-state-id]');
+    const eT = !sT ? e.target.closest('[data-edge-id]') : null;
+    const stT = !sT && !eT ? e.target.closest('[data-start-id]') : null;
+    if(!edgeEditor.hidden && !(eT && eT.dataset.edgeId===editingEdge)){ if(!saveEdge()) return; }
+    downX = e.clientX; downY = e.clientY; dragMoved = false; dragUndo = false;
+    if(sT||eT||stT){
+      dragKind = sT ? 'state' : eT ? 'edge' : 'start';
+      dragId = sT ? sT.dataset.stateId : eT ? eT.dataset.edgeId : stT.dataset.startId;
+      pointer = e.pointerId; e.preventDefault();
+      window.addEventListener('pointermove', onMove, {passive:false});
+      window.addEventListener('pointerup', onUp);
+      window.addEventListener('pointercancel', onUp);
+    } else { dragKind = null; dragId = null; }
+  });
+  builderSvg.addEventListener('pointerup', e=>{ if(!locked && !dragKind) tap(e, null, null); });
+  builderSvg.addEventListener('dblclick', e=>{
+    if(locked || tool!=='move' || e.target.closest('[data-state-id],[data-edge-id],[data-start-id]')) return;
+    const p = svgPoint(e); addStateAt(p.x, p.y);
+  });
+  function onMove(e){
+    if(pointer===null || e.pointerId!==pointer || !dragKind) return;
+    if(!dragMoved && Math.hypot(e.clientX-downX, e.clientY-downY) < 5) return;
+    if(dragKind==='state' && tool!=='move') return;
+    if(!dragUndo){ pushUndo(); dragUndo = true; }
+    dragMoved = true; e.preventDefault();
+    const p = svgPoint(e);
+    if(dragKind==='state'){
+      const s = findState(dragId); if(!s) return;
+      let px = clamp(p.x, R+4, W-R-4), py = clamp(p.y, R+4, H-R-4), bx=null, bxd=10, by=null, byd=10;
+      M.states.forEach(o=>{ if(o.id===dragId) return;
+        const dx=Math.abs(px-o.x); if(dx<bxd){bxd=dx;bx=o.x;}
+        const dy=Math.abs(py-o.y); if(dy<byd){byd=dy;by=o.y;} });
+      if(bx!=null) px=bx; if(by!=null) py=by;
+      s.x=px; s.y=py; snapX=bx; snapY=by;
+    } else if(dragKind==='edge'){
+      const edge = findEdge(dragId); if(!edge) return;
+      if(edge.from===edge.to){
+        const s = findState(edge.from);
+        let ang = Math.atan2(p.y-s.y, p.x-s.x)*180/Math.PI;
+        for(const c of [-180,-135,-90,-45,0,45,90,135,180]) if(Math.abs(ang-c)<8){ ang=c; break; }
+        edge.loopAngle = ang; edge.loopRadius = clamp(Math.hypot(p.x-s.x, p.y-s.y)-R, 30, 150);
+      } else {
+        const a = findState(edge.from), b = findState(edge.to);
+        const lx=b.x-a.x, ly=b.y-a.y, len=Math.hypot(lx,ly)||1;
+        const proj = (p.x-(a.x+b.x)/2)*(-ly/len) + (p.y-(a.y+b.y)/2)*(lx/len);
+        edge.curveManual = true;
+        if(Math.abs(proj)<18){ edge.curve = 0; edge.labelSide = proj<0?-1:1; } else edge.curve = clamp(proj*2, -500, 500);
+      }
+    } else if(dragKind==='start'){
+      const s = findState(dragId);
+      let ang = Math.atan2(p.y-s.y, p.x-s.x)*180/Math.PI;
+      for(const c of [-180,-90,0,90,180]) if(Math.abs(ang-c)<10){ ang=c; break; }
+      s.startAngle = ang;
+    }
+    renderBuilder();
+  }
+  function onUp(e){
+    window.removeEventListener('pointermove', onMove);
+    window.removeEventListener('pointerup', onUp);
+    window.removeEventListener('pointercancel', onUp);
+    if(pointer===null || e.pointerId!==pointer) return;
+    pointer = null;
+    const kind=dragKind, id=dragId, moved=dragMoved;
+    dragKind=null; dragId=null; dragMoved=false; snapX=null; snapY=null;
+    if(kind && moved){ renderBuilder(); save(); return; }
+    if(kind==='state') tap(e, id, null);
+    else if(kind==='edge') tap(e, null, id);
+  }
+  function tap(e, stateId, edgeId){
+    if(stateId){
+      if(tool==='move') return;
+      if(tool==='start'){
+        const s = findState(stateId);
+        if(s.kind!=='normal'){ note(`The machine halts in ${qi(s.label)}, so it can't be the start state.`); return; }
+        pushUndo(); s.isStart = !s.isStart;
+        if(s.isStart && s.startAngle==null) s.startAngle = bestLoopAngle(s);   // point the new start arrow into open space
+        changed(); return;
+      }
+      if(tool==='delete'){ deleteState(stateId); return; }
+      if(tool==='arrow'){
+        if(!pendingFrom){
+          const s = findState(stateId);
+          if(s.kind!=='normal'){ note(`The machine halts in ${qi(s.label)}, so no arrows can leave it.`); return; }
+          pendingFrom = stateId; renderBuilder(); return;
+        }
+        const from = pendingFrom; pendingFrom = null;
+        let edge = edgeBetween(from, stateId);
+        if(edge){ renderBuilder(); openEdgeEditor(edge.id, false); return; }
+        pushUndo();
+        edge = {id:'e'+(M.nextE++), from, to:stateId, rules:[], curve:0, curveManual:false, labelSide:1, loopAngle:null, loopRadius:null, lastObstructed:false};
+        if(from===stateId) edge.loopAngle = bestLoopAngle(findState(from));
+        M.edges.push(edge);
+        renderBuilder();
+        openEdgeEditor(edge.id, true);
+      }
+      return;
+    }
+    if(edgeId){ if(tool==='delete') deleteEdge(edgeId); else openEdgeEditor(edgeId, false); return; }
+    if(tool==='state'){ const p = svgPoint(e); addStateAt(p.x, p.y); }
+    else if(pendingFrom){ pendingFrom = null; renderBuilder(); }
+  }
+  function bestLoopAngle(s){
+    let best = -90, score = -Infinity;
+    [-90, 90, 0, 180, -45, -135, 45, 135].forEach(c=>{
+      const r = c*Math.PI/180, px = s.x+Math.cos(r)*70, py = s.y+Math.sin(r)*70;
+      if(px<30 || px>W-30 || py<30 || py>H-30) return;
+      let sc = 0; M.states.forEach(o=>{ if(o.id!==s.id) sc += Math.min(Math.hypot(o.x-px, o.y-py), 200); });
+      if(sc>score){ score = sc; best = c; }
+    });
+    return best;
+  }
+
+  // ---------- arrow editor: one row per rule, read → write, move ----------
+  const edgeEditor = $('edgeEditor'), edgeLabel = $('edgeLabel'), edgeError = $('edgeError'), ruleRows = $('ruleRows');
+  let editingEdge = null, editingIsNew = false;
+
+  function rulesToRows(rules){ return rules.map(r=>({read:r.read, write:r.write, move:r.move})); }
+  function makeRow(row){
+    const div = document.createElement('div');
+    div.className = 'rule-row';
+    div.innerHTML = `<span class="rr-box"><input class="text-in rr-in rr-read" type="text" maxlength="1" autocomplete="off" spellcheck="false" aria-label="read"></span>
+      <span class="sep">→</span>
+      <span class="rr-box"><input class="text-in rr-in rr-write" type="text" maxlength="1" autocomplete="off" spellcheck="false" placeholder="same" aria-label="write"></span>
+      <span class="sep">,</span>
+      <div class="seg rr-move" role="radiogroup" aria-label="move"><button type="button" data-m="L">L</button><button type="button" data-m="R">R</button></div>
+      <div class="rr-tail"><button type="button" class="rr-del" title="Remove this rule">✕</button></div><span class="rr-err"></span>`;
+    setBox(div.querySelector('.rr-read'), row.read || '');
+    setBox(div.querySelector('.rr-write'), row.write || '');
+    setMove(div, row.move || 'R');
+    return div;
+  }
+  function setMove(div, m){
+    div.dataset.move = m;
+    div.querySelectorAll('.rr-move button').forEach(b=>{ b.classList.toggle('on', b.dataset.m===m); b.setAttribute('aria-pressed', b.dataset.m===m); });
+  }
+  function addRow(row, focus){
+    const div = makeRow(row || {});
+    ruleRows.appendChild(div);
+    if(focus) div.querySelector('.rr-read').focus();
+    return div;
+  }
+  function rowIsEmpty(div){ return !boxVal(div.querySelector('.rr-read')) && !boxVal(div.querySelector('.rr-write')); }
+  // a dotted symbol sits in its box as the plain character plus our own dot, since input boxes can't place the font's dot reliably
+  function setBox(inp, v){ const dot = v.endsWith(DOT); inp.value = dot ? v.slice(0,-DOT.length) : v; inp.dataset.dot = dot ? '1' : ''; inp.parentNode.classList.toggle('dot', dot); }
+  function boxVal(inp){ const v = inp.value.trim(); return v && inp.dataset.dot ? v + DOT : v; }
+
+  function openEdgeEditor(id, isNew){
+    closeEditors();
+    const e = findEdge(id); if(!e) return;
+    editingEdge = id; editingIsNew = isNew;
+    edgeLabel.innerHTML = `Rules for <i>${labelHTML(findState(e.from).label)}</i> → <i>${labelHTML(findState(e.to).label)}</i>`;
+    ruleRows.innerHTML = '';
+    const rows = rulesToRows(e.rules);
+    (rows.length ? rows : [{}]).forEach(r=>addRow(r, false));
+    edgeError.hidden = true; edgeEditor.hidden = false;
+    validateRows(false);
+    const first = rows.length ? null : ruleRows.querySelector('.rr-read');
+    (first || ruleRows.querySelector('.rule-row:last-child .rr-read')).focus();
+  }
+
+  // Checks every row; marks problems on the row itself. Returns the rules, or null if something is wrong.
+  // `strict` also reports half-filled rows (used when saving, not while typing).
+  function validateRows(strict){
+    const e = findEdge(editingEdge); if(!e) return null;
+    const others = new Map();   // symbols already read by this state's other arrows
+    M.edges.forEach(o=>{ if(o!==e && o.from===e.from) o.rules.forEach(r=>others.set(r.read, o.to)); });
+    const rules = [], seen = new Map();
+    let ok = true;
+    [...ruleRows.children].forEach(div=>{
+      const readEl = div.querySelector('.rr-read'), writeEl = div.querySelector('.rr-write'), err = div.querySelector('.rr-err');
+      let msg = '', badRead = false, badWrite = false;
+      const readTxt = boxVal(readEl), writeTxt = boxVal(writeEl);
+      if(!readTxt && !writeTxt){ err.textContent = ''; readEl.classList.remove('bad'); writeEl.classList.remove('bad'); return; }
+      const reads = readTxt ? [readTxt] : [];
+      if(!reads.length && strict){ msg = 'What symbol does it read?'; badRead = true; }
+      if(!msg && chars(writeTxt).length>1){ msg = 'Write a single symbol'; badWrite = true; }
+      if(!msg){
+        for(const r of reads){
+          if(seen.has(r)){ msg = `Another rule on this arrow already reads ${symHTML(r)}.`; badRead = true; break; }
+          if(others.has(r)){ msg = `${qi(findState(e.from).label)} already reads ${symHTML(r)} on its arrow to ${qi(findState(others.get(r)).label)}. A deterministic machine has one rule per state and symbol.`; badRead = true; break; }
+        }
+      }
+      err.innerHTML = msg;
+      readEl.classList.toggle('bad', badRead); writeEl.classList.toggle('bad', badWrite);
+      if(msg){ ok = false; return; }
+      reads.forEach(r=>{ seen.set(r, true); rules.push({read:r, write: writeTxt || r, move: div.dataset.move}); });
+    });
+    return ok ? rules : null;
+  }
+
+  function discardNewEdge(){
+    const e = findEdge(editingEdge);
+    if(editingIsNew && e){ M.edges = M.edges.filter(x=>x!==e); undoStack.pop(); }
+  }
+  // returns false if the editor had to stay open because of an error
+  function saveEdge(){
+    const e = findEdge(editingEdge);
+    if(!e){ closeEditors(); return true; }
+    const rules = validateRows(true);
+    if(!rules){ edgeError.hidden = true; const bad = ruleRows.querySelector('.bad'); if(bad) bad.focus(); return false; }
+    if(!rules.length){
+      if(editingIsNew){ discardNewEdge(); closeEditors(); renderBuilder(); return true; }
+      edgeError.textContent = 'Add at least one rule, or press “Delete arrow”.'; edgeError.hidden = false; return false;
+    }
+    const same = JSON.stringify(rules)===JSON.stringify(e.rules);
+    if(!same && !editingIsNew) pushUndo();
+    e.rules = rules;
+    closeEditors(); changed();
+    return true;
+  }
+
+  ruleRows.addEventListener('input', ev=>{
+    const t = ev.target;
+    if(t.classList.contains('rr-in') && t.dataset.dot){ t.dataset.dot = ''; t.parentNode.classList.remove('dot'); }
+    if(t.classList.contains('rr-in') && /_|␣/.test(t.value)){
+      const pos = t.selectionStart; t.value = t.value.replace(/_|␣/g, BLANK); t.setSelectionRange(pos, pos);
+    }
+    edgeError.hidden = true;
+    validateRows(false);
+    if(ev.inputType && ev.inputType.startsWith('insert') && t.value){
+      const row = t.closest('.rule-row');
+      if(t.classList.contains('rr-read')) row.querySelector('.rr-write').focus();
+      else if(t.classList.contains('rr-write')) row.querySelector(`.rr-move [data-m="${row.dataset.move}"]`).focus();
+    }
+  });
+  ruleRows.addEventListener('click', ev=>{
+    const mb = ev.target.closest('.rr-move button');
+    if(mb){ setMove(mb.closest('.rule-row'), mb.dataset.m); return; }
+    const del = ev.target.closest('.rr-del');
+    if(del){
+      const row = del.closest('.rule-row');
+      const next = row.nextElementSibling || row.previousElementSibling;
+      row.remove();
+      if(!ruleRows.children.length) addRow({}, true);
+      else if(next) next.querySelector('.rr-read').focus();
+      validateRows(false);
+    }
+  });
+  ruleRows.addEventListener('keydown', ev=>{
+    const row = ev.target.closest('.rule-row'); if(!row) return;
+    if(ev.target.closest('.rr-move') && (ev.key==='l' || ev.key==='L' || ev.key==='r' || ev.key==='R')){
+      ev.preventDefault(); setMove(row, ev.key.toUpperCase()); return;
+    }
+    if(ev.target.closest('.rr-move') && (ev.key==='ArrowLeft' || ev.key==='ArrowRight')){
+      ev.preventDefault(); setMove(row, ev.key==='ArrowLeft' ? 'L' : 'R'); row.querySelector(`.rr-move [data-m="${row.dataset.move}"]`).focus(); return;
+    }
+    if(ev.key==='Enter'){
+      ev.preventDefault();
+      if(rowIsEmpty(row)){ saveEdge(); return; }               // Enter on an empty rule finishes
+      const next = row.nextElementSibling;
+      if(next) next.querySelector('.rr-read').focus();
+      else addRow({}, true);
+    }
+    if(ev.key==='Escape'){ ev.preventDefault(); discardNewEdge(); closeEditors(); renderBuilder(); }
+  });
+  $('addRule').addEventListener('click', ()=>addRow({}, true));
+  $('edgeSave').addEventListener('click', saveEdge);
+  $('edgeDelete').addEventListener('click', ()=>{
+    const id = editingEdge;
+    if(editingIsNew){ discardNewEdge(); closeEditors(); renderBuilder(); }
+    else { closeEditors(); deleteEdge(id); }
+  });
+
+  function closeEditors(){
+    edgeEditor.hidden = true;
+    editingEdge = null; editingIsNew = false;
+  }
+
+  // ======================================================================
+  //  lock in / edit
+  // ======================================================================
+  const sigmaIn = $('sigmaIn'), lockErr = $('lockErr');
+  // ---------- Σ as a set: type a symbol, the braces and commas take care of themselves ----------
+  const sigmaBox = $('sigmaBox'), sigmaSyms = $('sigmaSyms'), sigmaType = $('sigmaType'), sigmaGhost = $('sigmaGhost'), sigmaHint = $('sigmaHint');
+  const sigmaList = () => sigmaIn.value ? sigmaIn.value.split(',').filter(Boolean) : [];
+  function setSigma(str){ sigmaIn.value = [...new Set(chars(String(str||'').replace(/[\s,{}]/g,'')))].join(','); renderSigma(); }
+  function renderSigma(){
+    const list = sigmaList(), focused = sigmaBox.classList.contains('focused');
+    sigmaSyms.innerHTML = list.map((c,i)=>`<span class="s-item">${esc(c)}${i<list.length-1 ? ', ' : ''}</span>`).join('');
+    const guess = !list.length ? guessSigma() : '';
+    sigmaGhost.textContent = guess ? guess.split(',').join(', ') : '';
+    sigmaHint.textContent = guess && focused ? 'Tab to use these' : '';
+  }
+  function sigmaRefuse(msg){
+    sigmaBox.classList.remove('shake'); void sigmaBox.offsetWidth; sigmaBox.classList.add('shake');
+    if(msg){ lockErr.textContent = msg; }
+  }
+  function sigmaChanged(){ sigmaBox.classList.remove('bad'); lockErr.textContent = ''; renderSigma(); save(); }
+  sigmaBox.addEventListener('mousedown', e=>{ if(e.target!==sigmaType && !locked){ e.preventDefault(); sigmaType.focus(); } });
+  sigmaType.addEventListener('focus', ()=>{ sigmaBox.classList.add('focused'); renderSigma(); });
+  sigmaType.addEventListener('blur', ()=>{ sigmaBox.classList.remove('focused'); renderSigma(); });
+  sigmaType.addEventListener('input', ()=>{
+    const typed = chars(sigmaType.value); sigmaType.value = '';
+    let list = sigmaList(), changedAny = false;
+    typed.forEach(c=>{
+      if(/[\s,{}]/.test(c)) return;
+      if(c==='_' || c===BLANK){ sigmaRefuse('The blank ⊔ can’t be in Σ.'); return; }
+      if(list.includes(c)){ sigmaRefuse(); return; }
+      list.push(c); changedAny = true;
+    });
+    if(changedAny){ sigmaIn.value = list.join(','); sigmaChanged(); }
+  });
+  sigmaType.addEventListener('keydown', e=>{
+    if(e.key==='Backspace' && !sigmaType.value){
+      const list = sigmaList();
+      if(list.length){ e.preventDefault(); list.pop(); sigmaIn.value = list.join(','); sigmaChanged(); }
+    } else if(e.key==='Tab' && !e.shiftKey && !sigmaList().length && guessSigma()){
+      e.preventDefault(); setSigma(guessSigma()); sigmaChanged();
+    } else if(e.key==='Enter'){ e.preventDefault(); tryLock(true); }
+  });
+  let SIGMA = [], GAMMA = [];
+  function setLocked(on, scroll){
+    locked = on;
+    $('buildPanel').classList.toggle('is-locked', on);
+    setBuilderOpen(!on);
+    $('lockBtn').hidden = on; $('editBtn').hidden = !on;
+    sigmaBox.classList.toggle('disabled', on); sigmaType.disabled = on; renderSigma();
+    const exSel = $('exampleSelect');
+    exSel.disabled = on;
+    exSel.title = on ? 'Press “Edit machine” to load a different machine' : '';
+    if(on) exSel.blur();
+    ['runPanel','testPanel','formalPanel'].forEach(id=>$(id).hidden = !on);
+    if(on){
+      copyViewBox = null;
+      $('sigmaShow').textContent = setList(SIGMA);
+      resetRun();
+      renderFormal();
+      fillStrings();
+      if(scroll) $('runPanel').scrollIntoView({behavior:'smooth', block:'start'});
+    } else {
+      stopPlay();
+    }
+    save();
+  }
+  // The builder opens and closes like the other sections; locking in closes it, editing opens it.
+  function setBuilderOpen(open){
+    $('buildPanel').classList.toggle('collapsed', !open);
+    $('buildToggle').setAttribute('aria-expanded', open);
+    if(open) renderBuilder();   // it may have been hidden, so redraw now that labels can be measured
+  }
+  $('buildToggle').addEventListener('click', ()=>{
+    const open = $('buildToggle').getAttribute('aria-expanded')!=='true';
+    if(!open){ if(!edgeEditor.hidden && !saveEdge()) return; pendingFrom = null; }
+    setBuilderOpen(open);
+  });
+  function tryLock(scroll){
+    if(!edgeEditor.hidden && !saveEdge()) return false;
+    pendingFrom = null;
+    const {problems} = analyze();
+    if(problems.length){ lockErr.textContent = 'Fix the problems above first.'; return false; }
+    const starts = M.states.filter(s=>s.isStart).length;
+    if(starts!==1){ lockErr.textContent = starts===0 ? 'Set a start state first.' : `A Turing machine has exactly one start state, but ${starts} are marked.`; return false; }
+    if(!sigmaIn.value.trim()) setSigma(guessSigma());
+    const S = parseSigma(sigmaIn.value);
+    if(!S.length){ lockErr.textContent = 'Enter the input alphabet Σ: type its symbols, e.g. 0 then 1.'; sigmaBox.classList.add('bad'); sigmaType.focus(); return false; }
+    if(S.includes(BLANK)){ lockErr.textContent = 'The blank ⊔ can’t be in Σ.'; sigmaBox.classList.add('bad'); sigmaType.focus(); return false; }
+    sigmaBox.classList.remove('bad'); lockErr.textContent = '';
+    setSigma(S.join(','));
+    SIGMA = S; GAMMA = gammaOf(S);
+    setLocked(true, scroll);
+    return true;
+  }
+  $('lockBtn').addEventListener('click', ()=>tryLock(true));
+  $('editBtn').addEventListener('click', ()=>{ setLocked(false); $('buildPanel').scrollIntoView({behavior:'smooth', block:'start'}); });
+
+  // ======================================================================
+  //  run
+  // ======================================================================
+  const inputEl = $('inputString'), inputErr = $('inputErr'), copySvg = $('copySvg');
+  const tapeWrap = $('tapeWrap'), tapeStrip = $('tapeStrip'), tapeCells = $('tapeCells'), headEl = $('head'), headBox = $('headBox');
+  const verdictEl = $('verdict'), stepCountEl = $('stepCount'), scrub = $('scrub'), speedBtn = $('speedBtn');
+  const resetBtn = $('resetBtn'), backBtn = $('backBtn'), playBtn = $('playBtn'), stepBtn = $('stepBtn'), endBtn = $('endBtn');
+  let run = null, playing = false, playTimer = null, copyViewBox = null;
+  const SPEEDS = [['slow', 1000], ['normal', 450], ['fast', 120]];
+  let speedIdx = 1, stepMs = SPEEDS[1][1];
+
+  function currentInput(){ return inputEl.value.replace(/\s+/g,''); }
+  function resetRun(){
+    stopPlay();
+    const w = currentInput();
+    const bad = [...new Set(chars(w).filter(c=>!SIGMA.includes(c)))];
+    if(bad.length){
+      inputEl.classList.add('bad');
+      inputErr.textContent = `${bad.map(c=>`“${c}”`).join(', ')} ${bad.length===1?'is':'are'} not in Σ = ${setList(SIGMA)}`;
+      run = {invalid:true};
+    } else {
+      inputEl.classList.remove('bad'); inputErr.textContent = '';
+      run = {T: trace(compile(), w, true), idx:0};
+    }
+    renderRun(false);
+  }
+  // A proven loop can be stepped past its verdict: step k beyond the end maps back onto the cycle.
+  const loops = () => run && !run.invalid && run.T.verdict.type==='loop';
+  function realStep(k){
+    const T = run.T;
+    if(k <= T.last) return k;
+    const start = T.verdict.repeatOf, period = T.last - start;
+    return start + ((k - start) % period);
+  }
+  function usedAt(k){
+    const T = run.T, r = realStep(k);
+    if(k > T.last && r === T.verdict.repeatOf) return T.used[T.last];   // the step that closes the cycle
+    return T.used[r];
+  }
+  function go(i, animate){
+    if(!run || run.invalid) return;
+    run.idx = Math.max(0, loops() ? i : Math.min(i, run.T.last));
+    renderRun(animate);
+  }
+  function stepForward(){
+    if(!run || run.invalid || (run.idx >= run.T.last && !loops())) return false;
+    go(run.idx+1, true); return true;
+  }
+  function startPlay(){
+    if(!run || run.invalid) return;
+    if(run.idx >= run.T.last && !loops()) go(0, false);
+    playing = true; updateButtons(); tick();
+  }
+  function tick(){
+    if(!playing) return;
+    playTimer = setTimeout(()=>{
+      if(!playing) return;
+      if(!stepForward() || (run.idx >= run.T.last && !loops())){ stopPlay(); return; }
+      tick();
+    }, run.idx===0 ? 150 : stepMs);
+  }
+  function stopPlay(){ playing = false; clearTimeout(playTimer); updateButtons(); }
+  function togglePlay(){ playing ? stopPlay() : startPlay(); }
+  function updateButtons(){
+    const ok = run && !run.invalid;
+    const pastEnd = !ok || run.idx >= run.T.last, atStart = !ok || run.idx === 0;
+    const finished = pastEnd && !(ok && loops());
+    playBtn.textContent = playing ? '❚❚ Pause' : (ok && finished && run.T.last>0 ? '↻ Replay' : '▶ Play');
+    playBtn.disabled = !ok || run.T.last===0;
+    resetBtn.disabled = atStart; backBtn.disabled = atStart;
+    stepBtn.disabled = finished; endBtn.disabled = pastEnd;
+    scrub.disabled = !ok || run.T.last===0;
+  }
+
+  function cellPx(){ return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 42; }
+  // Cells sit at fixed positions on the strip (neighbors share a border, so the pitch is a bit less than a
+  // cell's width), and only the cells near the view are in the DOM. The view follows the head with a
+  // "dead zone": the head moves freely in the middle half; at either side the tape slides one cell per step.
+  const tapeView = {off:0, manual:false, tape:[], head:0};
+  let keepPanOnce = false;
+  function pitch(){ return cellPx() - 1.5; }
+  function viewWidth(){ return tapeWrap.clientWidth - 14; }
+  // draws every cell visible anywhere between offsets `from` and `to` (both ends of a slide)
+  function drawCells(from, to){
+    if(to===undefined) to = from;
+    const P = pitch(), viewW = viewWidth(), tape = tapeView.tape;
+    const lo = Math.min(from, to), hi = Math.max(from, to);
+    const first = Math.max(0, Math.floor(lo / P) - 4);
+    const count = Math.ceil((viewW + hi - lo) / P) + 10;
+    while(tapeCells.children.length < count){
+      const d = document.createElement('div'); d.className = 'cell';
+      const ix = document.createElement('span'); ix.className = 'idx';
+      d.appendChild(document.createElement('span')); d.appendChild(ix);
+      tapeCells.appendChild(d);
+    }
+    while(tapeCells.children.length > count) tapeCells.removeChild(tapeCells.lastChild);
+    for(let k=0;k<count;k++){
+      const idx = first + k, d = tapeCells.children[k], sym = symAt(tape, idx);
+      d.style.left = (idx*P) + 'px';
+      if(d.dataset.idx !== String(idx)){ d.dataset.idx = idx; d.classList.remove('flash'); }
+      if(sym.includes(DOT)) d.firstChild.innerHTML = symHTML(sym); else d.firstChild.textContent = sym;
+      d.lastChild.textContent = idx;
+      d.classList.toggle('blank', sym===BLANK);
+      d.classList.toggle('left-end', idx===0);
+    }
+    return first;
+  }
+  function placeStrip(off, animate){
+    tapeView.off = off;
+    if(!animate){ tapeStrip.style.transition = 'none'; headEl.style.transition = 'none'; }
+    tapeStrip.style.transform = `translateX(${-off}px)`;
+    if(!animate){ void tapeStrip.offsetWidth; tapeStrip.style.transition = ''; headEl.style.transition = ''; }
+  }
+  function renderTape(tape, head, used, animate){
+    if(!keepPanOnce && typeof stopGlide==='function') stopGlide();
+    tapeView.tape = tape; tapeView.head = head;
+    const P = pitch(), viewW = viewWidth(), x = head*P, C = cellPx();
+    let off = tapeView.off;
+    if(keepPanOnce && tapeView.manual){ keepPanOnce = false; }
+    else {
+      keepPanOnce = false;
+      if(tapeView.manual){ off = x - viewW*0.4; tapeView.manual = false; }   // come back to the head after a manual scroll
+      const lo = viewW*0.25, hi = viewW*0.75 - C;
+      if(x - off > hi) off = x - hi;
+      if(x - off < lo) off = x - lo;
+      off = Math.max(0, off);
+    }
+    // draw the union of where the strip is now and where it's headed, so nothing pops in mid-slide
+    const first = animate ? drawCells(tapeView.off, off) : drawCells(off);
+    if(animate && used && !used.implicit && used.write!==used.read){
+      const d = tapeCells.children[used.pos - first];
+      if(d){ d.classList.remove('flash'); void d.offsetWidth; d.classList.add('flash'); }
+    }
+    headEl.style.transform = `translateX(${x}px)`;
+    placeStrip(off, animate);
+    if(!animate) headEl.style.transition = '';
+  }
+  // ---------- scrolling the tape by hand: drag it, or scroll sideways ----------
+  // ---------- dragging with momentum ----------
+  // While dragging (and while gliding afterwards) the strip has no CSS transition and is updated once
+  // per animation frame; letting go hands the recent drag speed to a glide that slows down smoothly.
+  function panTo(off){
+    off = Math.max(0, off);   // the tape is infinite to the right, so there's no right edge
+    tapeView.manual = true;
+    drawCells(off);
+    tapeView.off = off;
+    tapeStrip.style.transform = `translateX(${-off}px)`;
+    return off;
+  }
+  let panStart = null, panTarget = null, panRaf = null, glideRaf = null, samples = [];
+  function stopGlide(){ if(glideRaf){ cancelAnimationFrame(glideRaf); glideRaf = null; tapeWrap.classList.remove('panning'); } }
+  function schedulePan(){
+    if(panRaf) return;
+    panRaf = requestAnimationFrame(()=>{ panRaf = null; if(panTarget!==null) panTo(panTarget); });
+  }
+  tapeWrap.addEventListener('pointerdown', e=>{
+    stopGlide();
+    if(!run || run.invalid || e.button!==0) return;
+    panStart = {x:e.clientX, off:tapeView.off, id:e.pointerId, moved:false};
+    samples = [{t:performance.now(), x:e.clientX}];
+  });
+  window.addEventListener('pointermove', e=>{
+    if(!panStart || e.pointerId!==panStart.id) return;
+    const dx = e.clientX - panStart.x;
+    if(!panStart.moved && Math.abs(dx) < 4) return;
+    if(!panStart.moved){ panStart.moved = true; tapeWrap.classList.add('panning'); stopPlay(); }
+    const now = performance.now();
+    samples.push({t:now, x:e.clientX});
+    while(samples.length > 2 && now - samples[0].t > 100) samples.shift();
+    panTarget = panStart.off - dx;
+    schedulePan();
+  });
+  function glide(v){            // v: tape speed in px per ms (positive = toward higher cells)
+    let last = performance.now();
+    tapeWrap.classList.add('panning');
+    const frame = now=>{
+      const dt = Math.min(40, now - last); last = now;
+      const before = tapeView.off;
+      const after = panTo(before + v*dt);
+      v *= Math.pow(0.955, dt/16.7);                   // friction
+      if(Math.abs(v) < 0.02 || (after===0 && v<0)){ glideRaf = null; tapeWrap.classList.remove('panning'); return; }
+      glideRaf = requestAnimationFrame(frame);
+    };
+    glideRaf = requestAnimationFrame(frame);
+  }
+  const endPan = e=>{
+    if(!panStart || e.pointerId!==panStart.id) return;
+    const moved = panStart.moved;
+    panStart = null; panTarget = null;
+    tapeWrap.classList.remove('panning');
+    if(!moved) return;
+    const now = performance.now();
+    while(samples.length > 2 && now - samples[0].t > 80) samples.shift();
+    const a = samples[0], z = samples[samples.length-1];
+    const dt = z.t - a.t;
+    if(dt > 0 && now - z.t < 60){                     // only glide if the finger was still moving at release
+      const v = -(z.x - a.x) / dt;
+      if(Math.abs(v) > 0.15) glide(clamp(v, -8, 8));
+    }
+  };
+  window.addEventListener('pointerup', endPan);
+  window.addEventListener('pointercancel', endPan);
+  tapeWrap.addEventListener('wheel', e=>{
+    const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+    if(!d || !run || run.invalid) return;
+    e.preventDefault(); stopPlay(); stopGlide(); panTo(tapeView.off + d);
+  }, {passive:false});
+  function setVerdict(cls, label, why){ verdictEl.hidden = !label; verdictEl.className = 'verdict ' + (cls||''); verdictEl.textContent = label || ''; verdictEl.title = why || ''; }
+
+  function renderCopy(cur, used, haltCls, animate){
+    const usedPath = drawMachine(copySvg, {interactive:false, prefix:'c-', cur, used, haltCls});
+    if(!copyViewBox){
+      try{ const b = copySvg.getBBox(); if(b.width) copyViewBox = `${b.x-16} ${b.y-12} ${b.width+32} ${b.height+24}`; }catch(e){}
+    }
+    if(copyViewBox) copySvg.setAttribute('viewBox', copyViewBox);
+    if(animate && usedPath) animateToken(copySvg, usedPath);
+  }
+  let tokenRaf = null;
+  function animateToken(svg, path){
+    cancelAnimationFrame(tokenRaf);
+    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let len; try{ len = path.getTotalLength(); }catch(e){ return; }
+    const dot = el('circle',{class:'token', r:6}); svg.appendChild(dot);
+    const dur = Math.max(100, stepMs*0.7), t0 = performance.now();
+    const frame = now=>{
+      const k = Math.min(1, (now-t0)/dur), e = k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+      const p = path.getPointAtLength(e*len);
+      dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y);
+      if(k<1) tokenRaf = requestAnimationFrame(frame); else dot.remove();
+    };
+    tokenRaf = requestAnimationFrame(frame);
+  }
+
+  function renderRun(animate){
+    if(!locked) return;
+    document.documentElement.style.setProperty('--step-ms', stepMs+'ms');
+    if(!run || run.invalid){
+      renderTape(chars(currentInput()), 0, null, false);
+      headBox.innerHTML = labelHTML(findState(M.startId).label); headEl.className = 'head';
+      setVerdict('', '');
+      scrub.max = 0; scrub.value = 0; stepCountEl.textContent = '';
+      updateButtons(); renderCopy(M.startId, null, null, false);
+      return;
+    }
+    const T = run.T, i = run.idx, r = realStep(i);
+    const st = findState(T.states[r]);
+    const used = usedAt(i);
+    renderTape(tapeAt(T, r), T.heads[r], used, animate);
+    headBox.innerHTML = labelHTML(st.label);
+    const v = i >= T.last ? T.verdict : null;
+    let headCls = 'head', haltCls = null;
+    const nm = st => plainLabel(st.label);
+    if(v){
+      if(v.type==='accept'){ headCls+=' accept'; haltCls='st-halt-accept'; setVerdict('accept', 'Accepted', `The machine entered ${nm(st)}.`); }
+      else if(v.type==='reject'){ headCls+=' reject'; haltCls='st-halt-reject';
+        setVerdict('reject', 'Rejected', v.implicit ? `${nm(findState(v.from))} has no arrow for ${v.read}, so the machine went to ${nm(st)}.` : `The machine entered ${nm(st)}.`); }
+      else if(v.type==='loop'){ headCls+=' loop'; haltCls='st-halt-loop'; setVerdict('loop', 'Loops forever', `Step ${T.last} is exactly the same as step ${v.repeatOf} (same state, head position and tape), so the machine repeats forever and never halts. You can keep stepping to watch it.`); }
+      else { headCls+=' loop'; haltCls='st-halt-loop'; setVerdict('loop', 'No verdict', `Still running after ${plural(i,'step')}. The machine may never halt.`); }
+    } else setVerdict('', '');
+    headEl.className = headCls;
+    scrub.max = T.last; scrub.value = Math.min(i, T.last);
+    stepCountEl.textContent = i > T.last ? `step ${i.toLocaleString()}` : `step ${i.toLocaleString()} of ${T.last.toLocaleString()}`;
+    updateButtons();
+    renderCopy(T.states[r], used && !used.implicit ? used : null, haltCls, animate);
+  }
+
+  inputEl.addEventListener('input', ()=>{
+    const v = inputEl.value.replace(/\s/g,'');
+    if(v!==inputEl.value) inputEl.value = v;
+    resetRun(); save();
+  });
+  inputEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inputEl.blur(); startPlay(); } });
+  resetBtn.addEventListener('click', ()=>{ stopPlay(); go(0,false); });
+  backBtn.addEventListener('click', ()=>{ stopPlay(); go(run.idx-1,false); });
+  stepBtn.addEventListener('click', ()=>{ stopPlay(); stepForward(); });
+  endBtn.addEventListener('click', ()=>{ stopPlay(); go(run.T.last,false); });
+  playBtn.addEventListener('click', togglePlay);
+  scrub.addEventListener('input', ()=>{ stopPlay(); go(+scrub.value,false); });
+  function applySpeed(){ stepMs = SPEEDS[speedIdx][1]; speedBtn.textContent = 'Speed: '+SPEEDS[speedIdx][0]; document.documentElement.style.setProperty('--step-ms', stepMs+'ms'); }
+  speedBtn.addEventListener('click', ()=>{ speedIdx = (speedIdx+1) % SPEEDS.length; applySpeed(); save(); });
+
+  // ======================================================================
+  //  test many strings
+  // ======================================================================
+  const stringsIn = $('stringsIn'), testCols = $('testCols'), testSummary = $('testSummary'), countSeg = $('countSeg'), customBox = $('customBox');
+  let testCount = '50';
+  // the first n strings over Σ, shortest first and then in alphabetical order (ε, 0, 1, 00, 01, …)
+  function firstStrings(n){
+    const out = [''];
+    let layer = [''];
+    while(out.length < n && SIGMA.length){
+      const next = [];
+      for(const w of layer){ for(const c of SIGMA){ next.push(w+c); if(out.length + next.length >= n) break; } if(out.length + next.length >= n) break; }
+      out.push(...next); layer = next;
+    }
+    return out.slice(0, n);
+  }
+  // runs of 5+ of the same symbol are written with an exponent: 0000000 → 0⁷
+  function shortWord(w){
+    let out = '', cs = chars(w);
+    for(let i=0;i<cs.length;){
+      let j = i; while(j < cs.length && cs[j]===cs[i]) j++;
+      const n = j - i;
+      out += n >= 5 ? `${esc(cs[i])}<sup>${n}</sup>` : esc(cs[i]).repeat(n);
+      i = j;
+    }
+    return out;
+  }
+  function listText(words){ return words.map(w=>w===''?'ε':w).join('\n'); }
+  function readCustom(){
+    return stringsIn.value.split('\n').map(s=>s.trim()).filter(Boolean)
+      .map(s=> (s==='ε' || s==='-' || s.toLowerCase()==='eps') ? '' : s.replace(/\s+/g,''));
+  }
+  function setCount(c){
+    if(c==='custom' && testCount!=='custom' && !stringsIn.value.trim()) stringsIn.value = listText(firstStrings(+testCount || 50));
+    testCount = c;
+    countSeg.querySelectorAll('button').forEach(b=>{ b.classList.toggle('on', b.dataset.n===c); b.setAttribute('aria-pressed', b.dataset.n===c); });
+    customBox.hidden = c!=='custom';
+    $('countNote').hidden = c==='custom';
+    if(c!=='custom') $('countN').textContent = c;
+    runTests();
+  }
+  // called on lock-in: rerun with the current choice
+  function fillStrings(){ setCount(testCount); }
+  countSeg.addEventListener('click', e=>{ const b = e.target.closest('button'); if(b) setCount(b.dataset.n); });
+  function runTests(){
+    const C = compile();
+    const all = [...new Set(testCount==='custom' ? readCustom() : firstStrings(+testCount))].sort(shortlex);
+    const words = all.filter(w=>chars(w).every(c=>SIGMA.includes(c)));
+    const skipped = all.filter(w=>!words.includes(w));
+    const groups = {accept:[], reject:[], loop:[]};
+    words.forEach(w=>{ const v = trace(C, w, false); groups[v.type==='limit' ? 'loop' : v.type].push({w, limit:v.type==='limit'}); });
+    const chipsFor = items => items.map(o=>`<button class="chip${o.w?'':' eps'}" data-w="${esc(o.w)}" title="${o.w ? esc(o.w)+' (click to watch it run)' : 'Click to watch it run'}">${o.w?shortWord(o.w):'ε'}</button>`).join('');
+    const col = (key, title, body)=>{
+      const n = groups[key].length;
+      return `<div class="col ${key}"><h3><span>${title}</span><span>${n}</span></h3>${n ? body : '<span class="none">none</span>'}</div>`;
+    };
+    const loops = groups.loop.filter(o=>!o.limit), open = groups.loop.filter(o=>o.limit);
+    let haltBody = '';
+    if(loops.length) haltBody += (open.length ? '<div class="subhead">Loops forever</div>' : '') + `<div class="chips">${chipsFor(loops)}</div>`;
+    if(open.length) haltBody += '<div class="subhead">No verdict after 20,000 steps</div>' + `<div class="chips">${chipsFor(open)}</div>`;
+    testCols.innerHTML = col('accept','Accepted', `<div class="chips">${chipsFor(groups.accept)}</div>`)
+      + col('reject','Rejected', `<div class="chips">${chipsFor(groups.reject)}</div>`)
+      + col('loop', loops.length && !open.length ? 'Loops forever' : "Didn't halt", haltBody);
+    let msg = words.length ? `Tested ${plural(words.length,'string')}. Click any string to watch it run.` : 'Add some strings, one per line.';
+    if(loops.length) msg += ' Some loop forever, so this machine is not a decider.';
+    else if(open.length) msg += ' Some were still running after 20,000 steps, so this machine might not be a decider.';
+    if(skipped.length) msg += ` Skipped ${skipped.slice(0,3).map(w=>`“${esc(w)}”`).join(', ')}${skipped.length>3?'…':''}: not over Σ.`;
+    testSummary.innerHTML = msg;
+  }
+  $('testBtn').addEventListener('click', runTests);
+  testCols.addEventListener('click', e=>{
+    const c = e.target.closest('.chip'); if(!c) return;
+    inputEl.value = c.dataset.w; resetRun(); save();
+    $('runPanel').scrollIntoView({behavior:'smooth', block:'start'});
+    startPlay();
+  });
+
+  // ======================================================================
+  //  formal definition
+  // ======================================================================
+  function renderFormal(){
+    const acc = acceptState(), rej = rejectState(), start = findState(M.startId);
+    const rank = s => s.id===M.startId ? 0 : s.kind==='normal' ? 1 : s.kind==='accept' ? 2 : 3;
+    const order = M.states.slice().sort((a,b)=> rank(a)-rank(b) || a.label.localeCompare(b.label, undefined, {numeric:true}));
+    const q = s => `<i>${labelHTML(s.label)}</i>`;
+    const C = compile();
+    const sym = (main, sub) => `<i>${main}</i>${sub ? `<sub>${sub}</sub>` : ''}`;
+    let html = `<p class="tuple"><i>M</i> = (${sym('Q')}, Σ, Γ, δ, ${q(start)}, ${q(acc)}, ${q(rej)}) where</p>`;
+    html += '<dl class="parts">';
+    html += `<dt>${sym('Q')}</dt><dd>= ${setList(order.map(q))}</dd>`;
+    html += `<dt>Σ</dt><dd>= ${setList(SIGMA.map(esc))}</dd>`;
+    html += `<dt>Γ</dt><dd>= ${setList(GAMMA.map(symHTML))}</dd>`;
+    html += `<dt>δ</dt><dd><span style="font-family:var(--serif)">is given by this table:</span></dd>`;
+    html += '</dl>';
+    html += '<div class="tbl-wrap"><table class="delta"><thead><tr><th class="corner">state \\ reads</th>' + GAMMA.map(g=>`<th>${symHTML(g)}</th>`).join('') + '</tr></thead><tbody>';
+    order.forEach(s=>{
+      const hcls = s.kind==='accept' ? ' class="to-acc"' : s.kind==='reject' ? ' class="to-rej"' : '';
+      html += `<tr><th${hcls}>${s.id===M.startId?'→ ':''}<span class="qq">${labelHTML(s.label)}</span></th>`;
+      if(s.kind!=='normal'){ GAMMA.forEach(()=>{ html += '<td class="halted" title="The machine has halted, so it never reads another symbol">—</td>'; }); html += '</tr>'; return; }
+      GAMMA.forEach(g=>{
+        const t = C.delta.get(s.id).get(g);
+        const dest = t ? findState(t.to) : null;
+        const cls = dest && dest.kind==='accept' ? 'to-acc' : dest && dest.kind==='reject' ? 'to-rej' : '';
+        if(t) html += `<td class="${cls}">(<span class="qq">${labelHTML(dest.label)}</span>, ${symHTML(t.write)}, ${t.move})</td>`;
+        else { html += `<td class="to-rej implicit" title="No arrow drawn, so the machine goes to ${esc(plainLabel(rej.label))}">(<span class="qq">${labelHTML(rej.label)}</span>, ${symHTML(g)}, R)</td>`; }
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    html += `<dl class="parts after"><dt>${q(start)}</dt><dd><span style="font-family:var(--serif)">is the start state</span></dd><dt>${q(acc)}</dt><dd><span style="font-family:var(--serif)">is the accept state</span></dd><dt>${q(rej)}</dt><dd><span style="font-family:var(--serif)">is the reject state</span></dd></dl>`;
+    $('formal').innerHTML = html;
+  }
+
+  // ======================================================================
+  //  examples
+  // ======================================================================
+  function mk(states, edges, start){
+    const m = emptyMachine(), idOf = {};
+    states.forEach(([label,x,y,kind,startAngle])=>{ const id = 's'+(m.nextS++); idOf[label] = id; m.states.push({id, x, y, label, kind:kind||'normal', startAngle:startAngle??null}); });
+    edges.forEach(([from,to,text,o])=>{
+      o = o||{};
+      m.edges.push({id:'e'+(m.nextE++), from:idOf[from], to:idOf[to], rules:parseRules(text).rules,
+        curve:o.curve ?? 0, curveManual:o.curve!=null, labelSide:o.side ?? 1, loopAngle:o.loop ?? null, loopRadius:o.radius ?? null, lastObstructed:o.curve!=null});
+    });
+    m.startId = idOf[start];
+    return ensureSpecials(m);
+  }
+  // Layouts sit on a grid centered in the 900×470 canvas; the main flow runs left to right.
+  const EXAMPLES = {
+    even: { input:'0110', sigma:'0,1', build:()=>mk(
+      [['q0',300,170],['q1',600,170],['q_acc',300,360,'accept'],['q_rej',600,360,'reject']],
+      [['q0','q1','0 → 0, R'], ['q1','q0','0 → 0, R'],
+       ['q0','q0','1 → 1, R',{loop:-90}], ['q1','q1','1 → 1, R',{loop:-90}],
+       ['q0','q_acc','_ → _, R'], ['q1','q_rej','_ → _, R',{side:-1}]], 'q0') },
+    anbn: { input:'000111', sigma:'0,1', build:()=>mk(
+      [['q0',170,140],['q1',450,140],['q2',730,140],['q3',170,350],['q_acc',450,350,'accept'],['q_rej',730,350,'reject']],
+      [['q0','q1','0 → X, R'], ['q1','q1','0 → 0, R; Y → Y, R',{loop:-90}], ['q1','q2','1 → Y, L'],
+       ['q2','q2','0 → 0, L; Y → Y, L',{loop:-90}], ['q2','q0','X → X, R',{curve:-170}],
+       ['q0','q3','Y → Y, R; _ → _, R'], ['q3','q3','Y → Y, R',{loop:180}], ['q3','q_acc','_ → _, R']], 'q0') },
+    wsw: { input:'011#011', sigma:'0,1,#', build:()=>mk(
+      [['q7',90,235],['q0',230,235,'normal',-90],['q1',370,105],['q2',370,365],['q6',480,235],['q3',590,105],['q4',590,365],['q5',720,235],
+       ['q_acc',90,405,'accept'],['q_rej',830,405,'reject']],
+      [['q0','q1','0 → x, R'], ['q0','q2','1 → x, R'], ['q0','q7','# → #, R'],
+       ['q1','q1','0 → 0, R; 1 → 1, R',{loop:-90}], ['q2','q2','0 → 0, R; 1 → 1, R',{loop:90}],
+       ['q1','q3','# → #, R'], ['q2','q4','# → #, R'],
+       ['q3','q3','x → x, R',{loop:-90}], ['q4','q4','x → x, R',{loop:90}],
+       ['q3','q5','0 → x, L'], ['q4','q5','1 → x, L'],
+       ['q5','q5','0 → 0, L; 1 → 1, L; x → x, L',{loop:0}], ['q5','q6','# → #, L'],
+       ['q6','q6','0 → 0, L; 1 → 1, L',{loop:-90, radius:46}], ['q6','q0','x → x, R'],
+       ['q7','q7','x → x, R',{loop:-90}], ['q7','q_acc','_ → _, R',{side:-1}]], 'q0') },
+    pow2: { input:'0000', sigma:'0', build:()=>mk(
+      [['q0',120,140],['q1',340,140],['q2',560,140],['q3',780,140],['q_acc',340,350,'accept'],['q4',560,350],['q_rej',780,350,'reject']],
+      [['q0','q1','0 → _, R'],
+       ['q1','q1','x → x, R',{loop:-90}], ['q1','q2','0 → x, R'], ['q1','q_acc','_ → _, R',{side:-1}],
+       ['q2','q2','x → x, R',{loop:-90}], ['q2','q3','0 → 0, R'], ['q3','q2','0 → x, R'], ['q2','q4','_ → _, L',{side:-1}],
+       ['q3','q3','x → x, R',{loop:-90}], ['q3','q_rej','_ → _, R',{side:-1}],
+       ['q4','q4','0 → 0, L; x → x, L',{loop:90}], ['q4','q1','_ → _, R']], 'q0') },
+    add: { input:'11+111', sigma:'1,+', build:()=>mk(
+      [['q0',180,170],['q1',450,170],['q2',720,170],['q_rej',450,360,'reject'],['q_acc',720,360,'accept']],
+      [['q0','q0','1 → 1, R',{loop:-90}], ['q0','q1','+ → 1, R'],
+       ['q1','q1','1 → 1, R',{loop:-90}], ['q1','q2','_ → _, L'],
+       ['q2','q_acc','1 → _, L',{side:-1}]], 'q0') },
+    loop: { input:'bbbab', sigma:'a,b', build:()=>mk(
+      [['q0',280,145],['q_acc',620,145,'accept'],['q1',280,345],['q_rej',620,345,'reject']],
+      [['q0','q_acc','_ → _, L'], ['q0','q1','a → a, R'], ['q1','q0','b → b, L'], ['q1','q_rej','_ → _, L'],
+       ['q0','q0','b → b, R',{loop:-90}], ['q1','q1','a → a, R',{loop:90}]], 'q0') },
+    binadd: { input:'101+11', sigma:'0,1,+', build:()=>mk(
+      [['q0',110,100],['q1',280,100],['q2',450,100],['q3',630,100],['q_rej',810,100,'reject'],
+       ['q10',110,240],['q5',280,240],['q4',630,240],['q9',810,240],
+       ['q_acc',110,380,'accept'],['q6',280,380],['q7',630,380],['q8',810,380]],
+      [['q0','q1','0 → 0̇, R; 1 → 1̇, R'], ['q1','q1','0 → 0, R; 1 → 1, R',{loop:-90}], ['q1','q2','+ → +, R'],
+       ['q2','q3','0 → 0, R; 1 → 1, R'], ['q3','q3','0 → 0, R; 1 → 1, R',{loop:-90}], ['q3','q4','_ → _, L'],
+       ['q4','q4','0 → 0, L; 1 → 1, L',{loop:45}], ['q4','q5','+ → +, L'],
+       ['q5','q5','0 → 1, L',{loop:-90}], ['q5','q6','1 → 0, R; 1̇ → 0̇, R'], ['q5','q10','0̇ → _, R'],
+       ['q6','q6','0 → 0, R; 1 → 1, R; + → +, R',{loop:180}], ['q6','q7','_ → _, L'],
+       ['q7','q7','1 → 0, L',{loop:90}], ['q7','q4','0 → 1, L',{side:-1}], ['q7','q8','+ → +, R'],
+       ['q8','q9','0 → 1, R'], ['q9','q9','0 → 0, R',{loop:-90}], ['q9','q4','_ → 0, L'],
+       ['q10','q10','1 → _, R',{loop:-90}], ['q10','q_acc','+ → _, R']], 'q0') },
+    forever: { input:'01', sigma:'0,1', build:()=>mk(
+      [['q0',300,250],['q_acc',600,150,'accept'],['q_rej',600,350,'reject']],
+      [['q0','q0','0 → 0, R; 1 → 1, R; _ → 1, R',{loop:-90}]], 'q0') }
+  };
+  function loadExample(key, lockAfter){
+    stopPlay(); closeEditors();
+    pushUndo();
+    if(locked) setLocked(false);
+    if(key==='blank'){ M = starterMachine(); inputEl.value = ''; setSigma(''); }
+    else { const ex = EXAMPLES[key]; M = ex.build(); inputEl.value = ex.input; setSigma(ex.sigma); }
+    setTool('move'); changed(); markSaved();
+    if(key!=='blank' && lockAfter) tryLock(false);
+  }
+  $('exampleSelect').addEventListener('change', e=>{
+    const key = e.target.value;
+    e.target.value = ''; e.target.blur();
+    if(key && !locked){ loadExample(key, false); $('buildPanel').scrollIntoView({behavior:'smooth', block:'start'}); }
+  });
+
+  // ======================================================================
+  //  saving and sharing
+  // ======================================================================
+  // nothing is stored between visits; a share link is how you keep a machine
+  function save(){}
+  function shareObj(){
+    return {
+      s: M.states.map(s=>[s.label, Math.round(s.x), Math.round(s.y), s.kind[0], s.startAngle==null?null:Math.round(s.startAngle), s.isStart?1:0]),
+      e: M.edges.map(e=>[M.states.findIndex(s=>s.id===e.from), M.states.findIndex(s=>s.id===e.to), e.rules.map(ruleText).join('; '),
+            e.curveManual ? Math.round(e.curve) : null, e.labelSide, e.loopAngle==null?null:Math.round(e.loopAngle), e.loopRadius==null?null:Math.round(e.loopRadius)]),
+      st: M.states.findIndex(s=>s.id===M.startId), w: inputEl.value, sg: sigmaIn.value
+    };
+  }
+  // warn before leaving only if the machine was changed since it was loaded or last shared
+  let savedKey = '';
+  function machineKey(){ const c = shareObj(); delete c.w; return JSON.stringify(c); }
+  function markSaved(){ savedKey = machineKey(); }
+  window.addEventListener('beforeunload', e=>{ if(savedKey && machineKey()!==savedKey){ e.preventDefault(); e.returnValue = ''; } });
+  function encodeShare(){
+    const c = shareObj();
+    return btoa(unescape(encodeURIComponent(JSON.stringify(c)))).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+  }
+  function decodeShare(str){
+    const c = JSON.parse(decodeURIComponent(escape(atob(str.replace(/-/g,'+').replace(/_/g,'/')))));
+    const m = emptyMachine(), kinds = {n:'normal', a:'accept', r:'reject'};
+    c.s.forEach(([label,x,y,k,sa,st])=>m.states.push({id:'s'+(m.nextS++), label, x, y, kind:kinds[k]||'normal', startAngle:sa, isStart: st===undefined ? undefined : !!st}));
+    c.e.forEach(([f,t,text,curve,side,la,lr])=>m.edges.push({id:'e'+(m.nextE++), from:m.states[f].id, to:m.states[t].id,
+      rules:parseRules(text).rules||[], curve:curve??0, curveManual:curve!=null, labelSide:side||1, loopAngle:la, loopRadius:lr, lastObstructed:curve!=null}));
+    m.startId = c.st>=0 && m.states[c.st] ? m.states[c.st].id : null;
+    return {m:ensureSpecials(m), w:c.w||'', sg:c.sg||''};
+  }
+  const toast = $('toast'); let toastTimer = null;
+  function flash(msg){ if(!msg) return; toast.textContent = msg; toast.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(()=>toast.hidden = true, 3500); }
+  // messages about the drawing go in the hint line under the tools (where the eye already is), then the hint comes back
+  function note(html){
+    hintEl.innerHTML = html; hintEl.classList.add('warn');
+    clearTimeout(noteTimer); noteTimer = setTimeout(()=>{ hintEl.classList.remove('warn'); hintEl.textContent = HINTS[tool]; }, 4500);
+  }
+  $('shareBtn').addEventListener('click', async ()=>{
+    const url = location.href.split('#')[0] + '#tm=' + encodeShare();
+    const fb = $('shareFallback'), fbIn = $('shareUrl');
+    try{
+      if(!navigator.clipboard || !window.isSecureContext) throw new Error('no clipboard');
+      await navigator.clipboard.writeText(url);
+      fb.hidden = true; flash('Link copied'); markSaved();
+    }catch(e){ fbIn.value = url; fb.hidden = false; fbIn.focus(); fbIn.select(); markSaved(); }
+  });
+  function loadFromHash(){
+    const hm = /#tm=([A-Za-z0-9_-]+)/.exec(location.hash);
+    if(!hm) return false;
+    let d; try{ d = decodeShare(hm[1]); }catch(e){ return false; }
+    stopPlay(); closeEditors();
+    pushUndo();
+    if(locked) setLocked(false);
+    M = d.m; inputEl.value = d.w; setSigma(d.sg);
+    try{ history.replaceState(null, '', location.href.split('#')[0]); }catch(e){}
+    setTool('move'); changed(); markSaved();
+    return true;
+  }
+  window.addEventListener('hashchange', loadFromHash);
+
+  // ======================================================================
+  //  collapsible sections (closed on every visit)
+  // ======================================================================
+  document.querySelectorAll('.panel-toggle[data-body]').forEach(btn=>{
+    const body = $(btn.dataset.body);
+    const set = open => { btn.setAttribute('aria-expanded', open); body.hidden = !open; };
+    set(false);
+    btn.addEventListener('click', ()=>{
+      const now = btn.getAttribute('aria-expanded')!=='true';
+      set(now);
+    });
+  });
+
+  // ======================================================================
+  //  keyboard
+  // ======================================================================
+  document.addEventListener('keydown', e=>{
+    const tag = (e.target.tagName||'').toLowerCase();
+    if(tag==='input' || tag==='textarea' || tag==='select') return;
+    if((e.ctrlKey||e.metaKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); undo(); return; }
+    if(e.ctrlKey||e.metaKey||e.altKey) return;
+    if(e.key==='Escape'){ if(!locked){ pendingFrom = null; discardNewEdge(); closeEditors(); renderBuilder(); } return; }
+    if(!locked) return;
+    if(e.key===' ' && tag!=='button'){ e.preventDefault(); togglePlay(); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); stopPlay(); stepForward(); }
+    else if(e.key==='ArrowLeft'){ e.preventDefault(); stopPlay(); if(run && !run.invalid) go(run.idx-1,false); }
+    else if(e.key==='r' || e.key==='R'){ stopPlay(); go(0,false); }
+  });
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ keepPanOnce = true; renderRun(false); }, 120); });
+
+  // ======================================================================
+  //  boot
+  // ======================================================================
+  (function boot(){
+    applySpeed();
+    if(loadFromHash()){ undoStack.length = 0; return; }
+    setTool('move'); loadExample('pow2', false); undoStack.length = 0;
+  })();
+})();
+</script>
+</body>
+</html>
