@@ -1,0 +1,822 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script src="https://cdn.jsdelivr.net/npm/delaunator@5.1.0/delaunator.min.js"></script>
+<title>Validate the Triangulation</title>
+<style>
+  :root{
+    --paper:#eaf4fb;
+    --ink:#16324f;
+    --rule:#a9cbe4;
+    --info:#2f6690;
+    --info-soft:#d7ebf7;
+    --danger:#a8384a;
+    --danger-soft:#f6dde1;
+    --good:#1f5c38;
+    --good-soft:#dcf0e2;
+    --mono: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  }
+  *{box-sizing:border-box;}
+  /* rapid clicks on the board or buttons shouldn't start a text selection
+     that spills onto nearby labels, scores, and status text */
+  button, svg{ user-select:none; -webkit-user-select:none; }
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    line-height:1.5;
+    padding:32px 18px 80px;
+  }
+  .page{
+    max-width:760px;
+    margin:0 auto;
+  }
+  h1{
+    font-family:var(--serif);
+    font-size:1.7rem;
+    font-weight:700;
+    letter-spacing:0.01em;
+    margin:0 0 4px;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:10px;
+  }
+  .subtitle{
+    font-size:0.92rem;
+    color:#3d5a75;
+    font-style:italic;
+    margin:0 0 22px;
+  }
+  .note{
+    font-size:0.88rem;
+    background:var(--info-soft);
+    border-left:3px solid var(--info);
+    padding:12px 14px;
+    margin-bottom:26px;
+  }
+  .note p{margin:0;}
+  .note ul{margin:6px 0 8px; padding-left:20px;}
+  .note li{margin:0 0 3px;}
+  .board{
+    background:#fff;
+    border:1.5px solid var(--ink);
+    border-radius:4px;
+    padding:14px;
+    margin-bottom:18px;
+  }
+  svg{
+    display:block;
+    width:100%;
+    height:auto;
+    background:#f5fafd;
+    border-radius:3px;
+  }
+  .controls{
+    display:flex;
+    gap:10px;
+    align-items:center;
+    flex-wrap:wrap;
+    margin-bottom:16px;
+  }
+  button{
+    font-family:var(--serif);
+    font-size:0.98rem;
+    background:#f5fafd;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    padding:9px 18px;
+    cursor:pointer;
+    color:var(--ink);
+  }
+  button:disabled{
+    opacity:0.4;
+    cursor:default;
+  }
+  button.choice.selected{
+    background:var(--info);
+    border-color:var(--info);
+    color:#fff;
+  }
+  button.primary{
+    background:var(--ink);
+    border-color:var(--ink);
+    color:#fff;
+  }
+  .spacer{flex:1 1 auto;}
+  .feedback{
+    font-size:0.94rem;
+    border-radius:4px;
+    padding:14px 16px;
+    margin-bottom:18px;
+    display:none;
+  }
+  .feedback.show{display:block;}
+  .feedback.correct{background:var(--good-soft); border-left:3px solid var(--good);}
+  .feedback.incorrect{background:var(--danger-soft); border-left:3px solid var(--danger);}
+  .feedback .verdict{
+    font-weight:700;
+    margin-bottom:8px;
+  }
+  .feedback ul{margin:0; padding-left:0.2em; list-style:none;}
+  .feedback li{margin-bottom:3px;}
+  .clause-ok{color:var(--good);}
+  .clause-bad{color:var(--danger);}
+  .score{
+    font-size:0.85rem;
+    color:#3d5a75;
+    text-align:right;
+    margin-top:-8px;
+    margin-bottom:14px;
+  }
+  .review-panel{
+    background:#fff;
+    border:1.5px solid var(--ink);
+    border-radius:4px;
+    padding:4px 14px;
+    margin-bottom:16px;
+  }
+  .review-item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    padding:14px 4px;
+    border-bottom:1px solid var(--rule);
+    cursor:pointer;
+  }
+  .review-item:last-child{
+    border-bottom:none;
+  }
+  .review-right{
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .review-chevron{
+    color:#3d5a75;
+    font-size:0.9rem;
+  }
+  .review-x{
+    color:var(--danger);
+    font-weight:700;
+  }
+  /* hover effects scoped to devices with a real pointer (a mouse), so
+     a tap on a touchscreen never leaves a button's hover style
+     "stuck" on until the next tap elsewhere, a known mobile quirk
+     since touch has no true hover state to release */
+  @media (hover: hover) {
+    button:hover:not(:disabled){
+      background:var(--info-soft);
+      border-color:var(--info);
+    }
+    button.primary:hover:not(:disabled){
+      background:var(--info);
+      border-color:var(--info);
+    }
+    .review-item:hover{
+      background:var(--info-soft);
+    }
+  }
+
+  /* link back to the homepage that lists every site */
+  .home-nav{ margin-top:28px; padding-top:16px; border-top:1.5px solid var(--rule); }
+  a.home-link{
+    display:inline-block;
+    font-family:var(--serif);
+    font-size:0.98rem;
+    background:#f5fafd;
+    border:1.5px solid var(--ink);
+    border-radius:3px;
+    padding:9px 18px;
+    color:var(--ink);
+    text-decoration:none;
+  }
+  a.home-link:focus-visible{ outline:3px solid var(--info); outline-offset:2px; }
+  @media (hover: hover){
+    a.home-link:hover{ background:var(--info-soft); border-color:var(--info); }
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Validate the Triangulation</h1>
+  <p class="subtitle">Practice recognizing valid and invalid triangulations of a 2D point set.</p>
+
+  <div class="note">
+    <p><b>A triangulation of a 2D point set <i>P</i></b> is a set of triangles such that</p>
+    <ul>
+      <li>it covers the convex hull of <i>P</i>,</li>
+      <li>it uses all points of <i>P</i> as vertices and only points of <i>P</i> as vertices, and</li>
+      <li>its triangles meet only at shared edges or vertices.</li>
+    </ul>
+    <p>Decide whether the triangles shown form a valid triangulation.</p>
+  </div>
+
+  <div class="board" id="boardSection">
+    <svg id="canvas" viewBox="0 0 600 600"></svg>
+  </div>
+
+  <div class="controls" id="controlsSection">
+    <button class="choice" id="btnValid" onclick="choose(true)">Valid triangulation</button>
+    <button class="choice" id="btnInvalid" onclick="choose(false)">Not a triangulation</button>
+    <div class="spacer"></div>
+    <button class="primary" id="btnLock" onclick="lockIn()" disabled>Submit</button>
+    <button id="btnNext" onclick="nextRound()" style="display:none;">Next</button>
+  </div>
+
+  <div class="score" id="score">0 / 0</div>
+
+  <div class="feedback" id="feedback"></div>
+
+  <div id="bottomActions" style="margin-bottom:14px;">
+    <button id="btnReview" onclick="showReviewList()" style="display:none;">Review past rounds</button>
+    <button id="btnBackToList" onclick="backToList()" style="display:none;">Back to list</button>
+  </div>
+
+  <div id="reviewListPanel" style="display:none;">
+    <div class="review-panel" id="reviewListItems"></div>
+    <button onclick="backToPractice()">Back to practice</button>
+  </div>
+  <nav class="home-nav"><a class="home-link" href="index.html">&larr; Back to all sites</a></nav>
+</div>
+
+<script>
+// A double or triple click (or a fast run of clicks) on the board or a
+// button makes the browser start a text selection and snap it to the
+// nearest text, highlighting scores, status lines, or button labels.
+// Cancel that multi-click selection everywhere except the explanatory
+// note; single clicks, drags, and text selection inside the note are
+// unaffected.
+document.addEventListener("mousedown", (e) => {
+  if (e.detail > 1 && !e.target.closest(".note")) e.preventDefault();
+});
+// ============================================================
+// geometry
+// ============================================================
+function cross(o, a, b) { return (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x); }
+function dist2(a, b) { const dx = a.x - b.x, dy = a.y - b.y; return dx * dx + dy * dy; }
+function randRange(a, b) { return a + Math.random() * (b - a); }
+function randInt(a, b) { return a + Math.floor(Math.random() * (b - a + 1)); }
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+function convexHull(points) {
+  const pts = [...points].sort((a, b) => a.x - b.x || a.y - b.y);
+  const n = pts.length;
+  if (n < 3) return pts;
+  const lower = [];
+  for (const p of pts) {
+    while (lower.length >= 2 && cross(lower[lower.length - 2], lower[lower.length - 1], p) <= 0) lower.pop();
+    lower.push(p);
+  }
+  const upper = [];
+  for (let i = n - 1; i >= 0; i--) {
+    const p = pts[i];
+    while (upper.length >= 2 && cross(upper[upper.length - 2], upper[upper.length - 1], p) <= 0) upper.pop();
+    upper.push(p);
+  }
+  lower.pop(); upper.pop();
+  return lower.concat(upper);
+}
+function pointInConvexPolygon(p, poly) {
+  for (let i = 0; i < poly.length; i++) {
+    const a = poly[i], b = poly[(i + 1) % poly.length];
+    if (cross(a, b, p) <= 1e-9) return false;
+  }
+  return true;
+}
+function collinear(a, b, c, eps = 1e-7) { return Math.abs(cross(a, b, c)) < eps; }
+function anyThreeCollinear(points, eps = 1e-7) {
+  for (let i = 0; i < points.length; i++)
+    for (let j = i + 1; j < points.length; j++)
+      for (let k = j + 1; k < points.length; k++)
+        if (collinear(points[i], points[j], points[k], eps)) return true;
+  return false;
+}
+
+function generatePointSet() {
+  for (let attempt = 0; attempt < 200; attempt++) {
+    const hullSize = 4 + Math.floor(Math.random() * 3);
+    const interiorCount = 1 + Math.floor(Math.random() * 4);
+    let angles = [];
+    for (let i = 0; i < hullSize; i++) angles.push(Math.random() * 2 * Math.PI);
+    angles.sort((a, b) => a - b);
+    let ok = true;
+    for (let i = 0; i < hullSize; i++) {
+      const a1 = angles[i], a2 = angles[(i + 1) % hullSize];
+      const gap = (i === hullSize - 1) ? (a1 - a2 + 2 * Math.PI) : (a2 - a1);
+      if (gap < 0.35) { ok = false; break; }
+    }
+    if (!ok) continue;
+    const R = 200;
+    const hullPts = angles.map(a => ({
+      x: 300 + Math.cos(a) * R * randRange(0.85, 1.0),
+      y: 300 + Math.sin(a) * R * randRange(0.85, 1.0),
+    }));
+    const hull = convexHull(hullPts);
+    if (hull.length !== hullSize) continue;
+    const interior = [];
+    let interiorOk = true;
+    for (let i = 0; i < interiorCount; i++) {
+      let placed = false;
+      for (let tries = 0; tries < 200; tries++) {
+        const cand = { x: randRange(220, 380), y: randRange(220, 380) };
+        if (pointInConvexPolygon(cand, hull) && !interior.some(q => dist2(q, cand) < 400)) {
+          interior.push(cand); placed = true; break;
+        }
+      }
+      if (!placed) { interiorOk = false; break; }
+    }
+    if (!interiorOk) continue;
+    const all = hull.concat(interior);
+    if (anyThreeCollinear(all)) continue;
+    // reject point sets whose full triangulation contains a sliver
+    // triangle too thin to read clearly (same fix applied to the other
+    // two practice sites, after a real example showed a near-invisible
+    // triangle reading as a stray line crossing a gap)
+    const fullTriangulation = delaunay(all);
+    const minArea = Math.min(...fullTriangulation.map(t => Math.abs(cross(t[0], t[1], t[2])) / 2));
+    if (minArea < 120) continue;
+    // area alone doesn't rule out a thin dart shape (large area, still
+    // highly elongated); check scale-invariant shape quality too
+    const minQuality = Math.min(...fullTriangulation.map(t => {
+      const e2 = [dist2(t[0], t[1]), dist2(t[1], t[2]), dist2(t[2], t[0])];
+      return (Math.abs(cross(t[0], t[1], t[2])) / 2) / Math.max(...e2);
+    }));
+    if (minQuality < 0.05) continue;
+    return { hull, interior, all };
+  }
+  throw new Error("failed to generate a point set");
+}
+
+function delaunay(points) {
+  if (points.length < 3) return [];
+  const coords = new Float64Array(points.length * 2);
+  points.forEach((p, i) => { coords[2 * i] = p.x; coords[2 * i + 1] = p.y; });
+  const d = new Delaunator(coords);
+  const triangles = [];
+  for (let i = 0; i < d.triangles.length; i += 3) {
+    triangles.push([points[d.triangles[i]], points[d.triangles[i + 1]], points[d.triangles[i + 2]]]);
+  }
+  return triangles;
+}
+
+function edgeKeyOf(a, b, idxOf) {
+  const ia = idxOf.get(a), ib = idxOf.get(b);
+  return ia < ib ? `${ia}_${ib}` : `${ib}_${ia}`;
+}
+function buildEdgeInfo(triangles, allPoints) {
+  const idxOf = new Map(allPoints.map((p, i) => [p, i]));
+  const edgeUse = new Map();
+  triangles.forEach((t, ti) => {
+    for (const [u, v] of [[t[0], t[1]], [t[1], t[2]], [t[2], t[0]]]) {
+      const k = edgeKeyOf(u, v, idxOf);
+      if (!edgeUse.has(k)) edgeUse.set(k, []);
+      edgeUse.get(k).push(ti);
+    }
+  });
+  return { idxOf, edgeUse };
+}
+function boundaryEdgeCount(tri, idxOf, edgeUse) {
+  let count = 0;
+  for (const [u, v] of [[tri[0], tri[1]], [tri[1], tri[2]], [tri[2], tri[0]]]) {
+    const info = edgeUse.get(edgeKeyOf(u, v, idxOf));
+    if (info && info.length === 1) count++;
+  }
+  return count;
+}
+
+function polyArea(poly) {
+  let a = 0;
+  for (let i = 0; i < poly.length; i++) { const p = poly[i], q = poly[(i + 1) % poly.length]; a += p.x * q.y - q.x * p.y; }
+  return Math.abs(a) / 2;
+}
+function triArea(t) { return Math.abs(cross(t[0], t[1], t[2])) / 2; }
+
+function lineIntersect(p1, p2, p3, p4) {
+  const d1x = p2.x - p1.x, d1y = p2.y - p1.y;
+  const d2x = p4.x - p3.x, d2y = p4.y - p3.y;
+  const denom = d1x * d2y - d1y * d2x;
+  const t = ((p3.x - p1.x) * d2y - (p3.y - p1.y) * d2x) / denom;
+  return { x: p1.x + t * d1x, y: p1.y + t * d1y };
+}
+function clipPolygon(poly, a, b) {
+  const output = [];
+  const n = poly.length;
+  if (n === 0) return output;
+  for (let i = 0; i < n; i++) {
+    const cur = poly[i], prev = poly[(i - 1 + n) % n];
+    const curInside = cross(a, b, cur) >= 0;
+    const prevInside = cross(a, b, prev) >= 0;
+    if (curInside) {
+      if (!prevInside) output.push(lineIntersect(prev, cur, a, b));
+      output.push(cur);
+    } else if (prevInside) {
+      output.push(lineIntersect(prev, cur, a, b));
+    }
+  }
+  return output;
+}
+function triangleIntersectionArea(t1, t2) {
+  // clip t1 against each of t2's three edges; the surviving polygon's
+  // area is the intersection area, so this catches both crossing
+  // overlaps and full containment, which a pure edge-crossing test
+  // (segmentsIntersect) cannot reliably detect on its own
+  let poly = cross(t1[0], t1[1], t1[2]) > 0 ? [t1[0], t1[1], t1[2]] : [t1[0], t1[2], t1[1]];
+  const clipTri = cross(t2[0], t2[1], t2[2]) > 0 ? [t2[0], t2[1], t2[2]] : [t2[0], t2[2], t2[1]];
+  for (let i = 0; i < 3 && poly.length > 0; i++) {
+    const a = clipTri[i], b = clipTri[(i + 1) % 3];
+    poly = clipPolygon(poly, a, b);
+  }
+  let area = 0;
+  for (let i = 0; i < poly.length; i++) {
+    const p = poly[i], q = poly[(i + 1) % poly.length];
+    area += p.x * q.y - q.x * p.y;
+  }
+  return Math.abs(area) / 2;
+}
+
+// checkers: run directly against a triangle set, independent of how it
+// was built, so compound and construction-order-agnostic failures both
+// grade correctly
+// Exact area of the UNION of the triangles. Summing the triangles' areas is
+// wrong as soon as two triangles overlap: the sum then exceeds the hull's area
+// even when the hull is fully covered, which made overlapping (but covering)
+// sets look like they "don't cover the convex hull". Instead, slice the plane
+// into vertical strips at every triangle vertex and every crossing of two
+// edges. Inside one strip no edge changes order, so the covered length of a
+// vertical line is a linear function of x, and its integral over the strip is
+// (covered length at the strip's midline) x (strip width).
+function unionArea(triangles) {
+  const edges = [];
+  const xs = [];
+  for (const t of triangles) {
+    for (let i = 0; i < 3; i++) { edges.push([t[i], t[(i + 1) % 3]]); xs.push(t[i].x); }
+  }
+  for (let i = 0; i < edges.length; i++) {
+    const [p, q] = edges[i];
+    for (let j = i + 1; j < edges.length; j++) {
+      const [r, s] = edges[j];
+      const dx1 = q.x - p.x, dy1 = q.y - p.y, dx2 = s.x - r.x, dy2 = s.y - r.y;
+      const den = dx1 * dy2 - dy1 * dx2;
+      if (Math.abs(den) < 1e-12) continue;
+      const tt = ((r.x - p.x) * dy2 - (r.y - p.y) * dx2) / den;
+      const uu = ((r.x - p.x) * dy1 - (r.y - p.y) * dx1) / den;
+      if (tt >= 0 && tt <= 1 && uu >= 0 && uu <= 1) xs.push(p.x + tt * dx1);
+    }
+  }
+  xs.sort((a, b) => a - b);
+  let area = 0;
+  for (let k = 0; k + 1 < xs.length; k++) {
+    const xa = xs[k], xb = xs[k + 1];
+    if (xb - xa < 1e-9) continue;
+    const xm = (xa + xb) / 2;
+    const spans = [];
+    for (const t of triangles) {
+      const ys = [];
+      for (let i = 0; i < 3; i++) {
+        const p = t[i], q = t[(i + 1) % 3];
+        if ((p.x < xm) === (q.x < xm)) continue;
+        ys.push(p.y + (xm - p.x) * (q.y - p.y) / (q.x - p.x));
+      }
+      if (ys.length === 2) spans.push([Math.min(ys[0], ys[1]), Math.max(ys[0], ys[1])]);
+    }
+    spans.sort((a, b) => a[0] - b[0]);
+    let len = 0, curLo = null, curHi = null;
+    for (const [lo, hi] of spans) {
+      if (curHi === null || lo > curHi) {
+        if (curHi !== null) len += curHi - curLo;
+        curLo = lo; curHi = hi;
+      } else if (hi > curHi) curHi = hi;
+    }
+    if (curHi !== null) len += curHi - curLo;
+    area += len * (xb - xa);
+  }
+  return area;
+}
+function checkCoversHull(triangles, hull) {
+  // every triangle's vertices are points of P, so the triangles always lie
+  // inside the hull; they cover it exactly when the union has the hull's area
+  return Math.abs(polyArea(hull) - unionArea(triangles)) < 0.5;
+}
+function checkUsesAllPoints(triangles, allPoints) {
+  const used = new Set();
+  triangles.forEach(t => t.forEach(p => used.add(p)));
+  return allPoints.every(p => used.has(p));
+}
+function findUnusedPoints(triangles, allPoints) {
+  const used = new Set();
+  triangles.forEach(t => t.forEach(p => used.add(p)));
+  return allPoints.filter(p => !used.has(p));
+}
+function checkNoOverlap(triangles) {
+  for (let i = 0; i < triangles.length; i++) {
+    for (let j = i + 1; j < triangles.length; j++) {
+      if (triangleIntersectionArea(triangles[i], triangles[j]) > 1e-4) return false;
+    }
+  }
+  return true;
+
+}
+
+// violation generators
+function boundaryVertexSet(idxOf, edgeUse) {
+  const s = new Set();
+  for (const [key, tris] of edgeUse) {
+    if (tris.length !== 1) continue;
+    const [a, b] = key.split("_").map(Number);
+    s.add(a); s.add(b);
+  }
+  return s;
+}
+function applyMissingCoverage(triangles, allPoints) {
+  const numHoles = Math.random() < 0.75 ? 1 : 2;
+  let result = [...triangles];
+  for (let k = 0; k < numHoles; k++) {
+    const { idxOf: idxOf2, edgeUse: edgeUse2 } = buildEdgeInfo(result, allPoints);
+    const style = Math.random() < 0.5 ? "boundary" : "interior";
+    let candidates;
+    if (style === "interior") {
+      const zeroEdge = result.filter(t => boundaryEdgeCount(t, idxOf2, edgeUse2) === 0);
+      // prefer a triangle whose vertices are ALL non-boundary too, not
+      // just its own edges; a triangle can have zero boundary edges of
+      // its own while still touching the boundary through a vertex
+      // shared with a different triangle, which doesn't read as a
+      // genuinely deep interior hole
+      const bvs = boundaryVertexSet(idxOf2, edgeUse2);
+      const trueInterior = zeroEdge.filter(t => t.every(v => !bvs.has(idxOf2.get(v))));
+      candidates = trueInterior.length > 0 ? trueInterior : zeroEdge;
+    }
+    if (style === "boundary" || !candidates || candidates.length === 0) {
+      candidates = result.filter(t => boundaryEdgeCount(t, idxOf2, edgeUse2) >= 1);
+    }
+    if (!candidates || candidates.length === 0) break;
+    const victim = pick(candidates);
+    result = result.filter(t => t !== victim);
+  }
+  return result;
+}
+function applyMissingPoint(triangles, allPoints) {
+  const numExcluded = Math.random() < 0.8 ? 1 : 2;
+  const excludable = [...allPoints];
+  const excluded = [];
+  for (let k = 0; k < numExcluded && excludable.length > 0; k++) {
+    const idx = randInt(0, excludable.length - 1);
+    excluded.push(excludable[idx]);
+    excludable.splice(idx, 1);
+  }
+  const remaining = allPoints.filter(p => !excluded.includes(p));
+  if (remaining.length < 3) return { triangles, excluded: [] };
+  return { triangles: delaunay(remaining), excluded };
+}
+function applyOverlap(triangles, allPoints) {
+  const numOverlaps = Math.random() < 0.8 ? 1 : 2;
+  const { idxOf, edgeUse } = buildEdgeInfo(triangles, allPoints);
+  const flippableEdges = [];
+  for (const [key, tris] of edgeUse) {
+    if (tris.length !== 2) continue;
+    const [t1, t2] = tris.map(ti => triangles[ti]);
+    const shared = t1.filter(p => t2.includes(p));
+    if (shared.length !== 2) continue;
+    const [a, b] = shared;
+    const c = t1.find(p => p !== a && p !== b);
+    const d = t2.find(p => p !== a && p !== b);
+    const s1 = cross(a, b, c), s2 = cross(a, b, d), s3 = cross(c, d, a), s4 = cross(c, d, b);
+    if (s1 * s2 < 0 && s3 * s4 < 0) flippableEdges.push({ a, b, c, d });
+  }
+  if (flippableEdges.length === 0) return triangles;
+  const chosen = [];
+  for (let k = 0; k < numOverlaps && flippableEdges.length > 0; k++) {
+    const idx = randInt(0, flippableEdges.length - 1);
+    chosen.push(flippableEdges[idx]);
+    flippableEdges.splice(idx, 1);
+  }
+  let result = [...triangles];
+  for (const { a, b, c, d } of chosen) {
+    result.push(Math.random() < 0.5 ? [c, d, a] : [c, d, b]);
+  }
+  return result;
+}
+
+// ============================================================
+// round state + UI
+// ============================================================
+let round = null;
+let chosen = null;
+let locked = false;
+let scoreRight = 0, scoreTotal = 0;
+let history = [];
+
+function generateRound() {
+  // wrap the whole round in a retry: applyMissingPoint (re-triangulating
+  // a subset) and applyOverlap (adding a fresh triangle) can each
+  // introduce a sliver that wasn't present in the initial full
+  // triangulation check, so the only fully robust guard is checking the
+  // triangle set actually being shown, after every operation is applied
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const { hull, interior, all } = generatePointSet();
+    let triangles = delaunay(all);
+    let excludedPoints = [];
+
+    const rollCoverage = Math.random() < 0.25;
+    const rollPoint = Math.random() < 0.25;
+    const rollOverlap = Math.random() < 0.25;
+
+    if (rollPoint) {
+      const res = applyMissingPoint(triangles, all);
+      triangles = res.triangles;
+      excludedPoints = res.excluded;
+    }
+    if (rollCoverage) {
+      const remainingPoints = all.filter(p => !excludedPoints.includes(p));
+      triangles = applyMissingCoverage(triangles, remainingPoints);
+    }
+    if (rollOverlap) {
+      const remainingPoints = all.filter(p => !excludedPoints.includes(p));
+      triangles = applyOverlap(triangles, remainingPoints);
+    }
+
+    if (triangles.length > 0) {
+      const minArea = Math.min(...triangles.map(t => Math.abs(cross(t[0], t[1], t[2])) / 2));
+      if (minArea < 120) continue;
+      const minQuality = Math.min(...triangles.map(t => {
+        const e2 = [dist2(t[0], t[1]), dist2(t[1], t[2]), dist2(t[2], t[0])];
+        return (Math.abs(cross(t[0], t[1], t[2])) / 2) / Math.max(...e2);
+      }));
+      if (minQuality < 0.05) continue;
+    }
+
+    const coversHull = checkCoversHull(triangles, hull);
+    const usesAll = checkUsesAllPoints(triangles, all);
+    const noOverlap = checkNoOverlap(triangles);
+    const isValid = coversHull && usesAll && noOverlap;
+    const unused = findUnusedPoints(triangles, all);
+
+    return { hull, all, triangles, coversHull, usesAll, noOverlap, isValid, unused };
+  }
+  throw new Error("failed to generate a round without a sliver triangle");
+}
+
+function drawBoard(triangles, allPoints, unusedPoints) {
+  const svg = document.getElementById("canvas");
+  svg.innerHTML = "";
+  const ns = "http://www.w3.org/2000/svg";
+  for (const t of triangles) {
+    const poly = document.createElementNS(ns, "polygon");
+    poly.setAttribute("points", t.map(p => `${p.x},${p.y}`).join(" "));
+    // fill and opacity are a pair: at this opacity a single triangle renders
+    // as exactly the family neutral (#c9d9e6, same as Sites 3 and 4) while
+    // stacked triangles still darken visibly. Overlap is deliberately not
+    // highlighted any other way, since spotting it is the student's job.
+    poly.setAttribute("fill", "#19558a");
+    poly.setAttribute("fill-opacity", "0.2");
+    poly.setAttribute("stroke", "#16324f");
+    poly.setAttribute("stroke-width", "1.5");
+    svg.appendChild(poly);
+  }
+  for (const p of allPoints) {
+    const c = document.createElementNS(ns, "circle");
+    c.setAttribute("cx", p.x);
+    c.setAttribute("cy", p.y);
+    c.setAttribute("r", 4.5);
+    c.setAttribute("fill", "#16324f");
+    svg.appendChild(c);
+  }
+  if (unusedPoints) {
+    for (const p of unusedPoints) {
+      const c = document.createElementNS(ns, "circle");
+      c.setAttribute("cx", p.x);
+      c.setAttribute("cy", p.y);
+      c.setAttribute("r", 8);
+      c.setAttribute("fill", "none");
+      c.setAttribute("stroke", "#a8384a");
+      c.setAttribute("stroke-width", "2");
+      svg.appendChild(c);
+    }
+  }
+}
+
+function render() {
+  drawBoard(round.triangles, round.all, null);
+}
+
+function choose(val) {
+  if (locked) return;
+  chosen = val;
+  document.getElementById("btnValid").classList.toggle("selected", val === true);
+  document.getElementById("btnInvalid").classList.toggle("selected", val === false);
+  document.getElementById("btnLock").disabled = false;
+}
+
+function lockIn() {
+  if (chosen === null || locked) return;
+  locked = true;
+  scoreTotal++;
+  const correct = chosen === round.isValid;
+  if (correct) scoreRight++;
+  document.getElementById("score").textContent = `${scoreRight} / ${scoreTotal}`;
+
+  const fb = document.getElementById("feedback");
+  fb.className = "feedback show " + (correct ? "correct" : "incorrect");
+
+  let verdict = correct
+    ? (round.isValid ? "Correct: this is a valid triangulation." : "Correct: this is not a triangulation.")
+    : (round.isValid ? "Not quite: this is actually a valid triangulation." : "Not quite: this is not a triangulation.");
+
+  let items = "";
+  items += `<li class="${round.coversHull ? 'clause-ok' : 'clause-bad'}">${round.coversHull ? '\u2713' : '\u2717'} covers the convex hull</li>`;
+  items += `<li class="${round.usesAll ? 'clause-ok' : 'clause-bad'}">${round.usesAll ? '\u2713' : '\u2717'} uses every point`
+    + (round.usesAll ? "" : ` (${round.unused.length} left unused)`) + `</li>`;
+  items += `<li class="${round.noOverlap ? 'clause-ok' : 'clause-bad'}">${round.noOverlap ? '\u2713' : '\u2717'} triangles meet only at shared edges or vertices</li>`;
+
+  fb.innerHTML = `<div class="verdict">${verdict}</div><ul>${items}</ul>`;
+
+  // highlight unused points distinctly now that the answer is revealed
+  drawBoard(round.triangles, round.all, round.unused.length ? round.unused : null);
+
+  history.push({ round, chosen, correct, feedbackHTML: fb.innerHTML, feedbackClass: fb.className });
+  document.getElementById("btnReview").style.display = "inline-block";
+
+  document.getElementById("btnValid").disabled = true;
+  document.getElementById("btnInvalid").disabled = true;
+  document.getElementById("btnLock").style.display = "none";
+  document.getElementById("btnNext").style.display = "inline-block";
+}
+
+function showReviewList() {
+  document.getElementById("boardSection").style.display = "none";
+  document.getElementById("controlsSection").style.display = "none";
+  document.getElementById("score").style.display = "none";
+  document.getElementById("feedback").className = "feedback";
+  document.getElementById("btnReview").style.display = "none";
+  document.getElementById("btnBackToList").style.display = "none";
+  document.getElementById("reviewListPanel").style.display = "block";
+  const itemsDiv = document.getElementById("reviewListItems");
+  itemsDiv.innerHTML = history.map((h, i) =>
+    `<div class="review-item" onclick="showReviewDetail(${i})">
+       <span>Round ${i + 1}</span>
+       <span class="review-right">
+         ${h.correct ? "" : '<span class="review-x">\u2717</span>'}
+         <span class="review-chevron">\u203a</span>
+       </span>
+     </div>`
+  ).join("");
+}
+
+function showReviewDetail(i) {
+  const h = history[i];
+  document.getElementById("reviewListPanel").style.display = "none";
+  document.getElementById("boardSection").style.display = "block";
+  document.getElementById("btnBackToList").style.display = "inline-block";
+  drawBoard(h.round.triangles, h.round.all, h.round.unused.length ? h.round.unused : null);
+  const fb = document.getElementById("feedback");
+  fb.className = h.feedbackClass;
+  fb.innerHTML = h.feedbackHTML;
+}
+
+function backToList() {
+  document.getElementById("boardSection").style.display = "none";
+  document.getElementById("btnBackToList").style.display = "none";
+  document.getElementById("feedback").className = "feedback";
+  showReviewList();
+}
+
+function backToPractice() {
+  document.getElementById("reviewListPanel").style.display = "none";
+  document.getElementById("boardSection").style.display = "block";
+  document.getElementById("controlsSection").style.display = "flex";
+  document.getElementById("score").style.display = "block";
+  document.getElementById("btnReview").style.display = history.length ? "inline-block" : "none";
+  document.getElementById("btnBackToList").style.display = "none";
+  if (locked) {
+    const last = history[history.length - 1];
+    drawBoard(round.triangles, round.all, round.unused.length ? round.unused : null);
+    const fb = document.getElementById("feedback");
+    fb.className = last.feedbackClass;
+    fb.innerHTML = last.feedbackHTML;
+  } else {
+    render();
+    document.getElementById("feedback").className = "feedback";
+  }
+}
+
+function nextRound() {
+  round = generateRound();
+  chosen = null;
+  locked = false;
+  document.getElementById("btnValid").disabled = false;
+  document.getElementById("btnInvalid").disabled = false;
+  document.getElementById("btnValid").classList.remove("selected");
+  document.getElementById("btnInvalid").classList.remove("selected");
+  document.getElementById("btnLock").disabled = true;
+  document.getElementById("btnLock").style.display = "inline-block";
+  document.getElementById("btnNext").style.display = "none";
+  document.getElementById("feedback").className = "feedback";
+  render();
+}
+
+window.addEventListener("load", nextRound);
+</script>
+</body>
+</html>
