@@ -1,0 +1,1596 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Lecture Notes Encoding Example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:ital,wght@0,400;0,700;1,400&family=Noto+Sans+Mono:wght@400;700&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<style>
+  /* Same paper-blue system as the Turing Machine Explorer, in light mode only like the other sites: one panel per job, the machine at the center. */
+  :root{
+    --paper:#eaf4fb; --panel:#ffffff; --panel-2:#f5fafd; --ink:#16324f; --ink-soft:#3d5a75; --rule:#a9cbe4; --muted:#8fb0c8;
+    --info:#2f6690; --info-soft:#d7ebf7; --info-hover:#255277; --path:#7fb0d8;
+    --good:#2f7a4f; --good-soft:#dcf0e2; --danger:#a8384a; --danger-soft:#f6dde1; --warn:#946312; --warn-soft:#f8ecd2;
+    --region:#f4f9fd; --region-on:#e4f1fa; --on-info:#ffffff;
+    --mono:"Courier New", "Noto Sans Mono", ui-monospace, Menlo, Consolas, monospace;
+    --serif:Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+    --symbols:'Noto Sans', 'Noto Sans Symbols 2', 'DejaVu Sans', sans-serif;
+    --cell:38px;
+    color-scheme:light;
+  }
+  *{box-sizing:border-box;}
+  [hidden]{display:none !important;}
+  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--serif);line-height:1.5;}
+  .page{max-width:1440px;margin:0 auto;padding-block:24px 70px;padding-left:max(16px, env(safe-area-inset-left, 0px));padding-right:max(16px, env(safe-area-inset-right, 0px));}
+  header h1{font-weight:700;font-size:1.65rem;letter-spacing:0.01em;margin:0;border-bottom:3px solid var(--ink);padding-bottom:9px;text-wrap:balance;}
+  header p{color:var(--ink-soft);font-style:italic;font-size:0.92rem;margin:12px 0 18px;max-width:78ch;}
+  .defn{font-size:1.05rem;margin:16px 0 20px;max-width:70ch;}
+  .defn p{margin:0 0 6px;line-height:1.6;}
+  .defn sub.tt{font-family:var(--mono);font-size:0.72em;}
+  .s{font-family:var(--symbols);font-weight:700;font-size:1.08em;}
+  .panels{display:flex;flex-direction:column;gap:20px;}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px 18px 18px;min-width:0;}
+  .panel h2{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:var(--ink-soft);margin:0 0 10px;}
+  .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap;}
+  .spacer{flex:1;}
+  .note{font-size:0.82rem;color:var(--ink-soft);}
+  .btn{font-family:var(--mono);font-size:0.86rem;padding:7px 13px;border-radius:3px;border:1px solid var(--rule);background:var(--panel-2);color:var(--ink);cursor:pointer;white-space:nowrap;line-height:1.2;}
+  .btn:hover{background:var(--info-soft);border-color:var(--info);}
+  .btn.primary{background:var(--info);border-color:var(--info);color:var(--on-info);}
+  .btn.primary:hover{background:var(--info-hover);}
+  .btn:disabled{opacity:0.4;cursor:not-allowed;}
+  .btn.small{padding:5px 10px;font-size:0.8rem;}
+  .btn.icon{min-width:38px;padding:7px 9px;text-align:center;}
+  .btn:focus-visible, .text-in:focus-visible, select:focus-visible, .stage:focus-visible{outline:2px solid var(--info);outline-offset:2px;}
+  .text-in{-webkit-appearance:none;appearance:none;font-family:var(--mono);font-size:1rem;background:var(--panel-2);border:1.5px solid var(--ink);border-radius:3px;padding:7px 10px;color:var(--ink);min-width:0;}
+  .text-in.bad{border-color:var(--danger);background:var(--danger-soft);}
+  .text-in:disabled{opacity:0.75;}
+  #encIn{flex:1 1 380px;letter-spacing:0.04em;resize:none;overflow:hidden;line-height:1.45;word-break:break-all;overflow-wrap:anywhere;white-space:pre-wrap;}
+  #encIn[readonly]{opacity:0.75;cursor:default;}
+  /* locked look, same as the Turing Machine Explorer: a gray shade over the input and a lock */
+  #lockZone{position:relative;}
+  #inputPanel.is-locked #lockZone::before{content:'';position:absolute;inset:-16px -18px -6px -18px;background:rgba(90,100,118,0.13);border-radius:3px 3px 0 0;pointer-events:none;z-index:1;}
+  @media (max-width:600px){ #inputPanel.is-locked #lockZone::before{inset:-14px -12px -6px -12px;} }
+  .in-head{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .in-head h2{margin-bottom:10px;}
+  .lock-icon{display:none;font-size:15px;opacity:0.85;margin-bottom:10px;}
+  #inputPanel.is-locked .lock-icon{display:inline;}
+  .enc-label{font-size:1.05rem;white-space:nowrap;align-self:flex-start;padding-top:7px;}
+  .msg{font-size:0.86rem;margin:8px 0 0;}
+  .msg:empty{display:none;}
+  .msg.err{color:var(--danger);}
+  .msg.ok{color:var(--ink-soft);}
+
+  /* ---------- tape ---------- */
+  .tape-wrap{position:relative;overflow:hidden;height:calc(var(--cell) + 64px);background:var(--panel-2);border:1px solid var(--rule);border-radius:3px;margin-top:4px;cursor:grab;touch-action:pan-y;-webkit-user-select:none;user-select:none;}
+  .tape-wrap.panning{cursor:grabbing;}
+  .tape-strip{position:absolute;left:0;top:0;height:100%;will-change:transform;}
+  .cells{position:absolute;left:12px;top:20px;height:var(--cell);}
+  .cell{position:absolute;top:0;width:var(--cell);height:var(--cell);border:1.5px solid var(--ink);background:var(--panel);display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1.12rem;font-weight:700;box-sizing:border-box;}
+  .cell.left-end{border-left-width:4px;}
+  .cell .ix{position:absolute;top:-17px;left:0;right:0;text-align:center;font-size:0.6rem;color:var(--muted);font-weight:400;font-family:var(--mono);}
+  .cell.blank{color:var(--muted);font-weight:400;font-family:var(--symbols);}
+  .cell sup{font-family:var(--symbols);font-size:0.62rem;font-weight:700;margin-left:1px;line-height:0;position:relative;top:-0.5em;}
+  .mA, .mB{color:var(--info);} .mT{color:var(--muted);} .mD{color:var(--good);} .mE{color:var(--ink-soft);}
+  .cell.flash{animation:flash 0.55s ease-out;}
+  @keyframes flash{0%{background:var(--info-soft);box-shadow:inset 0 0 0 3px var(--info);}100%{background:var(--panel);box-shadow:inset 0 0 0 0 var(--info);}}
+  .dt{position:relative;display:inline-block;}
+  .dt::after{content:'';position:absolute;left:50%;top:-0.08em;width:0.2em;height:0.2em;margin-left:-0.1em;border-radius:50%;background:currentColor;}
+  .head{position:absolute;top:calc(20px + var(--cell) + 2px);left:12px;width:var(--cell);display:flex;flex-direction:column;align-items:center;pointer-events:none;}
+  .head .tri{width:0;height:0;border-left:8px solid transparent;border-right:8px solid transparent;border-bottom:9px solid var(--ink);}
+  .head .box{margin-top:-1px;padding:0 8px 1px;line-height:1.5;border:2px solid var(--ink);border-radius:3px;background:var(--panel);font-style:italic;font-size:0.92rem;white-space:nowrap;}
+  .head .box sub{font-style:normal;font-size:0.7em;line-height:0;}
+  .head .box .dd{font-style:normal;font-family:var(--mono);font-size:0.78em;color:var(--info);margin-left:4px;}
+  .head.accept .tri{border-bottom-color:var(--good);} .head.accept .box{border-color:var(--good);background:var(--good-soft);color:var(--good);}
+  .head.reject .tri{border-bottom-color:var(--danger);} .head.reject .box{border-color:var(--danger);background:var(--danger-soft);color:var(--danger);}
+  .bands{position:absolute;left:12px;top:calc(20px + var(--cell) + 46px);height:22px;}
+  .band{position:absolute;top:0;height:22px;border-top:2px solid var(--rule);font-size:0.72rem;color:var(--ink-soft);text-align:center;padding-top:1px;white-space:nowrap;overflow:hidden;}
+  .band i{font-family:var(--serif);}
+  .tape-wrap.no-motion .head{transition:none;}
+
+  /* ---------- player ---------- */
+  /* one control bar for both views */
+  .player{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:10px 14px;justify-content:center;}
+  @media (max-width:999px){
+    .player{position:sticky;bottom:max(8px, env(safe-area-inset-bottom, 0px));z-index:5;box-shadow:0 2px 10px rgba(22,50,79,0.16);}
+  }
+  .scrub{flex:1 1 160px;accent-color:var(--info);min-width:120px;}
+  .stepcount{font-family:var(--mono);font-size:0.8rem;color:var(--ink-soft);white-space:nowrap;min-width:15ch;text-align:right;font-variant-numeric:tabular-nums;}
+  .verdict{font-family:var(--mono);font-size:0.8rem;font-weight:700;padding:5px 10px;border-radius:3px;white-space:nowrap;}
+  .verdict.accept{background:var(--good-soft);color:var(--good);}
+  .verdict.reject{background:var(--danger-soft);color:var(--danger);}
+  .narr{margin-top:12px;background:var(--info-soft);border-left:3px solid var(--info);border-radius:0 3px 3px 0;padding:9px 13px;min-height:3.4em;}
+  .narr .ctx{font-size:0.95rem;}
+  .narr .doing{font-size:0.84rem;color:var(--ink-soft);}
+  .narr.accept{background:var(--good-soft);border-left-color:var(--good);}
+  .narr.reject{background:var(--danger-soft);border-left-color:var(--danger);}
+  .narr.idle{background:var(--panel-2);border-left-color:var(--rule);}
+  .q{font-style:italic;} .q sub{font-style:normal;font-size:0.72em;}
+
+  /* ---------- run layout ---------- */
+  .algo-grid{display:flex;flex-direction:column;gap:18px;}
+  .algo-grid .graph-box{max-width:520px;}
+  /* wide screens: the machine on the left, the graph and the algorithm beside it; narrow screens: stacked, graph first */
+  .work-grid{display:flex;flex-direction:column;gap:20px;}
+  @media (min-width:1000px){
+    .work-grid{display:grid;grid-template-columns:minmax(0,1fr) minmax(300px,400px);align-items:start;}
+    #runPanel{grid-column:1;grid-row:1;}
+    #algoPanel{grid-column:2;grid-row:1;position:sticky;top:max(12px, env(safe-area-inset-top, 0px));max-height:calc(100vh - 24px);overflow:auto;}
+    .algo-grid .graph-box{max-width:none;}
+  }
+  .side{display:flex;flex-direction:column;gap:16px;min-width:0;}
+  .sub-h{font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:var(--ink-soft);margin:0 0 6px;}
+  .diag-tools{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:16px 0 8px;}
+  .diag-wrap{border:1px solid var(--rule);border-radius:3px;background:var(--panel);overflow:hidden;}
+  .diag-wrap svg.tm{width:100%;height:auto;}
+  .legend{font-size:0.8rem;color:var(--ink-soft);margin-top:8px;line-height:1.55;}
+  .legend b{font-family:var(--symbols);color:var(--ink);}
+  .legend details summary{cursor:pointer;color:var(--info);}
+  .legend dl{display:grid;grid-template-columns:4.2em 1fr;gap:2px 10px;margin:8px 0 0;}
+  .legend dt{font-family:var(--symbols);font-weight:700;color:var(--ink);}
+  .legend dd{margin:0;}
+
+  /* ---------- diagram (same look as the Turing Machine Explorer) ---------- */
+  svg.tm{display:block;}
+  svg.tm .region rect{fill:none;stroke:var(--rule);stroke-width:1.2;}
+  svg.tm .region.on rect{stroke:var(--info);stroke-width:2.4;}
+  svg.tm .rg-title{font-family:var(--serif);font-weight:700;font-size:17px;fill:var(--ink-soft);letter-spacing:0.02em;}
+  svg.tm .region.on .rg-title{fill:var(--info);}
+  svg.tm .ep{fill:none;stroke:var(--ink-soft);stroke-width:1.4;opacity:0.8;}
+  svg.tm .edge.used .ep{opacity:1;}
+  svg.tm .ah, svg.tm .ahm{fill:var(--ink-soft);}
+  svg.tm .ahm-ink{fill:var(--ink);}
+  svg.tm .ahm-used{fill:var(--info);}
+  svg.tm .edge.used .ep{stroke:var(--info);stroke-width:3;}
+  svg.tm .edge.used .ah{fill:var(--info);}
+  svg.tm .el{font-family:var(--symbols);font-size:12.5px;fill:var(--ink);text-anchor:middle;}
+  svg.tm .el .ts{font-weight:700;}
+  svg.tm .el.used{fill:var(--info);font-weight:700;}
+  svg.tm .edot{fill:var(--ink);} svg.tm .edot.used{fill:var(--info);}
+  svg.tm .lbl{opacity:0.3;}
+  svg.tm .lbl.used{opacity:1;}
+  svg.tm .elb{fill:none;}
+  svg.tm .lbl.used .elb{fill:var(--panel);fill-opacity:0.94;stroke:var(--info);stroke-width:1;}
+  svg.tm .sc{fill:var(--panel);stroke:var(--ink);stroke-width:2.2;}
+  svg.tm .si{fill:none;stroke:var(--good);stroke-width:1.6;}
+  svg.tm .st-accept .sc{fill:#f3faf5;stroke:var(--good);}
+  svg.tm .st-reject .sc{fill:#fcf3f5;stroke:var(--danger);}
+  svg.tm .sl{font-family:var(--serif);font-style:italic;font-size:17px;fill:var(--ink);text-anchor:middle;pointer-events:none;}
+  svg.tm .sl .sub{font-style:normal;font-size:12px;}
+  svg.tm .start{stroke:var(--ink);stroke-width:2.2;}
+  svg.tm .st.cur .sc{fill:var(--info-soft);stroke:var(--info);stroke-width:3.4;}
+  svg.tm .st.halt-acc .sc{fill:var(--good-soft);stroke:var(--good);stroke-width:3.4;}
+  svg.tm .st.halt-rej .sc{fill:var(--danger-soft);stroke:var(--danger);stroke-width:3.4;}
+  svg.tm .st.fail .sc{stroke:var(--danger);stroke-width:3.4;stroke-dasharray:5 3;}
+  svg.tm .token{fill:var(--info);stroke:#fff;stroke-width:2;pointer-events:none;}
+
+  /* ---------- stage list ---------- */
+  .stages{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:4px;}
+  .stage{display:grid;grid-template-columns:1.7em 1fr;gap:6px;align-items:start;padding:6px 8px;border-radius:3px;border-left:3px solid transparent;cursor:pointer;font-size:0.88rem;}
+  .stage:hover{background:var(--panel-2);}
+  .stage .mark{font-family:var(--symbols);font-weight:700;color:var(--muted);text-align:center;}
+  .stage.active{background:var(--info-soft);border-left-color:var(--info);}
+  .stage.active .mark{color:var(--info);}
+  .stage.done .mark{color:var(--good);}
+  .stage.failed{background:var(--danger-soft);border-left-color:var(--danger);}
+  .stage.failed .mark{color:var(--danger);}
+  .stage.locked{cursor:default;}
+
+  /* ---------- graph ---------- */
+  .graph-box{border:1px solid var(--rule);border-radius:3px;background:var(--panel);}
+  svg.graph{display:block;width:100%;height:auto;}
+  svg.graph .gv circle{fill:var(--panel);stroke:var(--ink);stroke-width:2;transition:fill 0.15s, stroke 0.15s;}
+  svg.graph .gv text{font-family:var(--serif);font-size:15px;fill:var(--ink);text-anchor:middle;}
+  svg.graph .gv.va circle{fill:var(--info-soft);stroke:var(--info);stroke-width:3.4;}
+  svg.graph .gv.vb circle{stroke:var(--info);stroke-width:3;stroke-dasharray:5 3;}
+  svg.graph .gv.vused circle{fill:var(--good-soft);stroke:var(--good);}
+  svg.graph .gv.vtried circle{stroke:var(--muted);}
+  svg.graph .gv.vbad circle{fill:var(--danger-soft);stroke:var(--danger);stroke-width:3.4;}
+  svg.graph .gv.ghost circle{stroke-dasharray:4 3;stroke:var(--muted);fill:var(--panel-2);}
+  svg.graph .gv.ghost text{fill:var(--ink-soft);}
+  svg.graph .gv.ghost.vbad circle{stroke:var(--danger);fill:var(--danger-soft);}
+  svg.graph .ghost-cap{font-family:var(--serif);font-style:italic;font-size:11px;fill:var(--ink-soft);text-anchor:middle;}
+  svg.graph .ge{fill:none;stroke:var(--ink-soft);stroke-width:1.6;}
+  svg.graph .ge.etry{stroke:var(--info);stroke-width:2.6;}
+  svg.graph .ge.etried{stroke:var(--muted);stroke-dasharray:2 3;}
+  svg.graph .ge.ebad{stroke:var(--danger);stroke-width:2.6;stroke-dasharray:6 4;}
+  svg.graph .ga{fill:var(--ink-soft);}
+  svg.graph .ga.etry{fill:var(--info);} svg.graph .ga.ebad{fill:var(--danger);} svg.graph .ga.etried{fill:var(--muted);}
+  svg.graph .hl{fill:none;stroke:var(--path);stroke-width:9;stroke-linecap:round;opacity:0.42;}
+  svg.graph .pseg{fill:none;stroke-width:3.6;stroke-linecap:round;}
+  svg.graph .pseg.pending{stroke:var(--path);stroke-width:2.6;stroke-dasharray:6 5;}
+  svg.graph .pseg.active{stroke:var(--info);}
+  svg.graph .pseg.active.missing{stroke-dasharray:7 5;}
+  svg.graph .pseg.ok{stroke:var(--good);}
+  svg.graph .pseg.bad{stroke:var(--danger);stroke-dasharray:7 5;}
+  svg.graph .pa.pending{fill:var(--path);} svg.graph .pa.active{fill:var(--info);} svg.graph .pa.ok{fill:var(--good);} svg.graph .pa.bad{fill:var(--danger);}
+  svg.graph .ord{font-family:var(--mono);font-size:11px;font-weight:700;fill:var(--path);text-anchor:middle;}
+  svg.graph .ord.on{fill:var(--info);}
+  svg.graph .ord.done{fill:var(--good);}
+  svg.graph .ord-bg{fill:var(--panel);stroke:var(--path);stroke-width:1;}
+  svg.graph .empty{font-family:var(--serif);font-style:italic;font-size:14px;fill:var(--ink-soft);text-anchor:middle;}
+  .g-legend{display:flex;flex-wrap:wrap;gap:6px 14px;font-size:0.78rem;color:var(--ink-soft);padding:8px 10px;border-top:1px solid var(--rule);}
+  .g-legend span{display:inline-flex;align-items:center;gap:5px;}
+  .sw{display:inline-block;width:20px;height:0;border-top:3px solid;}
+  .sw.pend{border-color:var(--path);border-top-width:8px;opacity:0.45;border-radius:4px;} .sw.act{border-color:var(--info);} .sw.ok{border-color:var(--good);} .sw.bad{border-color:var(--danger);border-top-style:dashed;}
+  footer{margin-top:36px;color:var(--ink-soft);font-size:0.78rem;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;max-width:90ch;}
+  footer p{margin:0 0 6px;}
+  @media (max-width:600px){
+    :root{--cell:34px;}
+    header h1{font-size:1.4rem;}
+    .panel{padding:14px 12px 16px;}
+    .stepcount{min-width:0;}
+  }
+  @media (prefers-reduced-motion: reduce){ .head{transition:none;} .cell.flash{animation:none;} }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Lecture Notes Encoding Example</h1>
+  </header>
+  <div class="defn">
+    <p><i>S</i><sub class="tt">path</sub>&nbsp;=&nbsp;{&#x27E8;<i>G</i>,&#8202;<i>P</i>&#x27E9;&nbsp;|&nbsp;<i>G</i> is a directed graph and <i>P</i> is a path in <i>G</i> that visits every vertex exactly&nbsp;once}</p>
+    <p>Σ&nbsp;=&nbsp;{&#8202;<span class="s">0</span>, <span class="s">1</span>, <span class="s">2</span>, <span class="s">3</span>, <span class="s">4</span>, <span class="s">5</span>, <span class="s">6</span>, <span class="s">7</span>, <span class="s">8</span>, <span class="s">9</span>, <span class="s">(</span>, <span class="s">)</span>, <span class="s">#</span>, <span class="s">,</span>&#8202;}</p>
+  </div>
+
+  <main class="panels">
+    <section class="panel" id="inputPanel" aria-labelledby="inH">
+      <div id="lockZone">
+        <div class="in-head"><h2 id="inH">Your input</h2><span class="lock-icon" aria-label="Locked" title="Locked in. Press “Edit input” to change it.">🔒</span></div>
+        <div class="row">
+          <label class="enc-label" for="encIn">⟨<i>G</i>,<i>P</i>⟩ =</label>
+          <textarea class="text-in" id="encIn" rows="1" autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="encMsg"></textarea>
+        </div>
+        <p class="msg ok" id="encMsg"></p>
+      </div>
+      <div class="row" style="margin-top:6px;justify-content:flex-end;">
+        <span class="note" id="lockNote"></span>
+        <button class="btn primary" id="lockBtn" type="button">Lock in</button>
+        <button class="btn primary" id="editBtn" type="button" hidden>Edit input</button>
+      </div>
+    </section>
+
+    <div class="work-grid">
+    <section class="panel" id="algoPanel" aria-labelledby="algoH">
+      <h2 id="algoH">High level</h2>
+      <div class="algo-grid">
+        <div style="min-width:0;">
+          <div class="graph-box">
+            <svg class="graph" id="graphSvg" viewBox="0 0 380 380" role="img" aria-label="The graph G with the path P drawn on it"></svg>
+            <div class="g-legend">
+              <span><span class="sw pend"></span>edge of P, not checked yet</span>
+              <span><span class="sw act"></span>edge of P being checked</span>
+              <span><span class="sw ok"></span>found in G</span>
+              <span><span class="sw bad"></span>not in G</span>
+            </div>
+          </div>
+        </div>
+        <div style="min-width:0;">
+          <ol class="stages" id="stages"></ol>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" id="runPanel" aria-labelledby="runH">
+      <h2 id="runH">Low level</h2>
+      <div class="tape-wrap" id="tapeWrap" title="Drag to scroll the tape">
+        <div class="tape-strip" id="tapeStrip">
+          <div class="cells" id="cells"></div>
+          <div class="head" id="head"><div class="tri"></div><div class="box" id="headBox"></div></div>
+        </div>
+      </div>
+      <div class="diag-tools">
+        <span class="note" id="sizeNote"></span>
+        <span class="spacer"></span>
+      </div>
+      <div class="diag-wrap" id="diagWrap"></div>
+    </section>
+    </div>
+    <div class="row player" id="playerBar">
+      <button class="btn" id="resetBtn" title="Start over (R)">⏮ Start over</button>
+      <button class="btn primary" id="playBtn" title="Play or pause (Space)" style="min-width:96px;">▶ Play</button>
+      <button class="btn" id="endBtn" title="Go to the end">Go to the end ⏭</button>
+      <span class="stepcount" id="stepCount"></span>
+      <span class="verdict" id="verdict" hidden></span>
+    </div>
+  </main>
+
+</div>
+
+<script>
+// Builds a real single-tape Turing machine that decides
+//   S_path = { <G,P> : G is a directed graph and P is a path in G visiting every vertex exactly once }
+// over Sigma = {0..9, (, ), #, ,}, encoded as (V)(E)#(P).
+// Every state and transition below is an actual TM transition; the page only groups the ten
+// "carrying digit d" copies of a state into one drawn node.
+(function(root){
+'use strict';
+const DIG = '0123456789'.split('');
+const DOT = DIG.map(d=>d+"'");               // crossed-off digit
+const MK = ['', 'A', 'B', 'T', 'D'];         // delimiter marks: none, A, B, tried, done
+const DELIMS = [];
+['(', ','].forEach(c=>MK.forEach(m=>DELIMS.push(c+m)));
+const ESTART = '(E', BLANK = '_';
+const CUR = '(C';                             // the edge being compared with later ones, while its end vertex is compared
+const ALL = [...DIG, ...DOT, ...DELIMS, ')', '#', ESTART, CUR, BLANK];
+const dl = m => ['('+m, ','+m];               // both delimiter kinds carrying mark m
+const A_ = dl('A'), B_ = dl('B'), T_ = dl('T'), D_ = dl('D'), PLAIN = dl('');
+const setMark = m => s => s[0]+m;
+const undot = s => s[0];
+
+function build(){
+  const states = {}, delta = {}, order = [];
+  let region = null;
+  function S(id, label, desc){
+    if(states[id]) throw new Error('dup state '+id);
+    states[id] = {id, region, label, desc, fam:null, d:null};
+    delta[id] = {}; order.push(id); return id;
+  }
+  function SF(fam, label, desc){
+    DIG.forEach(d=>{ const id = fam+'_'+d; states[id] = {id, region, label, desc, fam, d}; delta[id] = {}; order.push(id); });
+    return fam;
+  }
+  function T(from, syms, write, move, to, rule){
+    for(const s of syms){
+      if(delta[from][s]) throw new Error(`dup transition ${from} on ${s}`);
+      const w = write==null ? s : typeof write==='function' ? write(s) : write;
+      delta[from][s] = {to, write:w, move, rule};
+    }
+  }
+  function Tother(from, move, to, rule){
+    T(from, ALL.filter(s=>!delta[from][s]), null, move, to, rule || ('other → '+move));
+  }
+  const famIds = fam => DIG.map(d=>fam+'_'+d);
+
+  // ---------- comparison routine: is the number after the A-marked delimiter equal to the one after the B-marked delimiter?
+  // dirAB: which way B lies from A. exits.{match,mismatch}: null = reject, or {write, move, to, rule} applied on the B delimiter.
+  function compare(p, dirAB, exits){
+    const rev = dirAB==='L' ? 'R' : 'L';
+    const toA = S(p+'toA', 'go to A', 'Walking back to the A-marked number.');
+    const readA = S(p+'readA', 'next digit of A', 'Looking for the first digit of A that is not crossed off yet.');
+    SF(p+'carry', 'carry d', 'Remembering digit d in the state while walking to the B-marked number.');
+    SF(p+'skipB', 'match d in B', 'Looking for the first digit of B that is not crossed off, to compare with d.');
+    const checkB = S(p+'checkB', 'A used up', 'A has no digits left. Going to B to see whether B is used up too.');
+    const endB = S(p+'endB', 'B used up?', 'Checking that B has no digits left either.');
+    T(toA, A_, null, 'R', readA, 'δᴬ → R'); Tother(toA, rev, toA);
+    T(readA, DOT, null, 'R', readA, 'ḋ → R');
+    DIG.forEach(d=>T(readA, [d], d+"'", dirAB, p+'carry_'+d, 'd → ḋ, '+dirAB));
+    T(readA, B_, null, 'R', endB, 'δᴮ → R');              // A ended right where B starts
+    T(readA, [...DELIMS.filter(s=>!B_.includes(s)), ')'], null, dirAB, checkB, 'δ ⟦)⟧ → '+dirAB);
+    DIG.forEach(d=>{
+      const c = p+'carry_'+d, k = p+'skipB_'+d;
+      T(c, B_, null, 'R', k, 'δᴮ → R'); Tother(c, dirAB, c);
+      T(k, DOT, null, 'R', k, 'ḋ → R');
+      T(k, [d], d+"'", rev, toA, 'd → ḋ, '+rev);
+    });
+    T(checkB, B_, null, 'R', endB, 'δᴮ → R'); Tother(checkB, dirAB, checkB);
+    T(endB, DOT, null, 'R', endB, 'ḋ → R');
+    function cleanup(tag, exit){
+      const c1 = S(p+tag+'1', 'uncross B', 'Un-crossing B’s digits on the way back to its delimiter.');
+      const c2 = S(p+tag+'2', 'go to A', 'Walking to A to un-cross its digits.');
+      const c3 = S(p+tag+'3', 'uncross A', 'Un-crossing A’s digits.');
+      const c4 = S(p+tag+'4', 'back to B', 'Walking back to the B-marked delimiter.');
+      T(c1, DOT, undot, 'L', c1, 'ḋ → d, L'); T(c1, DIG, null, 'L', c1, 'd → L');
+      T(c1, B_, null, rev, c2, 'δᴮ → '+rev);
+      T(c2, A_, null, 'R', c3, 'δᴬ → R'); Tother(c2, rev, c2);
+      T(c3, DOT, undot, 'R', c3, 'ḋ → d, R');
+      T(c3, B_, exit.write, exit.move, exit.to, exit.rule);  // B starts right after A
+      Tother(c3, dirAB, c4, 'other → '+dirAB);
+      T(c4, B_, exit.write, exit.move, exit.to, exit.rule); Tother(c4, dirAB, c4);
+      return c1;
+    }
+    const mis = exits.mismatch ? cleanup('mis', exits.mismatch) : null;
+    const mat = exits.match ? cleanup('mat', exits.match) : null;
+    const nonDig = [...DELIMS, ')'];
+    if(mis){
+      DIG.forEach(d=>{ const k = p+'skipB_'+d;
+        T(k, DIG.filter(e=>e!==d), null, 'L', mis, 'e ≠ d → L'); T(k, nonDig, null, 'L', mis, 'δ ⟦)⟧ → L'); });
+      T(endB, DIG, null, 'L', mis, 'd → L');
+    }
+    if(mat) T(endB, nonDig, null, 'L', mat, 'δ ⟦)⟧ → L');
+    return toA;
+  }
+
+  // ======================= Stage 1: format =======================
+  region = 1;
+  const f0 = S('f0', 'start', 'Reading the opening ( of V.');
+  function num(ctx, name){ // two states recognizing a nonempty string of digits
+    return {
+      start: S(ctx+'n', name, `Expecting a ${name}.`),
+      dig: S(ctx+'d', 'in number', 'Reading the rest of a number.')
+    };
+  }
+  const nV = num('fV', 'vertex label'), nA = num('fA', 'edge start'), nB = num('fB', 'edge end'), nP = num('fP', 'path vertex');
+  const fEo = S('fEo', 'E opens', 'Expecting the ( that opens E.');
+  const fE1 = S('fE1', 'first edge?', 'Expecting an edge, or ) if E is empty.');
+  const fEaft = S('fEaft', 'after edge', 'Expecting , before another edge, or ) to end E.');
+  const fEnx = S('fEnx', 'next edge', 'Expecting the ( of the next edge.');
+  const fH = S('fH', 'expect #', 'Expecting the # between ⟨G⟩ and ⟨P⟩.');
+  const fPo = S('fPo', 'P opens', 'Expecting the ( that opens P.');
+  const fEnd = S('fEnd', 'end?', 'Checking that nothing follows P.');
+  function wireNum(n, after){ // after: {sym: target}
+    T(n.start, DIG, null, 'R', n.dig, 'd → R');
+    T(n.dig, DIG, null, 'R', n.dig, 'd → R');
+    for(const s in after) T(n.dig, [s], null, 'R', after[s], `⟦${s}⟧ → R`);
+  }
+  T(f0, ['('], null, 'R', nV.start, '⟦(⟧ → R');
+  wireNum(nV, {',':nV.start, ')':fEo});
+  T(fEo, ['('], ESTART, 'R', fE1, '⟦(⟧ → ⟦(ᴱ⟧, R');
+  T(fE1, ['('], null, 'R', nA.start, '⟦(⟧ → R'); T(fE1, [')'], null, 'R', fH, '⟦)⟧ → R');
+  wireNum(nA, {',':nB.start});
+  wireNum(nB, {')':fEaft});
+  T(fEaft, [','], null, 'R', fEnx, '⟦,⟧ → R'); T(fEaft, [')'], null, 'R', fH, '⟦)⟧ → R');
+  T(fEnx, ['('], null, 'R', nA.start, '⟦(⟧ → R');
+  T(fH, ['#'], null, 'R', fPo, '⟦#⟧ → R');
+  T(fPo, ['('], null, 'R', nP.start, '⟦(⟧ → R');
+  wireNum(nP, {',':nP.start, ')':fEnd});
+  // stage 2 begins here
+  // ======================= Stage 2: vertices distinct =======================
+  region = 2;
+  const s2goE = S('s2goE', 'back to E', 'Walking left to the start of E.');
+  const s2goV = S('s2goV', 'to V start', 'Walking left to the first vertex of V.');
+  const s2findJ = S('s2findJ', 'next later vertex', 'Finding the next vertex after the A-marked one to compare against it.');
+  const s2resetT = S('s2resetT', 'clear tried', 'Done comparing this vertex: clearing the T marks and marking it D.');
+  const s2findI = S('s2findI', 'next vertex', 'Finding the next vertex that hasn’t been checked yet.');
+  const s2clr = S('s2clr', 'clear marks', 'Every vertex is distinct. Clearing the D marks from V.');
+  T(fEnd, [BLANK], null, 'L', s2goE, '⟦⊔⟧ → L');
+  T(s2goE, [ESTART], null, 'L', s2goV, '⟦(ᴱ⟧ → L'); Tother(s2goE, 'L', s2goE);
+  T(s2goV, ['('], '(A', 'R', s2findJ, '⟦(⟧ → ⟦(⟧ᴬ, R'); Tother(s2goV, 'L', s2goV);
+  const c2 = compare('c2', 'R', {match:null, mismatch:{write:setMark('T'), move:'R', to:s2findJ, rule:'δᴮ → δᵀ, R'}});
+  T(s2findJ, DIG, null, 'R', s2findJ, 'd → R'); T(s2findJ, [',T'], null, 'R', s2findJ, '⟦,⟧ᵀ → R');
+  T(s2findJ, [','], ',B', 'L', c2, '⟦,⟧ → ⟦,⟧ᴮ, L'); T(s2findJ, [')'], null, 'L', s2resetT, '⟦)⟧ → L');
+  T(s2resetT, [',T'], ',', 'L', s2resetT, '⟦,⟧ᵀ → ⟦,⟧, L'); T(s2resetT, DIG, null, 'L', s2resetT, 'd → L');
+  T(s2resetT, A_, setMark('D'), 'R', s2findI, 'δᴬ → δᴰ, R');
+  T(s2findI, DIG, null, 'R', s2findI, 'd → R'); T(s2findI, [','], ',A', 'R', s2findJ, '⟦,⟧ → ⟦,⟧ᴬ, R');
+  T(s2findI, [')'], null, 'L', s2clr, '⟦)⟧ → L');
+  // ======================= Stage 3: edge endpoints are vertices =======================
+  region = 3;
+  const s3goE = S('s3goE', 'to E', 'Walking right to the start of E.');
+  const s3findX = S('s3findX', 'next to look up', 'Finding the next edge endpoint, or vertex of P, that hasn’t been looked up in V yet.');
+  const s3peek = S('s3peek', 'endpoint?', 'Is this comma followed by a number (an edge’s end) or by ( (between edges)?');
+  const s3markC = S('s3markC', 'mark it A', 'Marking the comma before this edge’s end vertex with A.');
+  const s3toE = S('s3toE', 'back to E', 'Walking left past E.');
+  const s3toV = S('s3toV', 'to V start', 'Walking left to the first vertex of V.');
+  const s3cand = S('s3cand', 'next candidate', 'This vertex didn’t match. Trying the next vertex of V.');
+  const s3rt = S('s3rt', 'clear tried', 'Found a match. Clearing the T marks in V.');
+  const s3toA = S('s3toA', 'mark done', 'Walking back to the endpoint to mark it D.');
+  const e2findI = S('e2findI', 'next edge', 'Finding the next edge that hasn’t been compared with the edges after it. It gets an A mark.');
+  const e2findJ = S('e2findJ', 'next later edge', 'Finding the next edge after the A-marked one to compare it with.');
+  const e2commaJ = S('e2commaJ', 'to its end', 'The two edges start at the same vertex. Marking the later edge’s end vertex B.');
+  const e2toI = S('e2toI', 'back to A edge', 'Walking back to the A-marked edge, which becomes (ᶜ while its end vertex is compared.');
+  const e2commaI = S('e2commaI', 'mark its end', 'Marking the A-marked edge’s end vertex A.');
+  const e2backI = S('e2backI', 'restore A', 'The end vertices differ. Putting the A mark back on the first edge.');
+  const e2resetT = S('e2resetT', 'clear tried', 'No later edge repeats this one. Clearing the T marks and marking it D.');
+  const e2clr = S('e2clr', 'clear marks', 'No edge is listed twice. Clearing the D marks from E.');
+  const s3clr = S('s3clr', 'clear marks', 'Every edge endpoint and every vertex of P is in V. Clearing the D marks from E and P.');
+  T(s2clr, [',D'], ',', 'L', s2clr, '⟦,⟧ᴰ → ⟦,⟧, L'); T(s2clr, DIG, null, 'L', s2clr, 'd → L');
+  T(s2clr, ['(D'], '(', 'R', s3goE, '⟦(⟧ᴰ → ⟦(⟧, R');
+  T(s3goE, [ESTART], null, 'R', s3findX, '⟦(ᴱ⟧ → R'); Tother(s3goE, 'R', s3goE);
+  T(s3findX, [...DIG, ')', '(D', ',D', '#'], null, 'R', s3findX, 'd ⟦)⟧ δᴰ ⟦#⟧ → R');
+  T(s3findX, ['('], '(A', 'L', s3toE, '⟦(⟧ → ⟦(⟧ᴬ, L');
+  T(s3findX, [','], null, 'R', s3peek, '⟦,⟧ → R');
+  T(s3findX, [BLANK], null, 'L', s3clr, '⟦⊔⟧ → L');
+  T(s3peek, DIG, null, 'L', s3markC, 'd → L');
+  T(s3peek, ['('], '(A', 'L', s3toE, '⟦(⟧ → ⟦(⟧ᴬ, L');
+  T(s3markC, [','], ',A', 'L', s3toE, '⟦,⟧ → ⟦,⟧ᴬ, L');
+  T(s3toE, [ESTART], null, 'L', s3toV, '⟦(ᴱ⟧ → L'); Tother(s3toE, 'L', s3toE);
+  const c3 = compare('c3', 'L', {
+    match:{write:setMark(''), move:'L', to:s3rt, rule:'δᴮ → δ, L'},
+    mismatch:{write:setMark('T'), move:'R', to:s3cand, rule:'δᴮ → δᵀ, R'}});
+  T(s3toV, ['('], '(B', 'R', c3, '⟦(⟧ → ⟦(⟧ᴮ, R'); Tother(s3toV, 'L', s3toV);
+  T(s3cand, DIG, null, 'R', s3cand, 'd → R'); T(s3cand, [','], ',B', 'R', c3, '⟦,⟧ → ⟦,⟧ᴮ, R');
+  T(s3rt, [',T'], ',', 'L', s3rt, '⟦,⟧ᵀ → ⟦,⟧, L'); T(s3rt, [...DIG, ','], null, 'L', s3rt, 'd ⟦,⟧ → L');
+  T(s3rt, ['(T'], '(', 'R', s3toA, '⟦(⟧ᵀ → ⟦(⟧, R'); T(s3rt, ['('], null, 'R', s3toA, '⟦(⟧ → R');
+  T(s3toA, A_, setMark('D'), 'R', s3findX, 'δᴬ → δᴰ, R'); Tother(s3toA, 'R', s3toA);
+  // ======================= Stage 4: P lists every vertex exactly once =======================
+  region = 4;
+  const s4goP = S('s4goP', 'to P', 'Walking right to the start of P.');
+  const s4findP = S('s4findP', 'next in P', 'Finding the next vertex of P that hasn’t been looked up yet.');
+  const s4toE = S('s4toE', 'back to E', 'Walking left past E.');
+  const s4toV = S('s4toV', 'to V start', 'Walking left to the first vertex of V.');
+  const s4cand = S('s4cand', 'next unused', 'Trying the next vertex of V that P hasn’t used yet.');
+  const s4rt = S('s4rt', 'clear tried', 'Found it. Clearing the T marks in V.');
+  const s4toA = S('s4toA', 'mark done', 'Walking back to P to mark this vertex D.');
+  const s4cE = S('s4cE', 'back to E', 'All of P is looked up. Walking left past E.');
+  const s4cV = S('s4cV', 'all used?', 'Checking that every vertex of V got marked D (used by P).');
+  T(s3clr, D_, setMark(''), 'L', s3clr, 'δᴰ → δ, L'); T(s3clr, [ESTART], null, 'R', e2findI, '⟦(ᴱ⟧ → R'); Tother(s3clr, 'L', s3clr);
+  // ---- no edge listed twice: compare each edge (a,b) with every later edge (c,d); a = c and b = d rejects ----
+  region = 3;
+  T(e2findI, [...DIG, ',', ')', '(D'], null, 'R', e2findI, 'd ⟦,⟧ ⟦)⟧ ⟦(⟧ᴰ → R');
+  T(e2findI, ['('], '(A', 'R', e2findJ, '⟦(⟧ → ⟦(⟧ᴬ, R');
+  T(e2findI, ['#'], null, 'L', e2clr, '⟦#⟧ → L');
+  const c6a = compare('c6a', 'R', {
+    match:{write:'(T', move:'R', to:e2commaJ, rule:'⟦(⟧ᴮ → ⟦(⟧ᵀ, R'},
+    mismatch:{write:'(T', move:'R', to:e2findJ, rule:'⟦(⟧ᴮ → ⟦(⟧ᵀ, R'}});
+  T(e2findJ, [...DIG, ',', ')', '(T'], null, 'R', e2findJ, 'd ⟦,⟧ ⟦)⟧ ⟦(⟧ᵀ → R');
+  T(e2findJ, ['('], '(B', 'L', c6a, '⟦(⟧ → ⟦(⟧ᴮ, L');
+  T(e2findJ, ['#'], null, 'L', e2resetT, '⟦#⟧ → L');
+  T(e2commaJ, DIG, null, 'R', e2commaJ, 'd → R'); T(e2commaJ, [','], ',B', 'L', e2toI, '⟦,⟧ → ⟦,⟧ᴮ, L');
+  T(e2toI, ['(A'], CUR, 'R', e2commaI, '⟦(⟧ᴬ → ⟦(ᶜ⟧, R'); Tother(e2toI, 'L', e2toI);
+  T(e2commaI, DIG, null, 'R', e2commaI, 'd → R');
+  const c6b = compare('c6b', 'R', {match:null, mismatch:{write:',', move:'L', to:e2backI, rule:'⟦,⟧ᴮ → ⟦,⟧, L'}});
+  T(e2commaI, [','], ',A', 'R', c6b, '⟦,⟧ → ⟦,⟧ᴬ, R');
+  T(e2backI, [',A'], ',', 'L', e2backI, '⟦,⟧ᴬ → ⟦,⟧, L'); T(e2backI, [CUR], '(A', 'R', e2findJ, '⟦(ᶜ⟧ → ⟦(⟧ᴬ, R'); Tother(e2backI, 'L', e2backI);
+  T(e2resetT, ['(T'], '(', 'L', e2resetT, '⟦(⟧ᵀ → ⟦(⟧, L'); T(e2resetT, ['(A'], '(D', 'R', e2findI, '⟦(⟧ᴬ → ⟦(⟧ᴰ, R'); Tother(e2resetT, 'L', e2resetT);
+  T(e2clr, ['(D'], '(', 'L', e2clr, '⟦(⟧ᴰ → ⟦(⟧, L'); T(e2clr, [ESTART], null, 'R', s4goP, '⟦(ᴱ⟧ → R'); Tother(e2clr, 'L', e2clr);
+  region = 4;
+  T(s4goP, ['#'], null, 'R', s4findP, '⟦#⟧ → R'); Tother(s4goP, 'R', s4goP);
+  T(s4findP, [...DIG, ...D_], null, 'R', s4findP, 'd δᴰ → R');
+  T(s4findP, PLAIN, setMark('A'), 'L', s4toE, 'δ → δᴬ, L');
+  T(s4findP, [')'], null, 'L', s4cE, '⟦)⟧ → L');
+  T(s4toE, [ESTART], null, 'L', s4toV, '⟦(ᴱ⟧ → L'); Tother(s4toE, 'L', s4toE);
+  const c4 = compare('c4', 'L', {
+    match:{write:setMark('D'), move:'L', to:s4rt, rule:'δᴮ → δᴰ, L'},
+    mismatch:{write:setMark('T'), move:'R', to:s4cand, rule:'δᴮ → δᵀ, R'}});
+  T(s4toV, ['('], '(B', 'R', c4, '⟦(⟧ → ⟦(⟧ᴮ, R'); T(s4toV, ['(D'], null, 'R', s4cand, '⟦(⟧ᴰ → R'); Tother(s4toV, 'L', s4toV);
+  T(s4cand, [...DIG, ',D', ',T'], null, 'R', s4cand, 'd ⟦,⟧ᴰ ⟦,⟧ᵀ → R'); T(s4cand, [','], ',B', 'R', c4, '⟦,⟧ → ⟦,⟧ᴮ, R');
+  T(s4rt, [',T'], ',', 'L', s4rt, '⟦,⟧ᵀ → ⟦,⟧, L'); T(s4rt, [...DIG, ',', ',D'], null, 'L', s4rt, 'd ⟦,⟧ ⟦,⟧ᴰ → L');
+  T(s4rt, ['(T'], '(', 'R', s4toA, '⟦(⟧ᵀ → ⟦(⟧, R'); T(s4rt, ['(', '(D'], null, 'R', s4toA, '⟦(⟧ ⟦(⟧ᴰ → R');
+  T(s4toA, A_, setMark('D'), 'R', s4findP, 'δᴬ → δᴰ, R'); Tother(s4toA, 'R', s4toA);
+  T(s4cE, [ESTART], null, 'L', s4cV, '⟦(ᴱ⟧ → L'); Tother(s4cE, 'L', s4cE);
+  // ======================= Stage 5: consecutive pairs are edges =======================
+  region = 5;
+  const s5goH = S('s5goH', 'to P', 'Walking right to P.');
+  const s5clrP = S('s5clrP', 'clear P', 'Clearing the D marks from P.');
+  const s5back = S('s5back', 'back to #', 'Walking back to the start of P.');
+  const s5findI = S('s5findI', 'next pair', 'Finding the first vertex of P whose step hasn’t been checked. It gets an A mark.');
+  const s5next = S('s5next', 'last vertex?', 'Is there a next vertex after this one? If not, every step was an edge.');
+  const s5toE = S('s5toE', 'to E start', 'Walking left to the start of E.');
+  const s5edge = S('s5edge', 'next edge', 'Finding the next edge of E that hasn’t been tried for this step.');
+  const s5comma = S('s5comma', 'to edge end', 'The edge starts at the right vertex. Marking its end vertex B.');
+  const s5toA1 = S('s5toA1', 'move A', 'Moving the A mark to the next vertex of P (the old spot becomes T).');
+  const s5toN = S('s5toN', 'mark next', 'Marking the next vertex of P with A.');
+  const s5succ = S('s5succ', 'step is edge', 'This edge matches the step. Unmarking the next vertex of P.');
+  const s5succT = S('s5succT', 'mark done', 'Marking this step’s first vertex D.');
+  const s5clrE = S('s5clrE', 'clear tried', 'Clearing the T marks from E.');
+  const s5goH2 = S('s5goH2', 'to P', 'Walking right to P for the next step.');
+  const s5failR = S('s5failR', 'wrong end', 'The edge’s end didn’t match. Unmarking the next vertex of P.');
+  const s5failT = S('s5failT', 'restore A', 'Putting the A mark back on this step’s first vertex.');
+  const qacc = S('qacc', 'accept', 'Every check passed: P is a path through every vertex of G exactly once.');
+  T(s4cV, [...DIG, ',D', ')'], null, 'L', s4cV, 'd ⟦,⟧ᴰ ⟦)⟧ → L'); T(s4cV, ['(D'], null, 'R', s5goH, '⟦(⟧ᴰ → R');
+  T(s5goH, ['#'], null, 'R', s5clrP, '⟦#⟧ → R'); Tother(s5goH, 'R', s5goH);
+  T(s5clrP, D_, setMark(''), 'R', s5clrP, 'δᴰ → δ, R'); T(s5clrP, DIG, null, 'R', s5clrP, 'd → R');
+  T(s5clrP, [')'], null, 'L', s5back, '⟦)⟧ → L');
+  T(s5back, ['#'], null, 'R', s5findI, '⟦#⟧ → R'); Tother(s5back, 'L', s5back);
+  T(s5findI, [...DIG, ...D_], null, 'R', s5findI, 'd δᴰ → R'); T(s5findI, PLAIN, setMark('A'), 'R', s5next, 'δ → δᴬ, R');
+  T(s5next, DIG, null, 'R', s5next, 'd → R'); T(s5next, [','], null, 'L', s5toE, '⟦,⟧ → L');
+  T(s5next, [')'], null, 'R', qacc, '⟦)⟧ → R');
+  T(s5toE, [ESTART], null, 'R', s5edge, '⟦(ᴱ⟧ → R'); Tother(s5toE, 'L', s5toE);
+  const c5a = compare('c5a', 'L', {
+    match:{write:'(T', move:'R', to:s5comma, rule:'⟦(⟧ᴮ → ⟦(⟧ᵀ, R'},
+    mismatch:{write:'(T', move:'R', to:s5edge, rule:'⟦(⟧ᴮ → ⟦(⟧ᵀ, R'}});
+  T(s5edge, ['('], '(B', 'R', c5a, '⟦(⟧ → ⟦(⟧ᴮ, R');
+  T(s5edge, ['(T', ...DIG, ',', ')'], null, 'R', s5edge, '⟦(⟧ᵀ d ⟦,⟧ ⟦)⟧ → R');
+  T(s5comma, DIG, null, 'R', s5comma, 'd → R'); T(s5comma, [','], ',B', 'R', s5toA1, '⟦,⟧ → ⟦,⟧ᴮ, R');
+  T(s5toA1, A_, setMark('T'), 'R', s5toN, 'δᴬ → δᵀ, R'); Tother(s5toA1, 'R', s5toA1);
+  const c5b = compare('c5b', 'L', {
+    match:{write:',', move:'R', to:s5succ, rule:'⟦,⟧ᴮ → ⟦,⟧, R'},
+    mismatch:{write:',', move:'R', to:s5failR, rule:'⟦,⟧ᴮ → ⟦,⟧, R'}});
+  T(s5toN, DIG, null, 'R', s5toN, 'd → R'); T(s5toN, [','], ',A', 'L', c5b, '⟦,⟧ → ⟦,⟧ᴬ, L');
+  T(s5succ, A_, setMark(''), 'L', s5succT, 'δᴬ → δ, L'); Tother(s5succ, 'R', s5succ);
+  T(s5succT, T_, setMark('D'), 'L', s5clrE, 'δᵀ → δᴰ, L'); Tother(s5succT, 'L', s5succT);
+  T(s5clrE, ['(T'], '(', 'L', s5clrE, '⟦(⟧ᵀ → ⟦(⟧, L'); T(s5clrE, [ESTART], null, 'R', s5goH2, '⟦(ᴱ⟧ → R'); Tother(s5clrE, 'L', s5clrE);
+  T(s5goH2, ['#'], null, 'R', s5findI, '⟦#⟧ → R'); Tother(s5goH2, 'R', s5goH2);
+  T(s5failR, A_, setMark(''), 'L', s5failT, 'δᴬ → δ, L'); Tother(s5failR, 'R', s5failR);
+  T(s5failT, T_, setMark('A'), 'L', s5toE, 'δᵀ → δᴬ, L'); Tother(s5failT, 'L', s5failT);
+  region = 6;
+  const qrej = S('qrej', 'reject', '');
+  states.qacc.region = 6;
+  return {states, delta, order, start:'f0', accept:'qacc', reject:'qrej'};
+}
+
+// ---------- run: returns a compact trace that can rebuild any step ----------
+const SNAP = 512;
+function run(M, input, cap){
+  cap = cap || 5e6;
+  const tape = Array.from(input);
+  let q = M.start, h = 0, i = 0;
+  const qs = [q], hs = [0], wpos = [-1], wsym = [null], rs = [null], snaps = new Map([[0, tape.slice()]]);
+  let verdict = null;
+  while(true){
+    if(q===M.accept){ verdict = {type:'accept'}; break; }
+    const sym = h < tape.length ? tape[h] : BLANK;
+    const t = M.delta[q][sym];
+    if(!t){ verdict = {type:'reject', from:q, read:sym, at:h}; i++; qs.push(M.reject); hs.push(h); wpos.push(-1); wsym.push(null); rs.push(sym); break; }
+    if(i >= cap){ verdict = {type:'limit'}; break; }
+    while(tape.length <= h) tape.push(BLANK);
+    tape[h] = t.write; wpos.push(h); wsym.push(t.write); rs.push(sym);
+    if(t.move==='R') h++; else if(t.move==='L') h = Math.max(0, h-1);
+    q = t.to; i++;
+    qs.push(q); hs.push(h);
+    if(i % SNAP === 0) snaps.set(i, tape.slice());
+  }
+  return {qs, hs, wpos, wsym, rs, snaps, last:i, verdict, input};
+}
+function tapeAt(T, i){
+  const base = Math.floor(i/SNAP)*SNAP;
+  const tape = T.snaps.get(base).slice();
+  for(let j=base+1; j<=i; j++){ const p = T.wpos[j]; if(p<0) continue; while(tape.length<=p) tape.push(BLANK); tape[p] = T.wsym[j]; }
+  return tape;
+}
+
+// ---------- direct (non-TM) check, used for the graph view and for testing ----------
+function parse(str){
+  const s = Array.from(str); let i = 0;
+  const fail = (msg) => ({ok:false, error:msg, at:i});
+  const V = [], E = [], P = [];
+  function expect(c, what){ if(s[i]!==c) throw fail(s[i]===undefined ? `The input ends where ${what} should be.` : `Expected ${what} at position ${i}, found “${s[i]}”.`); i++; }
+  function number(what){
+    const at = i;
+    if(!/[0-9]/.test(s[i]||'')) throw fail(s[i]===undefined ? `The input ends where ${what} should be.` : `Expected ${what} at position ${i}, found “${s[i]}”.`);
+    let t = '';
+    while(/[0-9]/.test(s[i]||'')) t += s[i++];
+    return {label:t, at, end:i};
+  }
+  try{
+    expect('(', '( to open the vertex list');
+    do{ const d = i-1; const n = number('a vertex label'); V.push({...n, delim:d}); } while(s[i]===',' && ++i);
+    expect(')', ', or ) in the vertex list');
+    const eOpen = i;
+    expect('(', '( to open the edge list');
+    if(s[i]===')') i++;
+    else {
+      do{
+        const o = i; expect('(', '( to open an edge');
+        const a = number('an edge’s start vertex'); const cm = i; expect(',', ', inside an edge');
+        const b = number('an edge’s end vertex'); expect(')', ') to close an edge');
+        E.push({a:a.label, b:b.label, open:o, comma:cm, close:i-1, aAt:a.at, bAt:b.at});
+      } while(s[i]===',' && ++i);
+      expect(')', ', or ) in the edge list');
+    }
+    const hash = i;
+    expect('#', '# between ⟨G⟩ and ⟨P⟩');
+    expect('(', '( to open the path');
+    do{ const d = i-1; const n = number('a path vertex'); P.push({...n, delim:d}); } while(s[i]===',' && ++i);
+    expect(')', ', or ) in the path');
+    if(i < s.length) throw fail(`Extra symbols after the path, starting at position ${i}.`);
+    return {ok:true, V, E, P, eOpen, hash, len:s.length};
+  }catch(e){ if(e && e.ok===false) return e; throw e; }
+}
+function check(enc){
+  // first failure in the order the machine checks things
+  if(!enc.ok) return {ok:false, stage:1, why:'format'};
+  const seen = new Map();
+  for(let j=0;j<enc.V.length;j++){ for(let k=j+1;k<enc.V.length;k++) if(enc.V[j].label===enc.V[k].label) return {ok:false, stage:2, why:'dupV', label:enc.V[j].label, idx:[j,k]}; }
+  const vs = new Set(enc.V.map(v=>v.label));
+  for(let k=0;k<enc.E.length;k++){ const e = enc.E[k];
+    if(!vs.has(e.a)) return {ok:false, stage:3, why:'badEnd', edge:k, end:'a', label:e.a};
+    if(!vs.has(e.b)) return {ok:false, stage:3, why:'badEnd', edge:k, end:'b', label:e.b}; }
+  for(let k=0;k<enc.P.length;k++) if(!vs.has(enc.P[k].label)) return {ok:false, stage:3, why:'notInV', idx:k, label:enc.P[k].label};
+  for(let j=0;j<enc.E.length;j++) for(let k=j+1;k<enc.E.length;k++) if(enc.E[j].a===enc.E[k].a && enc.E[j].b===enc.E[k].b) return {ok:false, stage:3, why:'dupE', idx:[j,k], a:enc.E[j].a, b:enc.E[j].b};
+  const used = new Set();
+  for(let k=0;k<enc.P.length;k++){ const p = enc.P[k].label;
+    if(used.has(p)) return {ok:false, stage:4, why:'repeat', idx:k, label:p};
+    used.add(p); }
+  for(const v of enc.V) if(!used.has(v.label)) return {ok:false, stage:4, why:'missing', label:v.label};
+  const es = new Set(enc.E.map(e=>e.a+'>'+e.b));
+  for(let k=0;k+1<enc.P.length;k++) if(!es.has(enc.P[k].label+'>'+enc.P[k+1].label)) return {ok:false, stage:5, why:'noEdge', idx:k, a:enc.P[k].label, b:enc.P[k+1].label};
+  return {ok:true};
+}
+
+const api = {build, run, tapeAt, parse, check, BLANK, DIG};
+if(typeof module!=='undefined') module.exports = api; else root.HP = api;
+})(this);
+
+</script>
+<script>
+// Lays out and draws every state and every transition of the machine from tm.js as one SVG string,
+// in the style of the Turing Machine Explorer: italic q labels in circles, one "read → write, move" rule per line.
+(function(root){
+'use strict';
+const R = 24, LH = 15, FS = 12.5, LMARGIN = 230, TITLEH = 46, PADTOP = 90, PADBOT = 120, GAP = 40;
+const REGION_TITLES = {
+  1:'Stage 1 · Check that the input has the form (V)(E)#(P)',
+  2:'Stage 2 · Check that no vertex is listed twice',
+  3:'Stage 3 · Check that every edge connects two vertices of G',
+  4:'Stage 4 · Check that P lists every vertex of G exactly once',
+  5:'Stage 5 · Check that each step of P is an edge of G'
+};
+const DIG = '0123456789'.split('');
+// ---------- positions (px inside each stage's box) ----------
+function block(p, bx, by, tags){
+  const o = {};
+  o[p+'readA'] = [bx, by]; o[p+'checkB'] = [bx, by+560]; o[p+'endB'] = [bx, by+1120];
+  DIG.forEach((d,k)=>{ o[p+'carry_'+d] = [bx+400, by+k*225]; o[p+'skipB_'+d] = [bx+900, by+k*225]; });
+  o[p+'toA'] = [bx+1480, by+1010];
+  tags.forEach((t,k)=>{ const x = bx+2000+k*420; o[p+t+'1']=[x,by+160]; o[p+t+'2']=[x,by+680]; o[p+t+'3']=[x,by+1200]; o[p+t+'4']=[x,by+1720]; });
+  return o;
+}
+const G1 = (c,r) => [c*230, r*210];
+const LAYOUT = {
+  1: { f0:G1(0,0), fVn:G1(1,0), fVd:G1(2,0), fEo:G1(3,0), fE1:G1(4,0), fAn:G1(5,0), fAd:G1(6,0), fBn:G1(7,0), fBd:G1(8,0), fEaft:G1(8,2.2), fEnx:G1(6.5,2.2), fH:G1(4.5,2.2), fPo:G1(3.5,3), fPn:G1(2.5,3),
+       fPd:G1(1.5,3), fEnd:G1(0.4,3) },
+  2: Object.assign({ s2goE:[0,0], s2goV:[340,0], s2findJ:[680,0], s2resetT:[1080,0], s2findI:[1480,0], s2clr:[1880,0] },
+       block('c2', 0, 380, ['mis'])),
+  3: Object.assign({ s3goE:[0,0], s3findX:[330,0], s3peek:[660,0], s3markC:[990,0], s3toE:[1320,0], s3toV:[1650,0], s3clr:[2100,0],
+       s3cand:[3300,900], s3rt:[3300,1500], s3toA:[3300,2100],
+       e2findI:[0,2600], e2findJ:[400,2600], e2commaJ:[800,2600], e2toI:[1200,2600], e2commaI:[1600,2600], e2backI:[2000,2600], e2resetT:[2400,2600], e2clr:[2800,2600] },
+       block('c3', 0, 380, ['mis','mat']), block('c6a', 0, 2900, ['mis','mat']), block('c6b', 0, 5000, ['mis'])),
+  4: Object.assign({ s4goP:[0,0], s4findP:[340,0], s4toE:[720,0], s4toV:[1100,0], s4cE:[1600,0], s4cV:[2050,0],
+       s4cand:[3300,900], s4rt:[3300,1500], s4toA:[3300,2100] }, block('c4', 0, 380, ['mis','mat'])),
+  5: Object.assign({ s5goH:[0,0], s5clrP:[330,0], s5back:[660,0], s5findI:[990,0], s5next:[1320,0], qacc:[1320,240], qrej:[1650,240],
+       s5toE:[1700,0], s5edge:[2200,0],
+       s5comma:[2200,2760], s5toA1:[1600,2760], s5toN:[1000,2760], s5failR:[3300,3600], s5failT:[3300,4300],
+       s5succ:[0,5650], s5succT:[400,5650], s5clrE:[800,5650], s5goH2:[1200,5650] },
+       block('c5a', 0, 380, ['mis','mat']), block('c5b', 0, 3100, ['mis','mat']))
+};
+
+// ---------- tape symbols as they are written in labels ----------
+const MARKSUP = {A:'ᴬ', B:'ᴮ', T:'ᵀ', D:'ᴰ', E:'ᴱ', C:'ᶜ'};
+function symParts(s){ // -> {t, dot}
+  if(s==='_') return {t:'⊔'};
+  if(s.length>1 && s[1]==="'") return {t:s[0], dot:true};
+  if(s.length>1) return {t:s[0]+MARKSUP[s[1]]};
+  return {t:s};
+}
+const SYM_ORDER = (()=>{ const o = []; DIG.forEach(d=>o.push(d)); DIG.forEach(d=>o.push(d+"'")); ['','A','B','T','D'].forEach(m=>o.push('('+m)); ['','A','B','T','D'].forEach(m=>o.push(','+m)); o.push(')','#','(E','(C','_'); return o; })();
+const symRank = s => { const k = SYM_ORDER.indexOf(s); return k<0 ? 999 : k; };
+
+// approximate advance widths (em) for the label font, used only to place labels
+const W = {'→':0.62,' ':0.26,',':0.26,'(':0.3,')':0.3,'#':0.65,'L':0.5,'R':0.6,'⊔':0.62};
+function textW(str, bold){ let w = 0; for(const ch of str){ w += (W[ch] ?? (/[0-9]/.test(ch) ? 0.572 : /[ᴬᴮᵀᴰᴱ]/.test(ch) ? 0.42 : 0.6)); } return w*FS*(bold?1.06:1); }
+function ruleLine(read, write, move){ // segments: tape symbols are bold
+  const a = symParts(read), b = symParts(write);
+  return {segs:[{t:a.t, sym:true, dot:a.dot}, {t:' → '}, {t:b.t, sym:true, dot:b.dot}, {t:', '+move}],
+          read};
+}
+function lineW(l){ return l.segs.reduce((w,s)=>w+textW(s.t, s.sym), 0); }
+
+function layout(M){
+  const nodes = {};
+  Object.values(M.states).forEach(s=>{ nodes[s.id] = {id:s.id, desc:s.desc, region: s.id==='qacc'||s.id==='qrej' ? 5 : s.region}; });
+  let y = 20; const regions = [];
+  let maxX = 0;
+  for(let r=1;r<=5;r++){
+    const Lr = LAYOUT[r], ids = Object.keys(Lr);
+    ids.forEach(id=>{ if(!nodes[id]) throw new Error('layout names unknown state '+id); });
+    const maxY = Math.max(...ids.map(id=>Lr[id][1]));
+    ids.forEach(id=>{ nodes[id].x = LMARGIN + Lr[id][0]; nodes[id].y = y + TITLEH + PADTOP + Lr[id][1]; maxX = Math.max(maxX, nodes[id].x); });
+    const h = TITLEH + PADTOP + maxY + PADBOT;
+    regions.push({r, top:y, h, title:REGION_TITLES[r]});
+    y += h + GAP;
+  }
+  Object.values(nodes).forEach(n=>{ if(n.x==null) throw new Error('no position for '+n.id); });
+  const sorted = Object.values(nodes).filter(n=>n.id!=='qacc'&&n.id!=='qrej').sort((a,b)=>a.region-b.region || a.y-b.y || a.x-b.x);
+  sorted.forEach((n,i)=>{ n.name = 'q'+i; });
+  nodes.qacc.name = 'q_acc'; nodes.qrej.name = 'q_rej';
+  // pack every state into one grid in machine order, snaking row by row so neighbors in the order stay neighbors
+  const seq = sorted.concat([nodes.qacc, nodes.qrej]);
+  const COLS = 20, SP = 104, M0 = 70;
+  seq.forEach((n,k)=>{ const r = Math.floor(k/COLS), c = k%COLS, cc = r%2 ? COLS-1-c : c; n.x = M0 + cc*SP; n.y = M0 + r*SP; });
+  const rows = Math.ceil(seq.length/COLS);
+  const Wd = M0*2 + (COLS-1)*SP, Hd = M0*2 + (rows-1)*SP;
+  regions.length = 0; y = Hd;
+  // one arrow per (from, to) state pair, one line per rule
+  const edges = new Map();
+  for(const s in M.delta){ for(const sym in M.delta[s]){
+    const t = M.delta[s][sym], key = s+'|'+t.to;
+    let e = edges.get(key); if(!e){ e = {id:'e'+edges.size, from:s, to:t.to, lines:[]}; edges.set(key, e); }
+    e.lines.push(ruleLine(sym, t.write, t.move));
+  }}
+  edges.forEach(e=>{ e.lines.sort((a,b)=>symRank(a.read)-symRank(b.read)); e.lines.forEach((l,i)=>l.i = i); });
+  return {nodes, edges, regions, W:Wd, H:Hd, nodeOf: id=>id};
+}
+
+// ---------- geometry ----------
+const TAU = 2*Math.PI, norm = a => ((a % TAU) + TAU) % TAU;
+function geomPoint(g, t){
+  if(g.kind==='line') return {x:g.sx+(g.ex-g.sx)*t, y:g.sy+(g.ey-g.sy)*t};
+  const a = g.s0 + g.dir*g.span*t; return {x:g.cx+g.r*Math.cos(a), y:g.cy+g.r*Math.sin(a)};
+}
+function geomPath(g){
+  const p = geomPoint(g,0), q = geomPoint(g,1);
+  if(g.kind==='line') return `M${p.x.toFixed(1)} ${p.y.toFixed(1)}L${q.x.toFixed(1)} ${q.y.toFixed(1)}`;
+  return `M${p.x.toFixed(1)} ${p.y.toFixed(1)}A${g.r.toFixed(1)} ${g.r.toFixed(1)} 0 ${g.span>Math.PI?1:0} ${g.dir>0?1:0} ${q.x.toFixed(1)} ${q.y.toFixed(1)}`;
+}
+function edgeGeom(x1,y1,x2,y2,curve,r){
+  r = r||R;
+  const dx=x2-x1, dy=y2-y1, len=Math.hypot(dx,dy)||1, ux=dx/len, uy=dy/len, nx=-uy, ny=ux, h=curve/2;
+  if(Math.abs(h)<0.5){
+    const g = {kind:'line', sx:x1+ux*r, sy:y1+uy*r, ex:x2-ux*(r+1), ey:y2-uy*(r+1)};
+    return Object.assign(g, {px:(g.sx+g.ex)/2, py:(g.sy+g.ey)/2, nx, ny, tx:ux, ty:uy});
+  }
+  const x3=(x1+x2)/2+nx*h, y3=(y1+y2)/2+ny*h;
+  const D = 2*(x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2));
+  const cx = ((x1*x1+y1*y1)*(y2-y3)+(x2*x2+y2*y2)*(y3-y1)+(x3*x3+y3*y3)*(y1-y2))/D;
+  const cy = ((x1*x1+y1*y1)*(x3-x2)+(x2*x2+y2*y2)*(x1-x3)+(x3*x3+y3*y3)*(x2-x1))/D;
+  const rr = Math.hypot(x1-cx, y1-cy);
+  const a1 = Math.atan2(y1-cy,x1-cx), a2 = Math.atan2(y2-cy,x2-cx), a3 = Math.atan2(y3-cy,x3-cx);
+  const dir = norm(a3-a1) < norm(a2-a1) ? 1 : -1;
+  const s0 = a1 + dir*r/rr, e0 = a2 - dir*(r+1)/rr;
+  const span = dir>0 ? norm(e0-s0) : norm(s0-e0);
+  return {kind:'arc', cx, cy, r:rr, s0, span, dir, px:x3, py:y3, nx:(x3-cx)/rr, ny:(y3-cy)/rr, tx:-(y3-cy)/rr*dir, ty:(x3-cx)/rr*dir};
+}
+function loopGeom(x,y,angDeg,r){
+  r = r||R;
+  const a = angDeg*Math.PI/180, rl = 0.75*r, cx = x+Math.cos(a)*1.5*r, cy = y+Math.sin(a)*1.5*r;
+  const g = {kind:'arc', cx, cy, r:rl, s0:a-0.8*Math.PI, span:1.6*Math.PI, dir:1, loop:true};
+  const e0 = a+0.8*Math.PI;
+  return Object.assign(g, {tipX:cx+rl*Math.cos(e0), tipY:cy+rl*Math.sin(e0), tipAngle:e0+0.4*Math.PI,
+    px:cx+Math.cos(a)*rl, py:cy+Math.sin(a)*rl, nx:Math.cos(a), ny:Math.sin(a), tx:-Math.sin(a), ty:Math.cos(a)});
+}
+function clearance(g, pts, skip){
+  let best = Infinity;
+  for(let k=1;k<24;k++){ const p = geomPoint(g, k/24);
+    for(const q of pts){ if(skip.has(q.id)) continue; const dx = p.x-q.x, dy = p.y-q.y; if(Math.abs(dx)>best || Math.abs(dy)>best) continue; const d = Math.hypot(dx,dy); if(d<best) best = d; } }
+  return best;
+}
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+function subName(name){
+  const m = /^q_?(.*)$/.exec(name);
+  const fs = m[1].length>2 ? ' style="font-size:10px"' : '';
+  return `<tspan>q</tspan><tspan class="sub" dy="5"${fs}>${esc(m[1])}</tspan>`;
+}
+
+// ---------- label boxes, kept from overlapping each other and the states ----------
+function Boxes(){ this.cells = new Map(); this.S = 120; }
+Boxes.prototype.key = function(i,j){ return i+','+j; };
+Boxes.prototype.add = function(b){ const S = this.S; for(let i=Math.floor(b.x/S); i<=Math.floor((b.x+b.w)/S); i++) for(let j=Math.floor(b.y/S); j<=Math.floor((b.y+b.h)/S); j++){ const k = this.key(i,j); if(!this.cells.has(k)) this.cells.set(k, []); this.cells.get(k).push(b); } };
+Boxes.prototype.hits = function(b){ const S = this.S; let n = 0; const seen = new Set();
+  for(let i=Math.floor(b.x/S); i<=Math.floor((b.x+b.w)/S); i++) for(let j=Math.floor(b.y/S); j<=Math.floor((b.y+b.h)/S); j++){ const c = this.cells.get(this.key(i,j)); if(!c) continue;
+    for(const o of c){ if(seen.has(o)) continue; seen.add(o); if(b.x < o.x+o.w && o.x < b.x+b.w && b.y < o.y+o.h && o.y < b.y+b.h) n += (Math.min(b.x+b.w,o.x+o.w)-Math.max(b.x,o.x))*(Math.min(b.y+b.h,o.y+o.h)-Math.max(b.y,o.y)); } }
+  return n; };
+
+function draw(M){
+  const L = layout(M), {nodes, edges} = L;
+  const pts = Object.values(nodes).map(n=>({id:n.id, x:n.x, y:n.y}));
+  const boxes = new Boxes();
+  Object.values(nodes).forEach(n=>boxes.add({x:n.x-R-4, y:n.y-R-4, w:2*R+8, h:2*R+8}));
+  let regionSvg = '';
+  L.regions.forEach(rg=>{
+    regionSvg += `<g class="region" id="rg${rg.r}"><rect x="14" y="${rg.top}" width="${L.W-28}" height="${rg.h}" rx="3"/>`+
+      `<text class="rg-title" x="34" y="${rg.top+30}">${esc(rg.title)}</text></g>`;
+    boxes.add({x:20, y:rg.top, w:680, h:TITLEH});
+  });
+  const geo = new Map();
+  edges.forEach(e=>{
+    const a = nodes[e.from], b = nodes[e.to];
+    let g;
+    if(e.from===e.to){
+      let best = -90, score = -Infinity;
+      [-90,90,0,180,-45,-135,45,135].forEach(c=>{
+        const r = c*Math.PI/180, px = a.x+Math.cos(r)*50, py = a.y+Math.sin(r)*50;
+        let sc = Infinity; pts.forEach(q=>{ if(q.id!==a.id) sc = Math.min(sc, Math.hypot(q.x-px,q.y-py)); });
+        // leave room for the arrows that leave this state
+        edges.forEach(o=>{ if(o===e || (o.from!==a.id && o.to!==a.id)) return; const other = nodes[o.from===a.id ? o.to : o.from];
+          const ang = Math.atan2(other.y-a.y, other.x-a.x); let diff = Math.abs(norm(ang - r)); diff = Math.min(diff, TAU-diff); if(diff < 0.5) sc -= 60*(0.5-diff); });
+        if(px < 20 || py < 20 || px > L.W-20 || py > L.H-20) sc -= 500;
+        if(sc > score+0.5){ score = sc; best = c; }
+      });
+      g = loopGeom(a.x, a.y, best);
+    } else {
+      const pair = edges.has(e.to+'|'+e.from);
+      const cands = pair ? [36,70,110,160] : [0,44,-44,90,-90,150,-150];
+      let pick = null, bestSc = -1; const skip = new Set([a.id, b.id]);
+      for(const c of cands){
+        const gg = edgeGeom(a.x,a.y,b.x,b.y,c);
+        const sc = clearance(gg, pts, skip);
+        if(sc >= R+14){ pick = gg; break; }
+        if(sc > bestSc){ bestSc = sc; pick = gg; }
+      }
+      g = pick;
+    }
+    geo.set(e.id, g);
+  });
+  // labels: big ones first, so the small ones fit around them
+  const order = [...edges.values()].sort((a,b)=>b.lines.length-a.lines.length);
+  const indeg = {}, outdeg = {};
+  edges.forEach(e=>{ if(e.from===e.to) return; indeg[e.to] = (indeg[e.to]||0)+1; outdeg[e.from] = (outdeg[e.from]||0)+1; });
+  const labelSvg = {}, placed = [];
+  // keep labels near the grid of states, so fitting the drawing doesn't shrink the machine
+  const nx0 = Math.min(...Object.values(nodes).map(n=>n.x))-R-90, ny0 = Math.min(...Object.values(nodes).map(n=>n.y))-R-70;
+  const nx1 = Math.max(...Object.values(nodes).map(n=>n.x))+R+90, ny1 = Math.max(...Object.values(nodes).map(n=>n.y))+R+70;
+  const outside = b => Math.max(0, nx0-b.x) + Math.max(0, ny0-b.y) + Math.max(0, b.x+b.w-nx1) + Math.max(0, b.y+b.h-ny1);
+  order.forEach(e=>{
+    const g = geo.get(e.id), n = e.lines.length;
+    const cols = n > 12 ? Math.ceil(n/11) : 1, per = Math.ceil(n/cols);
+    const colW = [];
+    for(let c=0;c<cols;c++){ colW.push(Math.max(...e.lines.slice(c*per,(c+1)*per).map(lineW))); }
+    const CG = 14, w = colW.reduce((a,b)=>a+b,0) + CG*(cols-1), h = per*LH;
+    let best = null, bestHit = Infinity;
+    const tries = [];
+    // where many arrows meet, put each label near the end the arrows don't share
+    let ts = [0.5, 0.38, 0.62, 0.27, 0.73];
+    if((indeg[e.to]||0) > 3) ts = [0.3, 0.22, 0.4, 0.5, 0.15];
+    else if((outdeg[e.from]||0) > 3) ts = [0.7, 0.78, 0.6, 0.5, 0.85];
+    for(const extra of [0, 14, 30, 55, 90]) for(const t of ts) for(const side of [1,-1]) tries.push([t, side, extra]);
+    for(const [t, side, extra] of tries){
+      let px, py, nx, ny;
+      if(g.loop){ px = g.px; py = g.py; nx = g.nx; ny = g.ny; if(side<0 || t!==0.5){ continue; } }
+      else if(g.kind==='line'){ const p = geomPoint(g, t); px = p.x; py = p.y; nx = g.nx*side; ny = g.ny*side; }
+      else { const p = geomPoint(g, t); px = p.x; py = p.y; const k = Math.hypot(p.x-g.cx, p.y-g.cy); nx = (p.x-g.cx)/k*side; ny = (p.y-g.cy)/k*side; }
+      const off = 7 + extra + Math.abs(nx)*w/2 + Math.abs(ny)*h/2;
+      const box = {x:px + nx*off - w/2, y:py + ny*off - h/2, w, h};
+      const hit = boxes.hits(box) + outside(box)*400;
+      if(hit < bestHit){ bestHit = hit; best = box; }
+      if(hit === 0) break;
+    }
+    if(g.loop && bestHit > 0){ // slide a loop's label further out along its direction
+      for(const extra of [20, 45, 80, 120, 170]){
+        const off = 7 + extra + Math.abs(g.nx)*w/2 + Math.abs(g.ny)*h/2;
+        const box = {x:g.px + g.nx*off - w/2, y:g.py + g.ny*off - h/2, w, h};
+        const hit = boxes.hits(box) + outside(box)*400; if(hit < bestHit){ bestHit = hit; best = box; } if(hit===0) break;
+      }
+    }
+    boxes.add(best); placed.push(best);
+    let s = `<g class="lbl" id="${e.id}l"><rect class="elb" x="${(best.x-2).toFixed(1)}" y="${(best.y-1).toFixed(1)}" width="${(w+4).toFixed(1)}" height="${(h+3).toFixed(1)}"/>`;
+    let x0 = best.x;
+    for(let c=0;c<cols;c++){
+      const cx = x0 + colW[c]/2;
+      e.lines.slice(c*per,(c+1)*per).forEach((l,k)=>{
+        let dots = [], ci = 0, inner = '';
+        l.segs.forEach(sg=>{
+          if(sg.sym){ inner += `<tspan class="ts">${esc(sg.t)}</tspan>`; if(sg.dot) dots.push(ci); }
+          else inner += esc(sg.t);
+          ci += Array.from(sg.t).length;
+        });
+        s += `<text class="el" id="${e.id}r${l.i}" x="${cx.toFixed(1)}" y="${(best.y + LH*(k+1) - 3.5).toFixed(1)}"${dots.length?` data-dots="${dots.join(',')}"`:''}>${inner}</text>`;
+      });
+      x0 += colW[c] + CG;
+    }
+    labelSvg[e.id] = s + '</g>';
+  });
+  let edgeSvg = '';
+  edges.forEach(e=>{
+    const g = geo.get(e.id), d = geomPath(g);
+    let arrow = '';
+    if(g.loop){
+      const Lh = 11, Wd = 5.5, ux = Math.cos(g.tipAngle), uy = Math.sin(g.tipAngle), bx = g.tipX-ux*Lh, by = g.tipY-uy*Lh;
+      arrow = `<path class="ah" d="M${g.tipX.toFixed(1)} ${g.tipY.toFixed(1)}L${(bx-uy*Wd).toFixed(1)} ${(by+ux*Wd).toFixed(1)}L${(bx+uy*Wd).toFixed(1)} ${(by-ux*Wd).toFixed(1)}Z"/>`;
+    }
+    edgeSvg += `<g class="edge" id="${e.id}"><path class="ep" d="${d}"${g.loop?'':' marker-end="url(#tm-ah)"'}/>${arrow}</g>`;
+  });
+  let nodeSvg = '';
+  Object.values(nodes).forEach(n=>{
+    const cls = 'st' + (n.id==='qacc' ? ' st-accept' : n.id==='qrej' ? ' st-reject' : '');
+    let s = `<g class="${cls}" id="n-${n.id}"><title>${esc(n.name.replace('_','')+': '+n.desc)}</title>`;
+    s += `<circle class="sc" cx="${n.x}" cy="${n.y}" r="${R}"/>`;
+    if(n.id==='qacc') s += `<circle class="si" cx="${n.x}" cy="${n.y}" r="${R-5}"/>`;
+    s += `<text class="sl" x="${n.x}" y="${n.y+2.2}">${subName(n.name)}</text></g>`;
+    nodeSvg += s;
+  });
+  const q0 = nodes[M.start];
+  const startArrow = `<line class="start" x1="${q0.x-R-40}" y1="${q0.y}" x2="${q0.x-R-2}" y2="${q0.y}" marker-end="url(#tm-ah-ink)"/>`;
+  const defs = `<defs>`+
+    `<marker id="tm-ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahm" d="M0,0 L10,5 L0,10 z"/></marker>`+
+    `<marker id="tm-ah-used" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="5.5" markerHeight="5.5" orient="auto-start-reverse"><path class="ahm-used" d="M0,0 L10,5 L0,10 z"/></marker>`+
+    `<marker id="tm-ah-ink" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path class="ahm-ink" d="M0,0 L10,5 L0,10 z"/></marker></defs>`;
+  const labels = [...edges.values()].map(e=>labelSvg[e.id]).join('');
+  // fit the drawing to what was actually drawn
+  let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+  const grow = (x,y) => { if(x<x0) x0 = x; if(y<y0) y0 = y; if(x>x1) x1 = x; if(y>y1) y1 = y; };
+  Object.values(nodes).forEach(n=>{ grow(n.x-R-50, n.y-R); grow(n.x+R, n.y+R); });
+  geo.forEach(g=>{ for(let k=0;k<=16;k++){ const p = geomPoint(g, k/16); grow(p.x, p.y); } });
+  placed.forEach(b=>{ grow(b.x-4, b.y-4); grow(b.x+b.w+4, b.y+b.h+4); });   // labels too, so none are cut off
+  x0 -= 16; y0 -= 16; x1 += 16; y1 += 16;
+  L.vb = [x0, y0, x1-x0, y1-y0]; L.W = x1-x0; L.H = y1-y0;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" class="tm" viewBox="${L.vb.map(v=>v.toFixed(0)).join(' ')}" width="${L.W.toFixed(0)}" height="${L.H.toFixed(0)}">${defs}${regionSvg}<g class="edges">${edgeSvg}</g>${startArrow}<g class="labels">${labels}</g><g class="nodes">${nodeSvg}</g></svg>`;
+  return {svg, L};
+}
+// dots over crossed-off digits, placed on the real glyphs once the diagram is in the page
+function placeDots(svg){
+  const texts = [...svg.querySelectorAll('text[data-dots]')];
+  let k = 0;
+  function batch(){
+    const end = Math.min(texts.length, k+150);
+    for(; k<end; k++){
+      const t = texts[k];
+      t.dataset.dots.split(',').forEach(ix=>{
+        try{ const ex = t.getExtentOfChar(+ix);
+          const c = document.createElementNS('http://www.w3.org/2000/svg','circle');
+          c.setAttribute('class','edot'); c.setAttribute('cx', ex.x+ex.width/2); c.setAttribute('cy', ex.y+ex.height*0.1); c.setAttribute('r', 1.5);
+          t.parentNode.appendChild(c); t.dots = (t.dots||[]); t.dots.push(c); }catch(e){}
+      });
+    }
+    if(k < texts.length) requestAnimationFrame(batch);
+  }
+  batch();
+}
+const api = {draw, layout, edgeGeom, loopGeom, geomPoint, geomPath, placeDots, R};
+if(typeof module!=='undefined') module.exports = api; else root.TMDiagram = api;
+})(this);
+
+</script>
+<script>
+(function(){
+'use strict';
+const $ = id => document.getElementById(id);
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const esc = s => String(s).replace(/[&<>"]/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const SIGMA = new Set('0123456789(),#'.split(''));
+const fit = el => { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; };
+const M = HP.build();
+const DG = TMDiagram.draw(M);
+const L = DG.L;
+const nodeOf = L.nodeOf;
+const STAGES = [
+  'Check that the input is a valid encoding ⟨G,P⟩.',
+  'Check that P lists every vertex of G exactly once.',
+  'Check that each consecutive pair of vertices in P forms an edge of G.'
+];
+// the machine's parts 1–3 (format, distinct vertices, edges between vertices) are all "is this a valid encoding?"
+const stageOf = r => r<=3 ? 1 : r===4 ? 2 : r===5 ? 3 : 4;
+const EXAMPLES = {
+  valid:'(1,2,3,4,5)((1,2),(1,4),(3,4),(3,5),(4,2),(5,1))#(3,5,1,4,2)',
+  noedge:'(1,2,3,4,5)((1,2),(1,4),(3,4),(3,5),(4,2),(5,1))#(3,5,1,2,4)',
+  repeat:'(1,2,3,4,5)((1,2),(1,4),(3,4),(3,5),(4,2),(5,1))#(3,5,1,4,4)',
+  missing:'(1,2,3,4,5)((1,2),(1,4),(3,4),(3,5),(4,2),(5,1))#(3,5,1,4)',
+  multi:'(10,7,23,0)((10,7),(7,23),(23,0),(0,10))#(0,10,7,23)',
+  badend:'(1,2,3)((1,2),(2,4))#(1,2,3)',
+  dup:'(1,2,2)((1,2))#(1,2)',
+  fmt:'(1,2)((1,2))(1,2)'
+};
+const ord = n => n + (n%100>=11 && n%100<=13 ? 'th' : ({1:'st',2:'nd',3:'rd'}[n%10] || 'th'));
+const qName = n => { const m = /^q_?(.*)$/.exec(n); return `<span class="q">q<sub>${esc(m[1])}</sub></span>`; };
+const symText = s => s==='_' ? '⊔' : s.length>1 ? (s[1]==="'" ? s[0]+'̇' : s[0]+'ᴬᴮᵀᴰᴱᶜ'['ABTDEC'.indexOf(s[1])]) : s;
+
+// ======================================================================
+//  state
+// ======================================================================
+const encIn = $('encIn');
+let enc = null;          // parse result for the current input
+let locked = false;
+let T = null;            // trace while locked
+let regs = null;         // region of each step
+let idx = 0;
+let playing = false, playTimer = null;
+const SPEEDS = [['slow',4],['normal',30],['fast',250],['faster',1500],['fastest',8000]];   // steps per second
+let speed = 2;
+const gentle = () => !playing || SPEEDS[speed][1] <= 30;   // slow enough to animate each step
+
+// ======================================================================
+//  diagram
+// ======================================================================
+const diagWrap = $('diagWrap');
+diagWrap.innerHTML = DG.svg;
+const tmSvg = diagWrap.querySelector('svg');
+const realStates = Object.keys(M.states).length, drawn = Object.keys(L.nodes).length;
+const nRules = Object.values(M.delta).reduce((a,d)=>a+Object.keys(d).length,0);
+$('sizeNote').textContent = `${realStates} states, ${L.edges.size} arrows, ${nRules.toLocaleString()} rules`;
+TMDiagram.placeDots(tmSvg);
+// the whole machine always fills the width of its box; the box's height follows the drawing
+function applyScale(){ tmSvg.setAttribute('width','100%'); tmSvg.removeAttribute('height'); tmSvg.setAttribute('preserveAspectRatio','xMidYMid meet'); }
+applyScale();
+const nodeEl = {}; Object.keys(L.nodes).forEach(n=>{ nodeEl[n] = document.getElementById('n-'+n); });
+let curNode = null, curEdge = null, curRule = null, curRegion = null, failNode = null;
+function setDiagram(i){
+  if(curNode){ nodeEl[curNode].classList.remove('cur','halt-acc','halt-rej'); }
+  if(failNode){ nodeEl[failNode].classList.remove('fail'); failNode = null; }
+  if(curEdge){ curEdge.classList.remove('used'); const p = curEdge.querySelector('.ep'); if(p.getAttribute('marker-end')) p.setAttribute('marker-end','url(#tm-ah)'); document.getElementById(curEdge.id+'l').classList.remove('used'); curEdge = null; }
+  if(curRule){ curRule.classList.remove('used'); (curRule.dots||[]).forEach(c=>c.classList.remove('used')); curRule = null; }
+  if(curRegion){ curRegion.classList.remove('on'); curRegion = null; }
+  const q = T ? T.qs[i] : M.start, st = M.states[q];
+  curNode = nodeOf(q);
+  const el = nodeEl[curNode];
+  el.classList.add(q==='qacc' ? 'halt-acc' : q==='qrej' ? 'halt-rej' : 'cur');
+  if(q==='qrej' && T){ failNode = nodeOf(T.verdict.from); nodeEl[failNode].classList.add('fail'); }
+  const r = T ? regs[i] : 1;
+  curRegion = document.getElementById('rg'+Math.min(5, r));
+  if(curRegion) curRegion.classList.add('on');
+  if(T && i>0){
+    const from = T.qs[i-1], tr = M.delta[from][T.rs[i]];
+    if(tr){
+      const e = L.edges.get(nodeOf(from)+'|'+nodeOf(tr.to));
+      curEdge = document.getElementById(e.id); curEdge.classList.add('used');
+      const p = curEdge.querySelector('.ep'); if(p.getAttribute('marker-end')) p.setAttribute('marker-end','url(#tm-ah-used)');
+      document.getElementById(e.id+'l').classList.add('used');
+      const line = e.lines.find(l=>l.read===T.rs[i]);
+      curRule = line ? document.getElementById(e.id+'r'+line.i) : null; if(curRule){ curRule.classList.add('used'); (curRule.dots||[]).forEach(c=>c.classList.add('used')); }
+      // keep the lit arrow and its label above the others
+      curEdge.parentNode.appendChild(curEdge);
+      const lg = document.getElementById(e.id+'l'); lg.parentNode.appendChild(lg);
+    }
+  }
+}
+function follow(force){
+  return; // the whole machine is always in view
+  const n = L.nodes[failNode || curNode]; if(!n) return;
+  const x = (n.x-L.vb[0])*scale, y = (n.y-L.vb[1])*scale, w = diagWrap.clientWidth, h = diagWrap.clientHeight;
+  const mx = Math.min(140, w*0.25), my = Math.min(120, h*0.25);
+  if(force || x < diagWrap.scrollLeft+mx || x > diagWrap.scrollLeft+w-mx || y < diagWrap.scrollTop+my || y > diagWrap.scrollTop+h-my){
+    const smooth = gentle();
+    diagWrap.scrollTo({left:Math.max(0, x-w/2), top:Math.max(0, y-h/2), behavior: smooth && !reduceMotion() ? 'smooth' : 'auto'});
+  }
+}
+const reduceMotion = () => window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+let tokenRaf = null;
+function animateToken(){
+  cancelAnimationFrame(tokenRaf);
+  const old = tmSvg.querySelector('.token'); if(old) old.remove();
+  if(!curEdge || reduceMotion() || !gentle()) return;
+  const path = curEdge.querySelector('.ep'); let len; try{ len = path.getTotalLength(); }catch(e){ return; }
+  const dot = document.createElementNS(SVG_NS,'circle'); dot.setAttribute('class','token'); dot.setAttribute('r', 5);
+  tmSvg.appendChild(dot);
+  const dur = playing ? Math.min(450, 700/SPEEDS[speed][1]) : 450, t0 = performance.now();
+  const frame = now=>{ const k = Math.min(1,(now-t0)/dur), e = k<0.5?2*k*k:1-Math.pow(-2*k+2,2)/2; const p = path.getPointAtLength(e*len);
+    dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y); if(k<1) tokenRaf = requestAnimationFrame(frame); else dot.remove(); };
+  tokenRaf = requestAnimationFrame(frame);
+}
+
+// ======================================================================
+//  tape
+// ======================================================================
+const cellsEl = $('cells'), headEl = $('head'), headBox = $('headBox'), tapeWrap = $('tapeWrap'), tapeStrip = $('tapeStrip'), bandsEl = $('bands');
+let cellCache = 0;
+function cellPx(){ if(!cellCache) cellCache = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 38; return cellCache; }
+const pitch = () => cellPx() - 1.5;
+function cellHTML(s){
+  if(s==='_') return '⊔';
+  if(s.length>1){
+    if(s[1]==="'") return `<span class="dt">${esc(s[0])}</span>`;
+    return `${esc(s[0])}<sup class="m${s[1]}">${'ᴬᴮᵀᴰᴱᶜ'['ABTDEC'.indexOf(s[1])]}</sup>`;
+  }
+  return esc(s);
+}
+// The tape is infinite to the right, as in the Turing Machine Explorer. Cells sit at fixed positions on a
+// strip that slides sideways, and only the cells in view are in the page, so blanks go on forever. The view
+// follows the head with a "dead zone": the head moves freely in the middle half of the view, and the tape
+// slides when the head gets near either side. You can also drag the tape (with momentum) or scroll sideways.
+const tapeView = {off:0, manual:false, tape:[]};
+function viewWidth(){ return tapeWrap.clientWidth - 12; }
+function drawCells(off){
+  const P = pitch(), tape = tapeView.tape;
+  const first = Math.max(0, Math.floor(off / P) - 2);
+  const count = Math.ceil(viewWidth() / P) + 5;
+  while(cellsEl.children.length < count){ const d = document.createElement('div'); d.className = 'cell'; d.innerHTML = '<span class="v"></span><span class="ix"></span>'; cellsEl.appendChild(d); }
+  while(cellsEl.children.length > count) cellsEl.removeChild(cellsEl.lastChild);
+  for(let k=0;k<count;k++){
+    const i = first + k, d = cellsEl.children[k], s = i < tape.length ? tape[i] : '_';
+    if(d.dataset.i !== String(i)){
+      d.dataset.i = i; d.style.left = (i*P)+'px'; d.lastChild.textContent = i;
+      d.classList.toggle('left-end', i===0); d.classList.remove('flash');
+    }
+    if(d.dataset.s !== s){ d.dataset.s = s; d.firstChild.innerHTML = cellHTML(s); d.classList.toggle('blank', s==='_'); }
+  }
+  return first;
+}
+function placeStrip(off){ tapeView.off = off; tapeStrip.style.transform = `translateX(${-off}px)`; }
+function renderTape(tape, head, wrotePos, animate){
+  stopGlide();
+  tapeView.tape = tape;
+  const P = pitch(), C = cellPx(), viewW = viewWidth(), x = head*P;
+  let off = tapeView.off;
+  if(tapeView.manual){ off = x - viewW*0.4; tapeView.manual = false; }   // come back to the head after a manual scroll
+  const lo = viewW*0.25, hi = viewW*0.75 - C;
+  if(x - off > hi) off = x - hi;
+  if(x - off < lo) off = x - lo;
+  off = Math.max(0, off);
+  const first = drawCells(off);
+  if(animate && wrotePos>=0){ const d = cellsEl.children[wrotePos - first]; if(d){ d.classList.remove('flash'); void d.offsetWidth; d.classList.add('flash'); } }
+  headEl.style.transform = `translateX(${x}px)`;
+  placeStrip(off);
+}
+// ---------- scrolling the tape by hand: drag it (with momentum), or scroll sideways ----------
+function panTo(off){
+  off = Math.max(0, off);   // no right edge
+  tapeView.manual = true;
+  drawCells(off); placeStrip(off);
+  return off;
+}
+let panStart = null, panTarget = null, panRaf = null, glideRaf = null, samples = [];
+function stopGlide(){ if(glideRaf){ cancelAnimationFrame(glideRaf); glideRaf = null; tapeWrap.classList.remove('panning'); } }
+tapeWrap.addEventListener('pointerdown', e=>{
+  stopGlide();
+  if(e.button!==0) return;
+  panStart = {x:e.clientX, off:tapeView.off, id:e.pointerId, moved:false};
+  samples = [{t:performance.now(), x:e.clientX}];
+});
+window.addEventListener('pointermove', e=>{
+  if(!panStart || e.pointerId!==panStart.id) return;
+  const dx = e.clientX - panStart.x;
+  if(!panStart.moved && Math.abs(dx) < 4) return;
+  if(!panStart.moved){ panStart.moved = true; tapeWrap.classList.add('panning'); stopPlay(); }
+  const now = performance.now();
+  samples.push({t:now, x:e.clientX});
+  while(samples.length > 2 && now - samples[0].t > 100) samples.shift();
+  panTarget = panStart.off - dx;
+  if(!panRaf) panRaf = requestAnimationFrame(()=>{ panRaf = null; if(panTarget!==null) panTo(panTarget); });
+});
+function glide(v){            // v: tape speed in px per ms (positive = toward higher cells)
+  let last = performance.now();
+  tapeWrap.classList.add('panning');
+  const frame = now=>{
+    const dt = Math.min(40, now - last); last = now;
+    const after = panTo(tapeView.off + v*dt);
+    v *= Math.pow(0.955, dt/16.7);                   // friction
+    if(Math.abs(v) < 0.02 || (after===0 && v<0)){ glideRaf = null; tapeWrap.classList.remove('panning'); return; }
+    glideRaf = requestAnimationFrame(frame);
+  };
+  glideRaf = requestAnimationFrame(frame);
+}
+const endPan = e=>{
+  if(!panStart || e.pointerId!==panStart.id) return;
+  const moved = panStart.moved;
+  panStart = null; panTarget = null;
+  tapeWrap.classList.remove('panning');
+  if(!moved || reduceMotion()) return;
+  const now = performance.now();
+  while(samples.length > 2 && now - samples[0].t > 80) samples.shift();
+  const a = samples[0], z = samples[samples.length-1], dt = z.t - a.t;
+  if(dt > 0 && now - z.t < 60){                     // only glide if the finger was still moving at release
+    const v = -(z.x - a.x) / dt;
+    if(Math.abs(v) > 0.15) glide(Math.max(-8, Math.min(8, v)));
+  }
+};
+window.addEventListener('pointerup', endPan);
+window.addEventListener('pointercancel', endPan);
+tapeWrap.addEventListener('wheel', e=>{
+  const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : (e.shiftKey ? e.deltaY : 0);
+  if(!d) return;
+  e.preventDefault(); stopPlay(); stopGlide(); panTo(tapeView.off + d);
+}, {passive:false});
+function renderBands(){
+  if(!bandsEl) return;
+  bandsEl.innerHTML = '';
+  if(!enc || !enc.ok) return;
+  const P = pitch();
+  const band = (a, b, html) => { const d = document.createElement('div'); d.className = 'band'; d.style.left = (a*P)+'px'; d.style.width = ((b-a+1)*P - 4)+'px'; d.innerHTML = html; bandsEl.appendChild(d); };
+  band(0, enc.eOpen-1, 'vertices <i>V</i>');
+  band(enc.eOpen, enc.hash-1, 'edges <i>E</i>');
+  band(enc.hash, enc.hash, '#');
+  band(enc.hash+1, enc.len-1, 'path <i>P</i>');
+}
+
+// ======================================================================
+//  marks on the tape -> what the machine is doing to the graph
+// ======================================================================
+function marksAt(tape){
+  const mk = p => { const s = tape[p]; return s && s.length>1 && s[1]!=="'" ? s[1] : ''; };
+  return {
+    v: enc.V.map(v=>mk(v.delim)),
+    ea: enc.E.map(e=>mk(e.open)), eb: enc.E.map(e=>mk(e.comma)),
+    p: enc.P.map(p=>mk(p.delim))
+  };
+}
+function firstVertex(label){ return enc.V.findIndex(v=>v.label===label); }
+
+// ======================================================================
+//  graph drawing
+// ======================================================================
+const gSvg = $('graphSvg');
+function graphLayout(){
+  const n = enc.V.length;
+  const ghosts = [];
+  const want = l => { if(firstVertex(l)<0 && !ghosts.includes(l)) ghosts.push(l); };
+  enc.E.forEach(e=>{ want(e.a); want(e.b); }); enc.P.forEach(p=>want(p.label));
+  const H = ghosts.length ? 440 : 380;
+  const cx = 190, cy = 190, rad = n<=1 ? 0 : Math.min(140, 60 + n*14);
+  const vr = n > 10 ? 15 : n > 7 ? 17 : 19;
+  const pos = enc.V.map((v,k)=>{ const a = -Math.PI/2 + 2*Math.PI*k/n; return {x:cx+rad*Math.cos(a), y:cy+rad*Math.sin(a), label:v.label}; });
+  const gpos = ghosts.map((l,k)=>({x: 190 + (k - (ghosts.length-1)/2)*52, y: 405, label:l}));
+  const at = l => { const k = firstVertex(l); return k>=0 ? pos[k] : gpos[ghosts.indexOf(l)]; };
+  return {pos, gpos, ghosts, at, H, vr, cx, cy};
+}
+function gGeom(G, a, b, curve){
+  const A = G.at(a), B = G.at(b);
+  if(a===b){ const ang = Math.atan2(A.y-G.cy, A.x-G.cx)*180/Math.PI; return TMDiagram.loopGeom(A.x, A.y, isNaN(ang)?-90:ang, G.vr); }
+  return TMDiagram.edgeGeom(A.x, A.y, B.x, B.y, curve, G.vr);
+}
+function arrowHead(g, cls){
+  let x, y, ang;
+  if(g.loop){ x = g.tipX; y = g.tipY; ang = g.tipAngle; }
+  else { const p = TMDiagram.geomPoint(g, 1), q = TMDiagram.geomPoint(g, 0.97); x = p.x; y = p.y; ang = Math.atan2(p.y-q.y, p.x-q.x); }
+  const Lh = 10, W = 5, ux = Math.cos(ang), uy = Math.sin(ang), bx = x-ux*Lh, by = y-uy*Lh;
+  return `<path class="${cls}" d="M${x.toFixed(1)} ${y.toFixed(1)}L${(bx-uy*W).toFixed(1)} ${(by+ux*W).toFixed(1)}L${(bx+uy*W).toFixed(1)} ${(by-ux*W).toFixed(1)}Z"/>`;
+}
+function trimmed(g, end){ // path that stops short of the arrowhead so thick strokes don't poke through it
+  if(g.kind==='line'){ const p = TMDiagram.geomPoint(g,0), q = TMDiagram.geomPoint(g,1); const len = Math.hypot(q.x-p.x,q.y-p.y)||1;
+    const k = Math.max(0, (len-end)/len); return `M${p.x} ${p.y}L${p.x+(q.x-p.x)*k} ${p.y+(q.y-p.y)*k}`; }
+  const len = g.r*g.span, k = Math.max(0, (len-end)/len);
+  const g2 = Object.assign({}, g, {span:g.span*k});
+  return TMDiagram.geomPath(g2);
+}
+function drawGraph(view){
+  if(!enc || !enc.ok){
+    gSvg.setAttribute('viewBox','0 0 380 220');
+    const why = !enc || encIn.value==='' ? 'Type an encoding above to see its graph.' : 'This string isn’t a valid encoding, so there’s no graph to draw.';
+    gSvg.innerHTML = `<text class="empty" x="190" y="104">${esc(why)}</text>` + (enc && encIn.value!=='' ? `<text class="empty" x="190" y="128">The machine will reject it in stage 1.</text>` : '');
+    return;
+  }
+  const G = graphLayout();
+  gSvg.setAttribute('viewBox', `0 0 380 ${G.H}`);
+  const edgeKey = (a,b) => a+'>'+b;
+  const uniq = [], seen = new Map();
+  enc.E.forEach((e,k)=>{ const key = edgeKey(e.a,e.b); if(!seen.has(key)){ seen.set(key, uniq.length); uniq.push({a:e.a, b:e.b, idx:[k]}); } else uniq[seen.get(key)].idx.push(k); });
+  const curveFor = (a,b) => seen.has(edgeKey(b,a)) && a!==b ? 34 : 0;
+  let edgesSvg = '', hlSvg = '', pathSvg = '', vSvg = '', ordSvg = '';
+  // which graph edge each path step rides on
+  const pairs = [];
+  for(let k=0;k+1<enc.P.length;k++){ const a = enc.P[k].label, b = enc.P[k+1].label; pairs.push({a, b, exists: seen.has(edgeKey(a,b))}); }
+  uniq.forEach(u=>{
+    const g = gGeom(G, u.a, u.b, curveFor(u.a,u.b));
+    const cls = u.idx.map(k=>view.ecls[k]).find(Boolean) || '';
+    edgesSvg += `<path class="ge ${cls}" d="${trimmed(g, 6)}"/>` + arrowHead(g, 'ga '+cls);
+  });
+  pairs.forEach((p,k)=>{
+    const g = gGeom(G, p.a, p.b, curveFor(p.a,p.b));
+    const st = view.pairs[k] || 'pending';
+    if(st==='pending'){
+      // a step that isn't an edge looks like every other step until the machine finds that out
+      hlSvg += `<path class="hl" d="${TMDiagram.geomPath(g)}"/>`;   // just the highlight; no arrow is drawn for an edge G doesn't have
+    } else {
+      pathSvg += `<path class="pseg ${st}" d="${trimmed(g, 8)}"/>` + arrowHead(g, 'pa '+st);
+    }
+  });
+  // vertices
+  const vtx = (p, cls, extra) => {
+    const fs = p.label.length>3 ? 10 : p.label.length>2 ? 12 : p.label.length>1 ? 14 : 15;
+    return `<g class="gv ${cls}"><circle cx="${p.x.toFixed(1)}" cy="${p.y.toFixed(1)}" r="${G.vr}"/><text x="${p.x.toFixed(1)}" y="${(p.y+fs*0.35).toFixed(1)}" style="font-size:${fs}px">${esc(p.label)}</text>${extra||''}</g>`;
+  };
+  G.pos.forEach((p,k)=>{ vSvg += vtx(p, view.vcls[k]||''); });
+  G.gpos.forEach(p=>{ vSvg += vtx(p, 'ghost '+(view.ghost[p.label]||'')); });
+  if(G.ghosts.length) vSvg += `<text class="ghost-cap" x="190" y="${G.H-6}">named in E or P but not in V</text>`;
+  // where each vertex falls in P
+  const places = new Map();
+  enc.P.forEach((p,k)=>{ if(!places.has(p.label)) places.set(p.label, []); places.get(p.label).push(k); });
+  places.forEach((ks, label)=>{
+    const p = G.at(label); if(!p) return;
+    let ang = Math.atan2(p.y-G.cy, p.x-G.cx); if(G.pos.length<=1 && firstVertex(label)>=0) ang = -Math.PI/2;
+    if(firstVertex(label)<0) ang = -Math.PI/2;
+    const d = G.vr + 13, x = p.x + Math.cos(ang)*d, y = p.y + Math.sin(ang)*d;
+    const txt = ks.map(k=>k+1).join(',');
+    const cls = ks.some(k=>view.ord[k]==='on') ? 'on' : ks.every(k=>view.ord[k]==='done') ? 'done' : '';
+    const w = 6 + txt.length*7;
+    ordSvg += `<rect class="ord-bg" x="${(x-w/2).toFixed(1)}" y="${(y-8).toFixed(1)}" width="${w}" height="15" rx="7"/><text class="ord ${cls}" x="${x.toFixed(1)}" y="${(y+3.5).toFixed(1)}">${esc(txt)}</text>`;
+  });
+  gSvg.innerHTML = edgesSvg + hlSvg + pathSvg + vSvg;
+}
+function emptyView(){ return {vcls:[], ecls:[], pairs:[], ghost:{}, ord:[]}; }
+function graphView(i){
+  // the graph follows the high-level algorithm: in stage 5 each step of P lights up as it is checked,
+  // and every step found to be an edge stays lit
+  const v = emptyView();
+  if(!enc || !enc.ok || !T) return v;
+  const r = regs[i], halted = i===T.last;
+  const nPairs = Math.max(0, enc.P.length-1);
+  if(halted && T.verdict.type==='accept'){ for(let k=0;k<nPairs;k++) v.pairs[k] = 'ok'; return v; }
+  if(halted){
+    const c = HP.check(enc);
+    if(c.why==='dupV'){ v.vcls[c.idx[0]] = 'vbad'; v.vcls[c.idx[1]] = 'vbad'; }
+    else if(c.why==='badEnd'){ v.ecls[c.edge] = 'ebad'; v.ghost[c.label] = 'vbad'; }
+    else if(c.why==='dupE'){ v.ecls[c.idx[0]] = 'ebad'; v.ecls[c.idx[1]] = 'ebad'; }
+    else if(c.why==='notInV'){ v.ghost[c.label] = 'vbad'; }
+    else if(c.why==='repeat' || c.why==='missing'){ const k = firstVertex(c.label); if(k>=0) v.vcls[k] = 'vbad'; }
+    else if(c.why==='noEdge'){ for(let k=0;k<c.idx;k++) v.pairs[k] = 'ok'; v.pairs[c.idx] = 'bad'; }
+    return v;
+  }
+  // stage 5 starts by erasing stage 4's D marks from P; until that's done they don't mean "this step is an edge"
+  if(r===5 && !['s5goH','s5clrP','s5back'].includes(T.qs[i])){
+    const m = marksAt(curTape);
+    for(let k=0;k<nPairs;k++){
+      if(m.p[k]==='D') v.pairs[k] = 'ok';
+      else if(m.p[k]==='T' || m.p[k]==='A') { v.pairs[k] = 'active'; break; }
+    }
+  }
+  return v;
+}
+
+// ======================================================================
+//  narration
+// ======================================================================
+function narrate(i){
+  if(!$('narr')) return;  // the narration box was removed for simplicity
+  const box = $('narr'), ctx = $('narrCtx'), doing = $('narrDo');
+  box.className = 'narr';
+  if(!T){
+    box.classList.add('idle');
+    ctx.innerHTML = enc && encIn.value!=='' ? 'Press <b>Lock in</b>, then <b>Play</b>, to run the machine on this input.' : 'Type an encoding above.';
+    doing.innerHTML = `The head starts on cell 0 in ${qName(L.nodes[nodeOf(M.start)].name)}.`;
+    return;
+  }
+  const q = T.qs[i], st = M.states[q];
+  if(i===T.last){
+    const c = enc.ok ? HP.check(enc) : null;
+    if(T.verdict.type==='accept'){ box.classList.add('accept'); ctx.innerHTML = '<b>Accept.</b> P is a path in G that visits every vertex exactly once.'; doing.textContent = `Halted in q_acc after ${T.last.toLocaleString()} steps.`; return; }
+    box.classList.add('reject');
+    const from = L.nodes[nodeOf(T.verdict.from)].name, read = symText(T.verdict.read);
+    let why = '';
+    if(!c) why = enc.error;
+    else if(c.why==='dupV') why = `Vertex ${esc(c.label)} is listed twice in V, so G isn’t a graph.`;
+    else if(c.why==='badEnd') why = `Edge (${esc(enc.E[c.edge].a)},${esc(enc.E[c.edge].b)}) uses ${esc(c.label)}, which isn’t a vertex in V.`;
+    else if(c.why==='notInV') why = `The ${ord(c.idx+1)} vertex of P, ${esc(c.label)}, isn’t a vertex in V.`;
+    else if(c.why==='repeat') why = `P visits ${esc(c.label)} twice.`;
+    else if(c.why==='missing') why = `P never visits vertex ${esc(c.label)}.`;
+    else if(c.why==='noEdge') why = `G has no edge (${esc(c.a)},${esc(c.b)}), so P can’t step from ${esc(c.a)} to ${esc(c.b)}.`;
+    ctx.innerHTML = `<b>Reject.</b> ${why}`;
+    doing.innerHTML = `${qName(from)} has no arrow for <span class="s">${esc(read)}</span>, so the machine went to ${qName('q_rej')} after ${T.last.toLocaleString()} steps.`;
+    return;
+  }
+  const r = regs[i];
+  let c = '';
+  if(enc.ok && r>=2){
+    const m = marksAt(curTape);
+    const V = enc.V, vA = m.v.indexOf('A'), vB = m.v.indexOf('B');
+    if(r===2){
+      if(vA>=0 && vB>=0) c = `Is vertex <b>${esc(V[vA].label)}</b> different from vertex <b>${esc(V[vB].label)}</b>?`;
+      else if(vA>=0) c = `Checking vertex <b>${esc(V[vA].label)}</b> against the vertices listed after it.`;
+      else c = 'Checking that no vertex is listed twice.';
+    } else if(r===3){
+      const k = enc.E.findIndex((e,j)=>m.ea[j]==='A' || m.eb[j]==='A');
+      if(k>=0){ const e = enc.E[k], x = m.ea[k]==='A' ? e.a : e.b;
+        c = `Is <b>${esc(x)}</b>, the ${m.ea[k]==='A'?'start':'end'} of edge (${esc(e.a)},${esc(e.b)}), a vertex in V?` + (vB>=0 ? ` Comparing it with <b>${esc(V[vB].label)}</b>.` : ''); }
+      else c = 'Checking that every edge goes between vertices in V.';
+    } else if(r===4){
+      const k = m.p.indexOf('A');
+      if(k>=0) c = `Looking up the ${ord(k+1)} vertex of P, <b>${esc(enc.P[k].label)}</b>, among the vertices P hasn’t used yet.` + (vB>=0 ? ` Comparing it with <b>${esc(V[vB].label)}</b>.` : '');
+      else if(st.id==='s4cV' || st.id==='s4cE') c = 'Checking that P used every vertex in V.';
+      else c = 'Checking that P lists every vertex exactly once.';
+    } else if(r===5){
+      let k = m.p.indexOf('T'); if(k<0) k = m.p.indexOf('A');
+      if(k>=0 && k+1<enc.P.length){
+        const eb = enc.E.findIndex((e,j)=>m.ea[j]==='B' || m.eb[j]==='B');
+        c = `Is step ${k+1}, <b>${esc(enc.P[k].label)} → ${esc(enc.P[k+1].label)}</b>, an edge in E?` + (eb>=0 ? ` Trying edge (${esc(enc.E[eb].a)},${esc(enc.E[eb].b)}).` : '');
+      } else c = 'Checking that each step of P is an edge in E.';
+    }
+  } else if(r===1) c = 'Reading the input left to right to check its format.';
+  ctx.innerHTML = `<span class="note">Stage ${r}.</span> ${c}`;
+  const name = L.nodes[nodeOf(q)].name;
+  let d = st.desc || '';
+  if(st.fam) d = d.replace(/\bdigit d\b/g, 'digit '+st.d).replace(/\bwith d\b/g, 'with '+st.d);
+  doing.innerHTML = `${qName(name)}: ${esc(d)}`;
+}
+
+// ======================================================================
+//  stage list
+// ======================================================================
+const stagesEl = $('stages');
+STAGES.forEach((t,k)=>{
+  const li = document.createElement('li');
+  li.className = 'stage'; li.dataset.r = k+1; li.tabIndex = 0;
+  li.innerHTML = `<span class="mark">${k+1}</span><span>${esc(t)}</span>`;
+  stagesEl.appendChild(li);
+});
+const acceptLi = document.createElement('li');
+acceptLi.className = 'stage'; acceptLi.dataset.r = STAGES.length+1; acceptLi.tabIndex = 0;
+acceptLi.innerHTML = `<span class="mark">✓</span><span>If every check passes, accept.</span>`;
+stagesEl.appendChild(acceptLi);
+function renderStages(i){
+  const r = T ? stageOf(regs[i]) : 0, halted = T && i===T.last, rej = halted && T.verdict.type==='reject';
+  const n = STAGES.length;
+  [...stagesEl.children].forEach(li=>{
+    const k = +li.dataset.r;
+    li.classList.remove('active','done','failed');
+    li.classList.toggle('locked', !T);
+    const mark = li.querySelector('.mark');
+    if(k<=n) mark.textContent = k;
+    if(!T) return;
+    if(k < r || (halted && !rej)){ li.classList.add('done'); if(k<=n) mark.textContent = '✓'; }
+    else if(k===r){ if(rej){ li.classList.add('failed'); mark.textContent = '✗'; } else li.classList.add(halted ? 'done' : 'active'); }
+  });
+}
+function jumpToStage(k){
+  if(!T) return;
+  let j = 0; while(j<=T.last && stageOf(regs[j]) < k) j++;
+  if(j>T.last || stageOf(regs[j]) !== k) return;
+  stopPlay(); go(j, false);
+}
+stagesEl.addEventListener('click', e=>{ const li = e.target.closest('.stage'); if(li) jumpToStage(+li.dataset.r); });
+stagesEl.addEventListener('keydown', e=>{ if(e.key==='Enter' || e.key===' '){ const li = e.target.closest('.stage'); if(li){ e.preventDefault(); jumpToStage(+li.dataset.r); } } });
+
+// ======================================================================
+//  render one step
+// ======================================================================
+let curTape = [], lastGraphKey = null, lastNarr = null;
+function render(animate){
+  const i = idx;
+  let tape, head, wrote = -1;
+  if(T){ tape = HP.tapeAt(T, i); curTape = tape; head = T.hs[i]; if(i>0 && T.wpos[i]>=0 && T.wsym[i] !== T.rs[i]) wrote = T.wpos[i]; }
+  else { tape = Array.from(encIn.value); head = 0; }
+  renderTape(tape, head, wrote, animate);
+  const q = T ? T.qs[i] : M.start, st = M.states[q], name = L.nodes[nodeOf(q)].name;
+  const nm = /^q_?(.*)$/.exec(name)[1];
+  headBox.innerHTML = `q<sub>${esc(nm)}</sub>`;
+  headEl.className = 'head' + (q==='qacc' ? ' accept' : q==='qrej' ? ' reject' : '');
+  setDiagram(i);
+  if(animate) animateToken();
+  follow(false);
+  const v = T ? graphView(i) : emptyView();
+  const gk = JSON.stringify(v) + '|' + encIn.value + '|' + !!T;
+  if(gk !== lastGraphKey){ lastGraphKey = gk; drawGraph(v); }
+  renderStages(i);
+  narrate(i);
+  const vd = $('verdict');
+  if(T && i===T.last){ vd.hidden = false; vd.className = 'verdict '+T.verdict.type; vd.textContent = T.verdict.type==='accept' ? 'Accepted' : 'Rejected'; }
+  else vd.hidden = true;
+  $('stepCount').textContent = T ? `step ${i.toLocaleString()} of ${T.last.toLocaleString()}` : '';
+  updateButtons();
+}
+function updateButtons(){
+  const ok = !!T, atEnd = !ok || idx>=T.last, atStart = !ok || idx===0;
+  $('playBtn').textContent = playing ? '❚❚ Pause' : (ok && atEnd ? '↻ Replay' : '▶ Play');
+  $('playBtn').disabled = !ok;
+  $('resetBtn').disabled = atStart; $('endBtn').disabled = atEnd;
+}
+
+// ======================================================================
+//  player
+// ======================================================================
+function go(i, animate){ if(!T) return; idx = Math.max(0, Math.min(T.last, i)); render(animate); }
+function step(n){ if(!T || idx>=T.last) return false; go(idx+n, n===1); return true; }
+let lastFrame = 0, owed = 0;
+function startPlay(){ if(!T) return; if(idx>=T.last) go(0, false); playing = true; owed = 1; lastFrame = performance.now(); updateButtons(); playTimer = requestAnimationFrame(frame); }
+function frame(now){
+  if(!playing) return;
+  owed += Math.min(250, now - lastFrame) * SPEEDS[speed][1] / 1000; lastFrame = now;
+  const n = Math.floor(owed);
+  if(n > 0){ owed -= n; go(idx + n, n === 1 && gentle()); }
+  if(idx >= T.last){ stopPlay(); return; }
+  playTimer = requestAnimationFrame(frame);
+}
+function stopPlay(){ playing = false; cancelAnimationFrame(playTimer); updateButtons(); }
+function togglePlay(){ playing ? stopPlay() : startPlay(); }
+$('playBtn').addEventListener('click', togglePlay);
+$('resetBtn').addEventListener('click', ()=>{ stopPlay(); go(0,false); });
+$('endBtn').addEventListener('click', ()=>{ stopPlay(); go(T.last,false); });
+document.addEventListener('keydown', e=>{
+  const tag = (e.target.tagName||'').toLowerCase();
+  if(tag==='input' || tag==='textarea' || tag==='select' || !T) return;
+  if(e.ctrlKey || e.metaKey || e.altKey) return;
+  if(e.key===' ' && tag!=='button' && !e.target.closest('.stage')){ e.preventDefault(); togglePlay(); }
+  else if(e.key==='r' || e.key==='R'){ stopPlay(); go(0,false); }
+});
+
+// ======================================================================
+//  input, lock in, edit
+// ======================================================================
+function inputChanged(){
+  const raw = encIn.value, clean = raw.replace(/\s+/g,'');
+  if(clean!==raw){ const p = encIn.selectionStart; encIn.value = clean; try{ encIn.setSelectionRange(p-(raw.length-clean.length), p-(raw.length-clean.length)); }catch(e){} }
+  const bad = [...new Set(Array.from(encIn.value).filter(c=>!SIGMA.has(c)))];
+  const msg = $('encMsg');
+  if(bad.length){
+    enc = null; encIn.classList.add('bad');
+    msg.className = 'msg err'; msg.textContent = `${bad.map(c=>`“${c}”`).join(', ')} ${bad.length===1?'isn’t':'aren’t'} in Σ. The machine only reads the symbols listed above.`;
+    $('lockBtn').disabled = true;
+  } else {
+    encIn.classList.remove('bad'); $('lockBtn').disabled = false;
+    enc = HP.parse(encIn.value);
+    if(encIn.value===''){ msg.className = 'msg ok'; msg.textContent = 'The machine will reject the empty string, since it isn’t an encoding.'; }
+    else if(!enc.ok){ msg.className = 'msg err'; msg.textContent = `Not a valid encoding: ${enc.error}`; }
+    else {
+      // well formed, but still not an encoding of a graph and a list of its vertices
+      const c = HP.check(enc), why = c.ok || c.stage > 3 ? '' :
+        c.why==='dupV' ? `vertex ${c.label} is listed twice.` :
+        c.why==='badEnd' ? `edge (${enc.E[c.edge].a},${enc.E[c.edge].b}) uses ${c.label}, which isn’t a vertex of G.` :
+        c.why==='notInV' ? `P uses ${c.label}, which isn’t a vertex of G.` :
+        c.why==='dupE' ? `edge (${c.a},${c.b}) is listed twice.` : '';
+      msg.className = why ? 'msg err' : 'msg ok'; msg.textContent = why ? 'Not a valid encoding: ' + why : '';
+    }
+  }
+  fit(encIn); renderBands(); render(false);
+}
+encIn.addEventListener('input', ()=>{ if(!locked) inputChanged(); });
+encIn.addEventListener('keydown', e=>{ if(e.key==='Enter' && !$('lockBtn').disabled){ e.preventDefault(); lock(); } });
+function lock(){
+  if(locked) return;
+  T = HP.run(M, encIn.value);
+  regs = new Int8Array(T.last+1);
+  for(let i=0;i<=T.last;i++){ const q = T.qs[i]; regs[i] = q==='qrej' ? M.states[T.verdict.from].region : q==='qacc' ? 6 : M.states[q].region; }
+  locked = true; idx = 0;
+  encIn.readOnly = true; $('inputPanel').classList.add('is-locked'); $('lockBtn').hidden = true; $('editBtn').hidden = false;
+  render(false);
+}
+function unlock(){
+  stopPlay(); locked = false; T = null; regs = null; idx = 0;
+  encIn.readOnly = false; $('inputPanel').classList.remove('is-locked'); $('lockBtn').hidden = false; $('editBtn').hidden = true;
+  $('lockNote').textContent = '';
+  render(false);
+}
+$('lockBtn').addEventListener('click', lock);
+$('editBtn').addEventListener('click', ()=>{ unlock(); encIn.focus(); });
+let resizeTimer = null;
+window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ cellCache = 0; fit(encIn); applyScale(); renderBands(); render(false); }, 120); });
+
+// boot with the example from the notes
+encIn.value = EXAMPLES.valid;
+inputChanged();
+follow(true);
+})();
+
+</script>
+
+</body>
+</html>
