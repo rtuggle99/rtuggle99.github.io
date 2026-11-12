@@ -756,7 +756,11 @@ function render(){
   }
   document.getElementById('bigPill').innerHTML = editMode ? '' : verdictPill(cur, false);
   document.getElementById('capLabel').style.visibility = (editMode || !F) ? 'hidden' : 'visible';
-  answersBtn.style.visibility = F ? 'visible' : 'hidden';
+  // once the checks have decided the whole statement, there's nothing left to reveal:
+  // the button goes away but keeps its space, so nothing in the row moves
+  const decided = F && gridVerdict(cur)!=null;
+  if (decided && showAnswers){ showAnswers = false; answersBtn.setAttribute('aria-pressed', false); answersBtn.textContent = 'Show answer'; }
+  answersBtn.style.visibility = F && !decided ? 'visible' : 'hidden';
   const v = gridVerdict(cur);
   big.className = 'big' + (v==='T'?' yes':v==='F'?' no':'') + (editMode?' editing-points':'');
   renderLive();
