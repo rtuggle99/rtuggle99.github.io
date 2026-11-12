@@ -280,7 +280,7 @@
         <div class="live" id="live" aria-live="polite"></div>
         <div class="status" id="status"></div>
         <div class="whole" id="whole">
-          <span class="w-check"><span class="w-label" id="capLabel"><span class="w-whole">Whole s</span><span class="w-short">S</span>tatement:</span><span id="bigPill"></span><button class="btn" id="answersBtn" type="button" aria-pressed="false">Show answer</button></span>
+          <span class="w-check"><span class="w-label" id="capLabelAll" hidden><span class="w-whole">Whole s</span><span class="w-short">S</span>tatement on each board:</span><span class="w-label" id="capLabel"><span class="w-whole">Whole s</span><span class="w-short">S</span>tatement:</span><span id="bigPill"></span><button class="btn" id="answersBtn" type="button" aria-pressed="false">Show answer</button></span>
           <span class="w-edit" hidden><span class="palette" id="palette" role="group" aria-label="Edit tool"></span></span>
         </div>
         <div class="big" id="big">
@@ -344,7 +344,7 @@ function randomBoard(){
   }
 }
 // the board lives in a one-element list so all the checking code can stay per-board (index 0)
-let diagrams = [randomBoard()];
+let diagrams = [BOARDS[0].map(p=>({...p}))];   // start on Board 1
 
 /* =====================================================================
    Tokenizer + parser
@@ -812,6 +812,7 @@ function render(){
   document.getElementById('capLabel').style.visibility = (editMode || !F) ? 'hidden' : 'visible';
   // with all five boards the row holds only the button (each board shows its own verdict), centred
   document.getElementById('capLabel').hidden = viewAll;
+  document.getElementById('capLabelAll').hidden = !viewAll || !F;
   document.getElementById('bigPill').hidden = viewAll;
   // once the checks have decided everything, there's nothing left to reveal:
   // the button goes away but keeps its space, so nothing in the row moves
@@ -1183,7 +1184,7 @@ function setEditMode(on){
   document.querySelector('.w-check').hidden = on;
   document.querySelector('.w-edit').hidden = !on;
   if (on) renderPalette();
-  release(cur); freshState(); render();
+  release(cur); freshState(); render(); updateEditButton();
 }
 function setView(all){
   if (all===viewAll) return;
@@ -1199,8 +1200,8 @@ function setView(all){
   document.getElementById('viewOne').setAttribute('aria-pressed', !all);
   document.getElementById('viewAll').setAttribute('aria-pressed', all);
   // the example boards can't be edited or swapped here; these stay in place, disabled, so the header doesn't move
-  document.getElementById('modeEdit').disabled = all;
   boardBtn.disabled = all;
+  updateEditButton();
   document.getElementById('clearBtn').title = all ? 'Clear the marks on every board' : 'Clear the check marks';
   document.querySelector('.stage').classList.toggle('wide', all);
   big.hidden = all; multiEl.hidden = !all;
@@ -1214,7 +1215,7 @@ document.getElementById('modeEdit').addEventListener('click', ()=>setEditMode(tr
 /* ---------- board menu: the example boards (with a thumbnail each) and a fresh random one ---------- */
 const boardBtn = document.getElementById('boardBtn');
 const boardMenu = document.getElementById('boardMenu');
-let boardIsRandom = true;   // label for a board that isn't an example: "Random" until it's edited
+let boardIsRandom = false;   // label for a board that isn't an example: "Random" until it's edited
 function thumbMarkup(pts){
   const u = 7, m = 5, w = 5*u + 2*m, h = 7*u + 2*m;
   let g = '';
@@ -1227,12 +1228,23 @@ function thumbMarkup(pts){
 }
 const boardKey = pts => encodeBoard([...pts].sort((a,b)=>a.x-b.x || a.y-b.y));
 function boardIndex(){ const k = boardKey(viewAll ? single : diagrams[0]); return BOARDS.findIndex(b=>boardKey(b)===k); }
+// Boards 1–5 are fixed, so they look the same in both views; only a random board or your own can be edited.
+// (Edit stays in place, disabled, so the header doesn't move.)
+function updateEditButton(){
+  const btn = document.getElementById('modeEdit');
+  const example = boardIndex()>=0;
+  btn.disabled = viewAll || (example && !editMode);
+  btn.title = viewAll ? 'Editing is available with one board'
+            : btn.disabled ? 'Boards 1–5 are fixed. Choose “New random board” to make one you can edit.'
+            : 'Edit this board';
+}
 function updateBoardLabel(){
+  updateEditButton();
   const idx = boardIndex();
   boardBtn.textContent = idx>=0 ? `Board ${idx+1}` : boardIsRandom ? 'Random' : 'Your own';
   [...boardMenu.querySelectorAll('[role=option]')].forEach(b=>b.setAttribute('aria-selected', +b.dataset.i===idx));
 }
-function setBoard(pts, random){ diagrams = [pts.map(p=>({...p}))]; boardIsRandom = random; freshState(); render(); syncHash(); }
+function setBoard(pts, random){ if (editMode && !random) setEditMode(false); diagrams = [pts.map(p=>({...p}))]; boardIsRandom = random; freshState(); render(); syncHash(); }
 BOARDS.forEach((pts,i)=>{
   const b = document.createElement('button');
   b.type = 'button'; b.setAttribute('role','option'); b.dataset.i = i;
