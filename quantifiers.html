@@ -1,0 +1,1221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
+<title>Quantifier Explorer</title>
+<style>
+  :root{
+    --paper:#eaf4fb;
+    --panel:#ffffff;
+    --ink:#16324f;
+    --ink-soft:#3d5a75;
+    --rule:#a9cbe4;
+    --muted:#8fb0c8;
+    --info:#2f6690;
+    --info-soft:#d7ebf7;
+    --danger:#a8384a;
+    --danger-soft:#f6dde1;
+    --good:#2f7a4f;
+    --good-soft:#dcf0e2;
+    --mono: "Courier New", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+    --symbols: 'Noto Sans', 'Noto Sans Symbols 2', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  [hidden]{display:none !important;}
+  html,body{margin:0;padding:0;background:var(--paper);color:var(--ink);font-family:var(--serif);line-height:1.5;}
+  .page{max-width:1040px;margin:0 auto;padding:24px 18px 70px;}
+  header h1{font-weight:700;font-size:1.65rem;letter-spacing:0.01em;margin:0;border-bottom:3px solid var(--ink);padding-bottom:9px;}
+  header p{color:var(--ink-soft);font-style:italic;font-size:0.92rem;margin:12px 0 22px;max-width:72ch;}
+
+  .panels{display:flex;flex-direction:column;gap:22px;}
+  .panel{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px 18px 18px;}
+  .panel-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:12px;}
+  .panel-head h2{font-size:0.78rem;font-weight:700;text-transform:uppercase;letter-spacing:0.09em;color:var(--ink-soft);margin:0;}
+  .row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+
+  .btn{font-family:var(--mono);font-size:0.84rem;padding:6px 12px;border-radius:3px;border:1px solid var(--rule);
+    background:#f5fafd;color:var(--ink);cursor:pointer;white-space:nowrap;line-height:1.2;}
+  .btn:hover{background:var(--info-soft);border-color:var(--info);}
+  .btn.active{background:var(--info);border-color:var(--info);color:#fff;}
+  .btn:disabled{opacity:0.4;cursor:default;}
+  .btn:disabled:hover{background:#f5fafd;border-color:var(--rule);}
+  .btn.icon{min-width:34px;padding:6px 8px;text-align:center;}
+
+  /* ---------- example picker (a menu, so every formula is typeset properly) ---------- */
+  .picker{position:relative;flex-wrap:nowrap;}
+  #presetBtn{min-width:8.5em;text-align:left;}
+  #boardBtn{width:7.4em;display:inline-flex;justify-content:space-between;align-items:center;white-space:nowrap;}
+  #presetBtn::after, #boardBtn::after{content:'▾';float:right;margin-left:10px;color:var(--ink-soft);}
+  #boardBtn::after{float:none;margin-left:6px;}
+  .menu{position:absolute;right:0;top:calc(100% + 4px);z-index:20;background:var(--panel);border:1px solid var(--rule);
+    border-radius:3px;box-shadow:0 6px 22px rgba(22,50,79,0.14);padding:4px;min-width:330px;max-width:calc(100vw - 30px);
+    max-height:70vh;overflow-y:auto;}
+  .menu button{all:unset;box-sizing:border-box;display:flex;gap:10px;align-items:baseline;width:100%;padding:6px 10px;border-radius:3px;
+    cursor:pointer;font-size:0.95rem;white-space:nowrap;}
+  .menu button:hover, .menu button:focus-visible{background:var(--info-soft);}
+  .menu button[aria-selected="true"]{background:var(--info-soft);box-shadow:inset 3px 0 0 var(--info);}
+  #boardPicker{position:relative;}
+  #boardMenu{min-width:0;width:max-content;}
+  #boardMenu button{align-items:center;font-family:var(--serif);}
+  #boardMenu .m-thumb{display:block;flex:none;}
+  #boardMenu .m-sep{height:1px;background:var(--rule);margin:4px 6px;}
+  .menu .m-num{font-family:var(--mono);font-size:0.8rem;color:var(--ink-soft);min-width:1.6em;text-align:right;}
+
+  /* ---------- statement editor: one white box = two quantifier chips + the rest (click to edit) ---------- */
+  .stmt-box{display:flex;align-items:center;gap:6px;background:#fff;border:1.5px solid var(--rule);border-radius:3px;
+    padding:0 6px 0 7px;height:52px;}
+  .stmt-box:hover{border-color:var(--info);}
+  .stmt-box:focus-within{border-color:var(--ink);box-shadow:0 0 0 3px var(--info-soft);}
+  .quants{display:flex;gap:4px;flex:none;}
+  .qbtn{font-size:1.06rem;background:#fff;border:1px solid var(--rule);border-radius:3px;padding:3px 7px;cursor:grab;color:var(--ink);
+    line-height:1.2;touch-action:none;transition:transform .15s ease, background .15s;position:relative;}
+  .qbtn:hover{border-color:var(--info);background:var(--info-soft);}
+  .qbtn:focus-visible{outline:2px solid var(--info);outline-offset:1px;}
+  .qbtn.dragging{cursor:grabbing;transition:none;z-index:2;box-shadow:0 3px 10px rgba(22,50,79,0.18);background:#fff;}
+  .click-edit-wrap{position:relative;flex:1;min-width:0;}
+  .click-edit-display{cursor:text;padding:6px 4px;font-size:1.12rem;min-height:1.3em;overflow-x:auto;overflow-y:hidden;white-space:nowrap;}
+  .click-edit-display:focus{outline:none;}
+  .click-edit-display .placeholder{opacity:0.6;font-size:0.95rem;font-style:italic;}
+  .click-edit-input{display:none;width:100%;}
+  .click-edit-wrap.editing .click-edit-display{display:none;}
+  .click-edit-wrap.editing .click-edit-input{display:block;}
+  input[type="text"]{-webkit-appearance:none;appearance:none;font-family:var(--symbols);font-size:1.05rem;background:transparent;
+    border:none;padding:6px 4px;color:var(--ink);min-width:0;}
+  input[type="text"]:focus{outline:none;}
+  .keyboard{margin-top:10px;display:flex;flex-wrap:wrap;gap:6px;}
+  .keyboard button{background:#f5fafd;border:1px solid var(--rule);border-radius:3px;padding:3px 11px 4px;cursor:pointer;
+    color:var(--ink);line-height:1.2;min-width:3.3em;}
+  .keyboard button:hover{background:var(--info-soft);border-color:var(--info);}
+  .keyboard .kb-sym{font-size:1.05rem;display:block;}
+  .keyboard .kb-name{font-family:var(--serif);font-size:0.66rem;display:block;color:#4d6a82;}
+  /* room for two lines, always, so a message appearing while you type never pushes the board down */
+  .error{margin-top:8px;color:var(--danger);font-size:0.86rem;font-family:var(--mono);height:2.7em;line-height:1.35em;overflow:hidden;}
+
+  .defs{display:flex;flex-wrap:wrap;gap:6px 26px;font-size:0.9rem;margin-top:4px;padding-top:12px;border-top:1px dashed var(--rule);}
+  .defs .d-term{font-weight:700;margin-right:6px;}
+  .defs .d-term::after{content:":";margin-left:1px;}
+  .defs .d-body{color:var(--ink-soft);}
+  .defs .d-line{flex-basis:100%;}            /* P, then the lead-in, each on its own line; predicates flow after */
+  .defs .d-lead{color:var(--ink-soft);margin-top:2px;}
+
+  /* ---------- Check | Edit switch ---------- */
+  .seg{display:inline-flex;}
+  .seg .btn{border-radius:0;}
+  .seg .btn:first-child{border-radius:3px 0 0 3px;}
+  .seg .btn:last-child{border-radius:0 3px 3px 0;border-left:none;}
+  .seg .btn[aria-pressed="true"]{background:var(--ink);border-color:var(--ink);color:#fff;}
+
+  .verdict{display:inline-block;font-family:var(--mono);font-weight:700;font-size:0.8rem;padding:0 7px;border-radius:3px;
+    border:1.5px solid transparent;line-height:1.45;}
+  .verdict.yes{background:var(--good-soft);color:var(--good);}
+  .verdict.no{background:var(--danger-soft);color:var(--danger);}
+  .verdict.pending{background:#eef2f5;color:var(--ink-soft);font-weight:400;font-family:var(--serif);font-style:italic;font-size:0.84rem;}
+  .verdict.answer{background:transparent;border-style:dashed;}
+  .verdict.answer.yes{border-color:var(--good);} .verdict.answer.no{border-color:var(--danger);}
+
+  /* ---------- the one big diagram, with its formula right above ---------- */
+  .stage{max-width:560px;margin:0 auto;}
+  .big{max-width:440px;margin:0 auto;}
+  .bodybox{display:inline-block;border:1.5px solid var(--rule);border-radius:4px;padding:0 7px;background:#f8fbfd;
+    transition:border-color .15s, background .15s;}
+  .bodybox.t{border-color:var(--good);background:#f2f9f4;}
+  .bodybox.f{border-color:var(--danger);background:#fcf4f6;}
+  .stage{margin-top:26px;}
+  .live{text-align:center;font-size:1.3rem;display:flex;align-items:center;justify-content:center;flex-wrap:wrap;
+    gap:4px 10px;overflow-x:auto;overflow-y:hidden;}
+  /* two fixed lines: line 1 = the current pair and its result, line 2 = progress for this p / hints */
+  .status{text-align:center;font-size:0.86rem;color:var(--ink-soft);margin-bottom:4px;}
+  .status > div{height:1.5em;line-height:1.5em;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .status > div:last-child{font-size:0.93em;}
+  .status svg{vertical-align:-4px;}
+  /* the result word stays ink: the box around the formula's body already carries the green / red */
+  .status b{color:var(--ink);}
+  /* the whole statement's result: its own fixed-height row between the status lines and the board */
+  .whole{display:flex;justify-content:center;align-items:center;gap:9px;height:34px;margin-bottom:8px;font-size:1.05rem;}
+  .whole .w-label{font-weight:700;white-space:nowrap;}
+  .whole .w-short{display:none;}
+  .whole .verdict{font-size:0.98rem;padding:1px 11px;}
+  .whole .verdict.pending{font-size:0.98rem;}
+  .whole .w-check, .whole .w-edit{display:flex;align-items:center;gap:9px;}
+  /* fixed widths, so the button doesn't slide when the verdict or its own label changes */
+  #bigPill{display:inline-flex;justify-content:center;min-width:8.6em;}
+  #answersBtn{width:8.6em;padding:4px 0;font-size:0.8rem;text-align:center;}
+  .big{border:1.5px solid var(--rule);border-radius:3px;background:#fbfdfe;transition:border-color .15s;}
+  .big.yes{border-color:var(--good);} .big.no{border-color:var(--danger);}
+  .big svg{display:block;width:100%;height:auto;touch-action:manipulation;-webkit-user-select:none;user-select:none;}
+  /* two fixed-height rows so nothing jumps: the verdict for the whole statement, then the buttons */
+  .pt{cursor:pointer;}
+  .pt:focus{outline:none;}
+  .pt:focus-visible .hit{stroke:var(--info);stroke-width:2;stroke-dasharray:3 2;}
+  .editing-points .pt{cursor:cell;}
+
+  .key{display:grid;grid-template-columns:auto auto;justify-content:center;gap:0 28px;margin-top:14px;font-size:0.84rem;color:var(--ink-soft);}
+  .key.one{grid-template-columns:auto;}
+  .key .wide{grid-column:1;}   /* the dot is a left-side mark, so it sits under the p column */
+  .key > span{display:inline-flex;align-items:center;gap:3px;}
+  .note{font-size:0.8rem;color:var(--ink-soft);}
+  /* Edit mode: dashed board, tools in the space under it (same height as the result rows) */
+  .big.editing-points{border-style:dashed;border-color:var(--info);background:#f1f7fc;}
+  .palette{display:flex;gap:5px;}
+  .palette .btn{display:inline-flex;align-items:center;gap:5px;font-family:var(--serif);font-size:0.82rem;padding:3px 8px;}
+  .palette button svg{display:block;}
+  .palette button.active{background:var(--info-soft);border:1.5px solid var(--info);color:var(--ink);}
+  .big.editing-points svg{touch-action:none;}
+
+  footer{margin-top:40px;font-size:0.78rem;color:#6f93ab;border-top:1px solid var(--rule);padding-top:12px;}
+  @media (max-width:600px){
+    .page{padding:18px 12px 60px;}
+    .panel{padding:14px 12px 16px;}
+    .picker{width:100%;}
+    #presetBtn{flex:1;}
+    .menu{left:0;right:auto;min-width:0;width:100%;}
+    .live{font-size:1.12rem;}
+    .stage{margin-top:10px;}
+    .whole{font-size:0.92rem;gap:6px;}
+    .whole .w-check{gap:6px;}
+    .whole .verdict, .whole .verdict.pending{font-size:0.86rem;padding:1px 8px;}
+    #bigPill{min-width:7.6em;}
+    #answersBtn{width:7.4em;font-size:0.72rem;}
+
+    /* keep the statement on one line on phones */
+    .stmt-box{gap:4px;padding:0 4px 0 5px;}
+    .quants{gap:3px;}
+    .qbtn{font-size:0.9rem;padding:2px 4px;}
+    .click-edit-display{font-size:0.95rem;padding:6px 2px;}
+    #diagramPanel .panel-head .btn{padding:5px 8px;font-size:0.78rem;}
+  }
+  /* very narrow phones: "Statement:" so the row fits on one line */
+  @media (max-width:360px){
+    .whole .w-whole{display:none;} .whole .w-short{display:inline;}
+    #bigPill{min-width:6.8em;}
+  }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>Quantifier Explorer</h1>
+    <p>Check if a board of points satisfies a quantified statement.</p>
+  </header>
+
+  <div class="panels">
+    <section class="panel">
+      <div class="panel-head">
+        <h2>Statement</h2>
+        <div class="row picker">
+          <button class="btn icon" id="prevBtn" type="button" title="Previous example" aria-label="Previous example">‹</button>
+          <button class="btn" id="presetBtn" type="button" aria-haspopup="listbox" aria-expanded="false">Example 1</button>
+          <button class="btn icon" id="nextBtn" type="button" title="Next example" aria-label="Next example">›</button>
+          <div class="menu" id="presetMenu" role="listbox" hidden></div>
+        </div>
+      </div>
+      <div class="stmt-box" id="stmtBox">
+        <div class="quants" id="quants" role="group" aria-label="Quantifiers"></div>
+        <div class="click-edit-wrap" id="fWrap">
+          <div class="click-edit-display" id="fDisplay" tabindex="0" role="button" aria-label="Edit the statement after the quantifiers"></div>
+          <input type="text" class="click-edit-input" id="fInput" autocomplete="off" spellcheck="false" placeholder="e.g. d(p) ∧ b(q) ⇒ D(p,q)">
+        </div>
+      </div>
+      <div class="keyboard" id="keyboard"></div>
+      <div class="error" id="errorBox"></div>
+      <div class="defs">
+        <span class="d-line"><span class="d-term" data-tex="P\!"></span><span class="d-body">the set of points on the board</span></span>
+        <span class="d-line d-lead">For points <i>p</i>, <i>q</i> <span data-tex="\in"></span> <i>P</i>, we use the following predicates.</span>
+        <span><span class="d-term" data-tex="d(p)"></span><span class="d-body"><i>p</i> is a diamond</span></span>
+        <span><span class="d-term" data-tex="b(p)"></span><span class="d-body"><i>p</i> is black</span></span>
+        <span><span class="d-term" data-tex="D(p,q)"></span><span class="d-body"><i>p</i> dominates <i>q</i> (<i>p</i> is strictly above and to the right of <i>q</i>)</span></span>
+      </div>
+    </section>
+
+    <section class="panel" id="diagramPanel">
+      <div class="panel-head">
+        <h2>Board</h2>
+        <div class="row">
+          <span class="seg" role="group" aria-label="Mode">
+            <button class="btn" id="modeCheck" type="button" aria-pressed="true">Check</button>
+            <button class="btn" id="modeEdit" type="button" aria-pressed="false">Edit</button>
+          </span>
+          <div id="boardPicker">
+            <button class="btn" id="boardBtn" type="button" aria-haspopup="listbox" aria-expanded="false" aria-label="Choose a board">Random</button>
+            <div class="menu" id="boardMenu" role="listbox" hidden></div>
+          </div>
+          <button class="btn" id="clearBtn" type="button" title="Clear the check marks">Clear marks</button>
+        </div>
+      </div>
+      <div class="stage">
+        <div class="live" id="live" aria-live="polite"></div>
+        <div class="status" id="status"></div>
+        <div class="whole" id="whole">
+          <span class="w-check"><span class="w-label" id="capLabel"><span class="w-whole">Whole s</span><span class="w-short">S</span>tatement:</span><span id="bigPill"></span><button class="btn" id="answersBtn" type="button" aria-pressed="false">Show answer</button></span>
+          <span class="w-edit" hidden><span class="palette" id="palette" role="group" aria-label="Edit tool"></span></span>
+        </div>
+        <div class="big" id="big">
+          <svg id="bigSvg"></svg>
+        </div>
+      </div>
+      <div class="key" id="key"></div>
+    </section>
+  </div>
+
+</div>
+
+<script>
+/* =====================================================================
+   Data
+   ===================================================================== */
+const PRESETS = [
+  '∃p∃q d(p) ∧ b(q) ∧ D(p,q)',
+  '∃p∃q d(p) ⇒ (b(q) ⇒ D(p,q))',
+  '∃p∀q d(p) ∧ b(q) ∧ D(p,q)',
+  '∃p∀q (d(p) ∧ b(q)) ⇒ D(p,q)',
+  '∃p∀q d(p) ∧ (b(q) ⇒ D(p,q))',
+  '∀p∃q (d(p) ∧ b(q)) ⇒ D(p,q)',
+  '∀p∃q d(p) ⇒ (b(q) ∧ D(p,q))',
+  '∀p∀q (d(p) ∧ b(q)) ⇒ D(p,q)',
+  '∃q∀p d(p) ⇒ (b(q) ∧ D(p,q))',
+  '∀q∃p d(p) ∧ (b(q) ⇒ D(p,q))',
+];
+// example boards: x is the column (0–5, left to right), y the row (0–7, bottom to top)
+const BOARD_YS = [1,4,6,0,3,7];
+const exampleBoard = (shapes, colours) => BOARD_YS.map((y,x)=>({x, y, diamond:shapes[x]==='d', black:colours[x]==='b'}));
+const BOARDS = [
+  exampleBoard('oooooo', 'wwwwww'),
+  exampleBoard('dddddd', 'bbwbbb'),
+  exampleBoard('ddoddo', 'bbbbbb'),
+  exampleBoard('ooddod', 'wwwwww'),
+  exampleBoard('ooddod', 'wbwbww'),
+];
+// random boards: six points, usually each in its own row and column
+const rnd = n => Math.floor(Math.random()*n);
+function shuffle(a){ for (let i=a.length-1;i>0;i--){ const j=rnd(i+1); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+const SHARED_LINES = 0.15;   // share of boards where points may share a row or column
+function randomBoard(){
+  for (;;){
+    let pts = [];
+    if (Math.random() >= SHARED_LINES){
+      const xs = shuffle([0,1,2,3,4,5]), ys = shuffle([0,1,2,3,4,5,6,7]);
+      pts = xs.map((x,i)=>({x, y:ys[i], diamond:Math.random()<0.5, black:Math.random()<0.5}));
+    }
+    let guard = 0;
+    while (pts.length < 6 && guard++ < 400){
+      const x = rnd(6), y = rnd(8);
+      if (pts.some(p => (p.x===x && Math.abs(p.y-y)<=1) || (p.y===y && Math.abs(p.x-x)<=1))) continue;
+      pts.push({x, y, diamond:Math.random()<0.5, black:Math.random()<0.5});
+    }
+    if (pts.length < 6) continue;
+    const varied = pts.some(p=>p.diamond) && pts.some(p=>!p.diamond) && pts.some(p=>p.black) && pts.some(p=>!p.black);
+    if (!varied) continue;
+    return pts.sort((a,b)=> a.x-b.x || a.y-b.y);
+  }
+}
+// the board lives in a one-element list so all the checking code can stay per-board (index 0)
+let diagrams = [randomBoard()];
+
+/* =====================================================================
+   Tokenizer + parser
+   statement := quant quant? body
+   body      := iff ;  iff := imp (↔ imp)* ;  imp := or (→ imp)?
+   or := and (∨ and)* ;  and := not (∧ not)* ;  not := ¬ not | atom
+   atom := ( body ) | d(v) | b(v) | D(v,v) | v = v | v ≠ v
+   ===================================================================== */
+const KEYS = [
+  {ch:'¬', tex:'\\neg', name:'not'}, {ch:'∧', tex:'\\land', name:'and'}, {ch:'∨', tex:'\\lor', name:'or'},
+  {ch:'⇒', tex:'\\Rightarrow', name:'implies'}, {ch:'⇔', tex:'\\Leftrightarrow', name:'iff'}, {ch:'=', tex:'=', name:'equals'}, {ch:'≠', tex:'\\mathrel{\\maltese}', name:'not equal'},
+  {ch:'()', tex:'(\\;)', name:'group', wrap:true},
+];
+
+function tokenize(src){
+  const toks = [];
+  let i = 0;
+  const two = s => src.startsWith(s, i);
+  while (i < src.length){
+    const c = src[i];
+    if (/\s/.test(c) || c==='.' || c===':'){ i++; continue; }
+    if (c==='∈'){                         // optional "∈P" after a quantified variable
+      i++; while (i<src.length && /\s/.test(src[i])) i++;
+      if (src[i]==='P'){ i++; continue; }
+      throw new Error('"∈" must be followed by P.');
+    }
+    if (two('<->')||two('<=>')){ toks.push({t:'IFF'}); i+=3; continue; }
+    if (two('->')||two('=>')){ toks.push({t:'IMP'}); i+=2; continue; }
+    if (two('!=')){ toks.push({t:'NEQ'}); i+=2; continue; }
+    if (c==='∃'||c==='E'){ toks.push({t:'Q', q:'E'}); i++; continue; }
+    if (c==='∀'||c==='A'){ toks.push({t:'Q', q:'A'}); i++; continue; }
+    if (c==='¬'||c==='~'||c==='!'){ toks.push({t:'NOT'}); i++; continue; }
+    if (c==='∧'||c==='&'||c==='^'){ toks.push({t:'AND'}); i++; continue; }
+    if (c==='∨'||c==='|'){ toks.push({t:'OR'}); i++; continue; }
+    if (c==='→'||c==='⇒'){ toks.push({t:'IMP'}); i++; continue; }
+    if (c==='↔'||c==='⇔'){ toks.push({t:'IFF'}); i++; continue; }
+    if (c==='≠'){ toks.push({t:'NEQ'}); i++; continue; }
+    if (c==='='){ toks.push({t:'EQ'}); i++; continue; }
+    if (c==='('){ toks.push({t:'LP'}); i++; continue; }
+    if (c===')'){ toks.push({t:'RP'}); i++; continue; }
+    if (c===','){ toks.push({t:'COMMA'}); i++; continue; }
+    if (c==='d'||c==='b'||c==='D'){
+      let j=i+1; while (j<src.length && /\s/.test(src[j])) j++;
+      if (src[j]==='('){ toks.push({t:'PRED', name:c}); i++; continue; }
+      throw new Error(`"${c}" is a predicate here, so it needs parentheses, like ${c==='D'?'D(p,q)':c+'(p)'}.`);
+    }
+    if (/[a-z]/.test(c)){ toks.push({t:'VAR', v:c}); i++; continue; }
+    throw new Error(`Unexpected symbol "${c}".`);
+  }
+  return toks;
+}
+
+class Parser{
+  constructor(toks){ this.toks = toks; this.i = 0; }
+  peek(){ return this.toks[this.i]; }
+  is(t){ return this.peek() && this.peek().t===t; }
+  eat(t, msg){ if (!this.is(t)) throw new Error(msg); return this.toks[this.i++]; }
+  parse(){
+    if (!this.toks.length) throw new Error('Type a statement, for example ∃p∀q d(p) ∧ b(q).');
+    const quants = [];
+    while (this.is('Q')){
+      const q = this.toks[this.i++].q;
+      if (!this.is('VAR')) throw new Error(`${q==='E'?'∃':'∀'} must be followed by a variable, like ${q==='E'?'∃':'∀'}p.`);
+      const v = this.toks[this.i++].v;
+      if (quants.some(x=>x.v===v)) throw new Error(`The variable ${v} is quantified twice.`);
+      quants.push({q, v});
+    }
+    if (!quants.length) throw new Error('Start with a quantifier, like ∃p or ∀p.');
+    if (quants.length > 2) throw new Error('This page handles at most two quantifiers.');
+    if (!this.peek()) throw new Error('The statement needs a body after the quantifiers.');
+    const body = this.iff();
+    if (this.peek()){
+      if (this.is('Q')) throw new Error('Put all quantifiers at the front of the statement.');
+      if (this.is('RP')) throw new Error('Unexpected ")" with no matching "(".');
+      throw new Error('Unexpected symbol after the end of the statement. Check your parentheses.');
+    }
+    const bound = new Set(quants.map(q=>q.v));
+    (function walk(n){
+      if (n.vars) n.vars.forEach(v=>{ if (!bound.has(v)) throw new Error(`The variable ${v} is not quantified.`); });
+      ['a','b'].forEach(k=> n[k] && walk(n[k]));
+    })(body);
+    return {quants, body};
+  }
+  bin(next, tok, kind){
+    let l = next();
+    while (this.is(tok)){ this.i++; l = {k:kind, a:l, b:next()}; }
+    return l;
+  }
+  iff(){ return this.bin(()=>this.imp(), 'IFF', 'iff'); }
+  imp(){
+    const l = this.or();
+    if (this.is('IMP')){ this.i++; return {k:'imp', a:l, b:this.imp()}; }
+    return l;
+  }
+  or(){ return this.bin(()=>this.and(), 'OR', 'or'); }
+  and(){ return this.bin(()=>this.not(), 'AND', 'and'); }
+  not(){
+    if (this.is('NOT')){ this.i++; return {k:'not', a:this.not()}; }
+    return this.atom();
+  }
+  atom(){
+    const t = this.peek();
+    if (!t) throw new Error('Something is missing after the last symbol.');
+    if (t.t==='LP'){
+      this.i++;
+      if (this.is('RP')) throw new Error('Empty parentheses "()" are not allowed.');
+      const n = this.iff();
+      this.eat('RP', 'Missing closing parenthesis ")".');
+      n.paren = true;
+      return n;
+    }
+    if (t.t==='PRED'){
+      this.i++;
+      this.eat('LP', `${t.name} needs parentheses.`);
+      const v1 = this.eat('VAR', `${t.name}( ) needs a variable inside.`).v;
+      let vars = [v1];
+      if (t.name==='D'){
+        this.eat('COMMA', 'D takes two variables, like D(p,q).');
+        vars.push(this.eat('VAR', 'D takes two variables, like D(p,q).').v);
+      } else if (this.is('COMMA')) throw new Error(`${t.name} takes one variable, like ${t.name}(p).`);
+      this.eat('RP', `Missing ")" after ${t.name}(${vars.join(',')}.`);
+      return {k:'pred', name:t.name, vars};
+    }
+    if (t.t==='VAR'){
+      this.i++;
+      if (this.is('EQ')||this.is('NEQ')){
+        const neq = this.toks[this.i++].t==='NEQ';
+        const v2 = this.eat('VAR', 'Compare two variables, like p = q.').v;
+        return {k:neq?'neq':'eq', vars:[t.v, v2]};
+      }
+      throw new Error(`"${t.v}" alone isn't a statement; try d(${t.v}) or p = q.`);
+    }
+    if (t.t==='Q') throw new Error('Put all quantifiers at the front of the statement.');
+    if (t.t==='RP') throw new Error('Unexpected ")". Something is missing before it.');
+    const names = {AND:'∧', OR:'∨', IMP:'⇒', IFF:'⇔', EQ:'=', NEQ:'≠', COMMA:','};
+    throw new Error(`Unexpected "${names[t.t]||'?'}": it needs something on its left.`);
+  }
+}
+
+/* =====================================================================
+   Evaluation (three-valued, so we can tell when q doesn't matter)
+   env maps variable -> point, or null for "not chosen yet"
+   ===================================================================== */
+function atomValue(n, env){
+  const pts = n.vars.map(v=>env[v]);
+  if (pts.some(p=>p==null)) return null;
+  switch(n.k){
+    case 'eq':  return pts[0]===pts[1];
+    case 'neq': return pts[0]!==pts[1];
+  }
+  if (n.name==='d') return pts[0].diamond;
+  if (n.name==='b') return pts[0].black;
+  return pts[0].x > pts[1].x && pts[0].y > pts[1].y;
+}
+function ev(n, env){
+  switch(n.k){
+    case 'pred': case 'eq': case 'neq': return atomValue(n, env);
+    case 'not': { const a = ev(n.a, env); return a==null ? null : !a; }
+    case 'and': { const a=ev(n.a,env), b=ev(n.b,env); if (a===false||b===false) return false; return (a==null||b==null)?null:true; }
+    case 'or':  { const a=ev(n.a,env), b=ev(n.b,env); if (a===true||b===true) return true; return (a==null||b==null)?null:false; }
+    case 'imp': { const a=ev(n.a,env), b=ev(n.b,env); if (a===false||b===true) return true; return (a==null||b==null)?null:false; }
+    case 'iff': { const a=ev(n.a,env), b=ev(n.b,env); return (a==null||b==null)?null:a===b; }
+  }
+}
+function truthOf(F, pts){
+  const [Q1, Q2] = F.quants;
+  const inner = p => {
+    if (!Q2) return ev(F.body, {[Q1.v]:p});
+    const vals = pts.map(q=>ev(F.body, {[Q1.v]:p, [Q2.v]:q}));
+    return Q2.q==='E' ? vals.some(Boolean) : vals.every(Boolean);
+  };
+  const outs = pts.map(inner);
+  return Q1.q==='E' ? outs.some(Boolean) : outs.every(Boolean);
+}
+
+/* =====================================================================
+   LaTeX
+   ===================================================================== */
+const COL = {t:'#2f7a4f', f:'#a8384a', u:'#66798a'};   // u = not known yet (4.5:1 on white)
+// a quantifier is drawn in plain ink until it has a result, then green or red
+const quantCol = v => v===true||v==='T' ? COL.t : v===false||v==='F' ? COL.f : null;
+const colOf = v => v===true||v==='T' ? COL.t : v===false||v==='F' ? COL.f : COL.u;
+function atomTex(n){
+  if (n.k==='eq') return `${n.vars[0]} = ${n.vars[1]}`;
+  if (n.k==='neq') return `${n.vars[0]} \\mathrel{\\maltese} ${n.vars[1]}`;
+  return `${n.name}(${n.vars.join(',')})`;
+}
+// env given => atoms are coloured by truth value
+function bodyTex(n, env){
+  const core = (()=>{
+    switch(n.k){
+      case 'pred': case 'eq': case 'neq':
+        return env ? `\\textcolor{${colOf(atomValue(n, env))}}{${atomTex(n)}}` : atomTex(n);
+      case 'not': return '\\neg ' + bodyTex(n.a, env);
+      case 'and': return bodyTex(n.a, env) + ' \\land ' + bodyTex(n.b, env);
+      case 'or':  return bodyTex(n.a, env) + ' \\lor ' + bodyTex(n.b, env);
+      case 'imp': return bodyTex(n.a, env) + ' \\Rightarrow ' + bodyTex(n.b, env);
+      case 'iff': return bodyTex(n.a, env) + ' \\Leftrightarrow ' + bodyTex(n.b, env);
+    }
+  })();
+  return n.paren ? `\\left(${core}\\right)` : core;
+}
+function quantTex(Q, colour){
+  const t = `${Q.q==='E'?'\\exists':'\\forall'}_{${Q.v}\\in P}`;
+  return colour ? `\\textcolor{${colour}}{${t}}` : t;
+}
+function statementTex(F){ return F.quants.map(q=>quantTex(q)).join('\\,') + '\\;\\; ' + bodyTex(F.body); }
+// KaTeX's own \neq is drawn as a slash laid over "=", which iOS renders badly, and its fonts have no "≠" glyph.
+// So ≠ is typeset as a same-sized placeholder (✠) and swapped for the real character afterwards.
+function tex(s){ return katex.renderToString(s, {throwOnError:false, strict:false}).replace(/✠/g, '≠'); }
+
+/* =====================================================================
+   State
+   ===================================================================== */
+let F = null;                // parsed statement
+let gridState = [];          // per diagram: {outer, inner, preview, rec: Map(outerIdx -> {tested: Map(innerIdx -> bool)})}
+const cur = 0;               // the one board
+let editMode = false, showAnswers = false;
+let tool = {erase:false, diamond:false, black:true};   // edit-mode brush
+const MAX_POINTS = 12;
+
+function blankState(){ return {outer:null, inner:null, preview:null, rec:new Map()}; }
+function freshState(){ gridState = diagrams.map(blankState); }
+// the q being shown: the hovered point if any, otherwise the last one tried
+function shownInner(st){ return st.preview!=null ? st.preview : st.inner; }
+
+// what we know about one choice of the outer variable
+function outerStatus(g, f){
+  const st = gridState[g], pts = diagrams[g];
+  const r = st.rec.get(f);
+  if (!r) return {s:null};
+  const [Q1, Q2] = F.quants;
+  if (!Q2) return {s: ev(F.body, {[Q1.v]:pts[f]}) ? 'T' : 'F'};
+  const early = ev(F.body, {[Q1.v]:pts[f], [Q2.v]:null});
+  if (early!=null) return {s: early?'T':'F', early:true};
+  const vals = [...r.tested.values()];
+  const n = vals.length, N = pts.length;
+  if (Q2.q==='E'){
+    if (vals.some(Boolean)) return {s:'T', n};
+    return {s: n===N ? 'F' : '?', n};
+  } else {
+    if (vals.some(v=>!v)) return {s:'F', n};
+    return {s: n===N ? 'T' : '?', n};
+  }
+}
+function settledCount(g){
+  return [...gridState[g].rec.keys()].filter(f=>{ const s = outerStatus(g,f).s; return s==='T'||s==='F'; }).length;
+}
+function gridVerdict(g){
+  if (!F) return null;
+  const N = diagrams[g].length, Q1 = F.quants[0];
+  const ss = [...gridState[g].rec.keys()].map(f=>outerStatus(g,f).s);
+  const done = ss.filter(s=>s==='T'||s==='F');
+  if (Q1.q==='E'){
+    if (done.includes('T')) return 'T';
+    return done.length===N ? 'F' : null;
+  } else {
+    if (done.includes('F')) return 'F';
+    return done.length===N ? 'T' : null;
+  }
+}
+
+/* =====================================================================
+   Diagram drawing
+   ===================================================================== */
+const U = 40, XMIN = -0.85, XMAX = 5.85, YMIN = -0.75, YMAX = 8.25;
+const W = (XMAX-XMIN)*U, H = (YMAX-YMIN)*U;
+const sx = x => (x-XMIN)*U, sy = y => (YMAX-y)*U;
+
+function shapeMarkup(p, cx, cy, s=1){
+  const fill = p.black ? '#16324f' : '#ffffff';
+  if (p.diamond){
+    const w = 11*s, h = 15*s;
+    return `<polygon points="${cx},${cy-h} ${cx+w},${cy} ${cx},${cy+h} ${cx-w},${cy}" fill="${fill}" stroke="#16324f" stroke-width="${2*s}" stroke-linejoin="round"/>`;
+  }
+  return `<circle cx="${cx}" cy="${cy}" r="${10*s}" fill="${fill}" stroke="#16324f" stroke-width="${2*s}"/>`;
+}
+function markMarkup(kind, cx, cy, s=1){
+  if (kind==='T') return `<polyline points="${cx-5*s},${cy} ${cx-1.5*s},${cy+4*s} ${cx+5.5*s},${cy-5*s}" fill="none" stroke="${COL.t}" stroke-width="${2.6*s}" stroke-linecap="round" stroke-linejoin="round"/>`;
+  if (kind==='F') return `<path d="M${cx-4.5*s},${cy-4.5*s}L${cx+4.5*s},${cy+4.5*s}M${cx+4.5*s},${cy-4.5*s}L${cx-4.5*s},${cy+4.5*s}" stroke="${COL.f}" stroke-width="${2.6*s}" stroke-linecap="round"/>`;
+  return `<circle cx="${cx}" cy="${cy}" r="${3.2*s}" fill="#2f6690" opacity="0.55"/>`;
+}
+function shapeIcon(p){ return `<svg width="18" height="18" viewBox="-11 -11 22 22">${shapeMarkup(p,0,0,0.62)}</svg>`; }
+function gridLines(){
+  let s = '';
+  for (let x=0; x<=5; x++) s += `<line x1="${sx(x)}" y1="${sy(YMIN+0.15)}" x2="${sx(x)}" y2="${sy(YMAX-0.15)}" stroke="#e3eef6"/>`;
+  for (let y=0; y<=7; y++) s += `<line x1="${sx(XMIN+0.15)}" y1="${sy(y)}" x2="${sx(XMAX-0.15)}" y2="${sy(y)}" stroke="#e3eef6"/>`;
+  return s;
+}
+
+// which side(s) of the outer point does D look at?
+function dominanceDirs(){
+  const [Q1, Q2] = F.quants, dirs = {below:false, above:false};
+  if (!Q2) return dirs;
+  (function walk(n){
+    if (n.k==='pred' && n.name==='D'){
+      if (n.vars[0]===Q1.v && n.vars[1]===Q2.v) dirs.below = true;
+      if (n.vars[0]===Q2.v && n.vars[1]===Q1.v) dirs.above = true;
+    }
+    ['a','b'].forEach(k=> n[k] && walk(n[k]));
+  })(F.body);
+  return dirs;
+}
+
+function drawBig(g){
+  const pts = diagrams[g], st = gridState[g];
+  const [Q1, Q2] = F ? F.quants : [];
+  let s = gridLines();
+  const outer = editMode ? null : st.outer;
+  if (F && outer!=null && Q2){
+    const o = pts[outer], d = dominanceDirs();
+    if (d.below){
+      s += `<rect x="0" y="${sy(o.y)}" width="${sx(o.x)}" height="${H-sy(o.y)}" fill="#d7ebf7" opacity="0.7"/>`;
+      s += `<polyline points="0,${sy(o.y)} ${sx(o.x)},${sy(o.y)} ${sx(o.x)},${H}" fill="none" stroke="#2f6690" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+    }
+    if (d.above){
+      s += `<rect x="${sx(o.x)}" y="0" width="${W-sx(o.x)}" height="${sy(o.y)}" fill="#d7ebf7" opacity="0.7"/>`;
+      s += `<polyline points="${W},${sy(o.y)} ${sx(o.x)},${sy(o.y)} ${sx(o.x)},0" fill="none" stroke="#2f6690" stroke-width="1.6" stroke-dasharray="5 4"/>`;
+    }
+  }
+  if (F && !editMode){
+    // left of a point: its verdict as the outer variable
+    st.rec.forEach((_, f)=>{
+      const os = outerStatus(g, f).s;
+      s += markMarkup(os==='?'?'?':os, sx(pts[f].x)-27, sy(pts[f].y));
+    });
+    // right of a point: its result as the inner variable, for the current outer
+    if (outer!=null && Q2){
+      st.rec.get(outer).tested.forEach((v, q)=>{ s += markMarkup(v?'T':'F', sx(pts[q].x)+27, sy(pts[q].y), 0.8); });
+    }
+    if (outer!=null) s += `<circle cx="${sx(pts[outer].x)}" cy="${sy(pts[outer].y)}" r="19" fill="none" stroke="#2f6690" stroke-width="2.5"/>`;
+  }
+  pts.forEach((p,i)=>{
+    const cx = sx(p.x), cy = sy(p.y);
+    let label = '';
+    if (F && !editMode){
+      const names = [];
+      if (outer===i) names.push(Q1.v);
+      const qi = shownInner(st);
+      if (Q2 && outer!=null && qi===i) names.push(Q2.v);
+      const tried = !(Q2 && outer!=null && qi===i) || st.rec.get(outer).tested.has(i);
+      if (names.length) label = `<text x="${cx}" y="${cy-(outer===i?28:21)}" text-anchor="middle" font-family="Georgia,serif" font-style="italic" font-size="17" font-weight="700" fill="#2f6690" stroke="#fbfdfe" stroke-width="4" stroke-linejoin="round" paint-order="stroke" opacity="${tried?1:0.55}">${names.join('=')}</text>`;
+    }
+    s += `<g class="pt" data-i="${i}" tabindex="0" role="button" aria-label="${p.black?'black':'white'} ${p.diamond?'diamond':'circle'} at (${p.x}, ${p.y})">`+
+         `<circle class="hit" cx="${cx}" cy="${cy}" r="18" fill="transparent"/>${shapeMarkup(p,cx,cy)}</g>${label}`;
+  });
+  return s;
+}
+function verdictPill(g, short){
+  if (!F) return '';
+  const v = gridVerdict(g);
+  const word = b => short ? (b?'T':'F') : (b?'True':'False');
+  if (v) return `<span class="verdict ${v==='T'?'yes':'no'}">${word(v==='T')}</span>`;
+  if (showAnswers){
+    const a = truthOf(F, diagrams[g]);
+    return `<span class="verdict answer ${a?'yes':'no'}" title="Answer (not yet shown by your checks)">${word(a)}</span>`;
+  }
+  return `<span class="verdict pending">not decided yet</span>`;
+}
+
+/* =====================================================================
+   Rendering the stage: formula (coloured) right above the diagram
+   ===================================================================== */
+const live = document.getElementById('live'), statusEl = document.getElementById('status');
+const big = document.getElementById('big'), bigSvg = document.getElementById('bigSvg');
+bigSvg.setAttribute('viewBox', `0 0 ${W} ${H}`);
+
+function renderLive(){
+  if (!F){ live.innerHTML = '<span class="note">Fix the statement above to start checking.</span>'; setStatus(''); return; }
+  const g = cur, st = gridState[g], pts = diagrams[g];
+  const [Q1, Q2] = F.quants;
+  if (editMode){
+    live.innerHTML = liveMarkup(null, null);
+    setStatus(`Editing the board · ${diagrams[g].length} point${diagrams[g].length===1?'':'s'}`,
+              tool.erase ? 'Drag to move · click a point to erase it' : 'Drag to move · click to paint or add');
+    return;
+  }
+  // Above the board is only about the current pair: the atoms are coloured for this p and q,
+  // the quantifiers stay plain, and the line underneath names the pair and its result.
+  // (Single points are marked on the board; the whole statement's result is under the board.)
+  const outer = st.outer, qi = Q2 ? shownInner(st) : null;
+  let env = null;
+  if (outer!=null){ env = {[Q1.v]:pts[outer]}; if (Q2) env[Q2.v] = qi!=null ? pts[qi] : null; }
+  live.innerHTML = liveMarkup(env, env ? ev(F.body, env) : null);
+
+  const a = Q1.v, pt = i => `${shapeIcon(pts[i])}&thinsp;(${pts[i].x},&thinsp;${pts[i].y})`;
+  const result = v => `<b class="${v?'t':'f'}">${v?'true':'false'}</b>`;
+  if (outer==null){
+    setStatus(Q2 ? `Click a point to choose <i>${a}</i>.` : `Click points to check them as <i>${a}</i>.`);
+    return;
+  }
+  // line 1: which pair · line 2: the part after the quantifiers, for that pair · line 3: progress / hints
+  const after = v => `the part after the quantifiers is ${result(v)}`;
+  if (!Q2){ setStatus(`With <i>${a}</i> = ${pt(outer)}:`, after(ev(F.body, env))); return; }
+  const b = Q2.v, os = outerStatus(g, outer);
+  const count = `${os.n}/${pts.length} <i>${b}</i>'s tried with this <i>${a}</i>`;
+  if (os.early) setStatus(`With <i>${a}</i> = ${pt(outer)}, whatever <i>${b}</i> is:`, after(os.s==='T'));
+  else if (qi==null) setStatus(`With <i>${a}</i> = ${pt(outer)}:`, `click points to try them as <i>${b}</i>`, os.n ? count : '');
+  else setStatus(`With <i>${a}</i> = ${pt(outer)} and <i>${b}</i> = ${pt(qi)}:`, after(ev(F.body, env)),
+                 st.rec.get(outer).tested.has(qi) ? count : `${count} · click to try this one`);
+}
+function setStatus(line1, line2='', line3=''){ statusEl.innerHTML = `<div>${line1}</div><div>${line2}</div><div>${line3}</div>`; }
+
+// The formula above the board: the quantifiers, then a box around the part after them.
+// The box is outlined green / red by that part's value for the current p and q (neutral when unknown),
+// matching "the part after the quantifiers is true / false" in the lines underneath.
+function liveMarkup(env, val){
+  const cls = val===true ? ' t' : val===false ? ' f' : '';
+  return `<span class="quantpart">${tex(F.quants.map(Q=>quantTex(Q)).join('\\,'))}</span>` +
+         `<span class="bodybox${cls}">${tex(bodyTex(F.body, env))}</span>`;
+}
+
+// the tallest the formula line can get for this statement
+// The space only grows (until the window is resized), so the board can't bounce up and down while you type.
+let reservedFor = null;
+function reserveLiveHeight(){
+  if (!F) return;
+  if (reservedFor!==innerWidth){ live.style.minHeight = ''; reservedFor = innerWidth; }
+  const prev = parseFloat(live.style.minHeight) || 0;
+  live.style.minHeight = '';
+  live.innerHTML = liveMarkup(null, null);
+  live.style.minHeight = Math.max(prev, Math.ceil(live.getBoundingClientRect().height)) + 'px';
+}
+let resizeTimer;
+window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ reserveLiveHeight(); renderLive(); }, 120); });
+
+function render(){
+  // redrawing replaces the points, so remember which one had keyboard focus and put it back
+  const ae = document.activeElement, fpt = ae && bigSvg.contains(ae) && ae.closest ? ae.closest('.pt') : null;
+  const focusIdx = fpt ? +fpt.dataset.i : null;
+  bigSvg.innerHTML = drawBig(cur);
+  if (focusIdx!=null){
+    const el = bigSvg.querySelector(`.pt[data-i="${focusIdx}"]`);
+    if (el){ refocusing = true; el.focus({preventScroll:true}); refocusing = false; }
+  }
+  document.getElementById('bigPill').innerHTML = editMode ? '' : verdictPill(cur, false);
+  document.getElementById('capLabel').style.visibility = (editMode || !F) ? 'hidden' : 'visible';
+  answersBtn.style.visibility = F ? 'visible' : 'hidden';
+  const v = gridVerdict(cur);
+  big.className = 'big' + (v==='T'?' yes':v==='F'?' no':'') + (editMode?' editing-points':'');
+  renderLive();
+  renderKey();
+}
+
+/* =====================================================================
+   Interaction (same on mouse, touch and keyboard)
+   click a point          -> choose it as p
+   then click points      -> try them as q (p itself included: q may equal p)
+   click empty space or Esc -> let go of p
+   hovering / focusing    -> preview only, nothing is recorded
+   ===================================================================== */
+let hoverIdx = null;
+let refocusing = false;      // true while render() restores focus, so that isn't treated as a new keyboard move
+function chooseOuter(g, i){
+  const st = gridState[g];
+  st.outer = i; st.inner = null; st.preview = null;
+  if (!st.rec.has(i)) st.rec.set(i, {tested:new Map()});
+}
+function release(g){ const st = gridState[g]; st.outer = null; st.inner = null; st.preview = null; }
+function tryInner(g, q){
+  const st = gridState[g];
+  if (st.outer==null || !F.quants[1]) return;
+  const p = diagrams[g][st.outer];
+  st.rec.get(st.outer).tested.set(q, ev(F.body, {[F.quants[0].v]:p, [F.quants[1].v]:diagrams[g][q]}));
+  st.inner = q;
+}
+function setPreview(i){
+  const st = gridState[cur];
+  const next = (F && !editMode && st.outer!=null && F.quants[1]) ? i : null;
+  if (st.preview===next) return;
+  st.preview = next;
+  render();
+}
+/* ---------- editing a board ---------- */
+// the grid cell under the pointer, or null when it's off the grid
+function cellAt(e){
+  const m = bigSvg.getScreenCTM(); if (!m) return null;
+  const pt = bigSvg.createSVGPoint(); pt.x = e.clientX; pt.y = e.clientY;
+  const q = pt.matrixTransform(m.inverse());
+  const fx = q.x/U + XMIN, fy = YMAX - q.y/U;
+  const x = Math.round(fx), y = Math.round(fy);
+  if (x<0 || x>5 || y<0 || y>7 || Math.abs(fx-x)>0.5 || Math.abs(fy-y)>0.5) return null;
+  return {x, y};
+}
+const occupied = (g, x, y, except) => diagrams[g].some((p,j)=> j!==except && p.x===x && p.y===y);
+function edited(g){ gridState[g] = blankState(); boardIsRandom = false; syncHash(); }
+function applyTool(g, i){
+  const pts = diagrams[g];
+  if (tool.erase){ if (pts.length>1) pts.splice(i, 1); }
+  else { pts[i].diamond = tool.diamond; pts[i].black = tool.black; }
+  edited(g);
+}
+function addPoint(g, c){
+  if (tool.erase || !c || occupied(g, c.x, c.y) || diagrams[g].length>=MAX_POINTS) return false;
+  diagrams[g].push({x:c.x, y:c.y, diamond:tool.diamond, black:tool.black});
+  edited(g); return true;
+}
+let drag = null;
+bigSvg.addEventListener('pointerdown', e=>{
+  if (!editMode) return;
+  const i = ptIndex(e);
+  drag = {i, moved:false};
+  if (i!=null){ try{ bigSvg.setPointerCapture(e.pointerId); }catch(err){} }
+  e.preventDefault();
+});
+bigSvg.addEventListener('pointerup', e=>{
+  if (!editMode || !drag) return;
+  const d = drag; drag = null;
+  if (d.moved){ edited(cur); render(); return; }
+  if (d.i!=null) applyTool(cur, d.i); else addPoint(cur, cellAt(e));
+  render();
+});
+bigSvg.addEventListener('pointercancel', ()=>{ drag = null; });
+function dragMove(e){
+  if (!drag || drag.i==null) return;
+  const c = cellAt(e), p = diagrams[cur][drag.i];
+  if (!c || (c.x===p.x && c.y===p.y) || occupied(cur, c.x, c.y, drag.i)) return;
+  p.x = c.x; p.y = c.y; drag.moved = true;
+  render();
+}
+
+function renderPalette(){
+  const opts = [
+    {diamond:false, black:false, name:'white circle'}, {diamond:false, black:true, name:'black circle'},
+    {diamond:true, black:false, name:'white diamond'}, {diamond:true, black:true, name:'black diamond'},
+  ];
+  const el = document.getElementById('palette');
+  el.innerHTML = opts.map((o,i)=>{
+    const on = !tool.erase && tool.diamond===o.diamond && tool.black===o.black;
+    return `<button type="button" class="btn${on?' active':''}" data-o="${i}" aria-pressed="${on}" aria-label="Paint ${o.name}" title="${o.name}">`+
+      `<svg width="16" height="18" viewBox="-8 -9 16 18">${shapeMarkup(o,0,0,0.55)}</svg></button>`;
+  }).join('') + `<button type="button" class="btn${tool.erase?' active':''}" data-o="erase" aria-pressed="${tool.erase}">Erase</button>`;
+  el.querySelectorAll('button').forEach(b=> b.addEventListener('click', ()=>{
+    const o = b.dataset.o;
+    tool = o==='erase' ? {...tool, erase:true} : {erase:false, diamond:opts[+o].diamond, black:opts[+o].black};
+    renderPalette(); renderLive();
+  }));
+}
+
+const ptIndex = e => { const el = e.target.closest && e.target.closest('.pt'); return el ? +el.dataset.i : null; };
+bigSvg.addEventListener('pointermove', e=>{
+  if (editMode){ dragMove(e); return; }
+  if (e.pointerType==='touch') return;
+  const i = ptIndex(e);
+  if (i===hoverIdx) return;
+  hoverIdx = i;
+  setPreview(i);
+});
+bigSvg.addEventListener('pointerleave', ()=>{ hoverIdx = null; setPreview(null); });
+bigSvg.addEventListener('click', e=>{
+  if (editMode || !F) return;          // edit mode is handled on pointerdown/up so drags work
+  activate(ptIndex(e));
+});
+bigSvg.addEventListener('keydown', e=>{
+  const i = ptIndex(e);
+  if (i==null) return;
+  if (e.key==='Enter' || e.key===' '){ e.preventDefault(); activate(i); }
+});
+bigSvg.addEventListener('focusin', e=>{
+  // keyboard focus previews, like hovering; clicks and our own re-focus are ignored
+  if (refocusing || !e.target.matches(':focus-visible')) return;
+  setPreview(ptIndex(e));
+});
+function activate(i){
+  if (editMode){ if (i!=null){ applyTool(cur, Math.min(i, diagrams[cur].length-1)); update(Math.min(i, diagrams[cur].length-1)); } return; }
+  const st = gridState[cur];
+  if (i==null){ if (st.outer!=null){ release(cur); update(); } return; }
+  if (st.outer!=null && F.quants[1]){
+    // every point can be tried as q, p itself included, as often as you like;
+    // letting go of p is a click on empty space, or Esc
+    tryInner(cur, i);
+  } else if (i===st.outer) release(cur);
+  else chooseOuter(cur, i);
+  update(i);
+}
+// re-render, then put keyboard focus back on the same point if it had it
+function update(){ render(); }   // render() keeps keyboard focus on the same point
+
+/* =====================================================================
+   Key
+   ===================================================================== */
+// which side of a point its mark goes: a 2×2 grid (works / fails × outer / inner variable)
+function renderKey(){
+  const pt = {diamond:true, black:false};
+  const a = F ? F.quants[0].v : 'p', Q2 = F && F.quants[1];
+  const icon = (side, kind) => `<svg width="30" height="22" viewBox="${side==='left'?'-22':'-8'} -11 30 22">${shapeMarkup(pt,0,0,0.62)}${markMarkup(kind, side==='left'?-14:14, 0, 0.75)}</svg>`;
+  const item = (side, kind, v) => `<span>${icon(side, kind)}<span>${kind==='T'?'works':'fails'} as <i>${v}</i></span></span>`;
+  const key = document.getElementById('key');
+  key.classList.toggle('one', !Q2);
+  // the dot: a point that was chosen as p but hasn't been decided (it stays after moving on to another p)
+  const pending = Q2 ? `<span class="wide">${icon('left','?')}<span>undecided as <i>${a}</i></span></span>` : '';
+  key.innerHTML = item('left','T',a) + (Q2 ? item('right','T',Q2.v) : '') + item('left','F',a) + (Q2 ? item('right','F',Q2.v) : '') + pending;
+}
+
+/* =====================================================================
+   Statement editor + example menu
+   ===================================================================== */
+const fInput = document.getElementById('fInput');
+const fWrap = document.getElementById('fWrap');
+const fDisplay = document.getElementById('fDisplay');
+const errorBox = document.getElementById('errorBox');
+const presetBtn = document.getElementById('presetBtn');
+const presetMenu = document.getElementById('presetMenu');
+let presetIdx = 0;
+
+PRESETS.forEach((s,i)=>{
+  const b = document.createElement('button');
+  b.type = 'button'; b.setAttribute('role','option');
+  b.innerHTML = `<span class="m-num">${i+1}.</span><span>${tex(statementTex(new Parser(tokenize(s)).parse()))}</span>`;
+  b.addEventListener('click', ()=>{ closeMenu(); loadPreset(i); presetBtn.focus(); });
+  presetMenu.appendChild(b);
+});
+function openMenu(){
+  presetMenu.hidden = false; presetBtn.setAttribute('aria-expanded','true');
+  const sel = presetMenu.children[presetIdx] || presetMenu.children[0];
+  sel.focus(); sel.scrollIntoView({block:'nearest'});
+}
+function closeMenu(){ presetMenu.hidden = true; presetBtn.setAttribute('aria-expanded','false'); }
+presetBtn.addEventListener('click', ()=> presetMenu.hidden ? openMenu() : closeMenu());
+presetMenu.addEventListener('keydown', e=>{
+  const items = [...presetMenu.children], i = items.indexOf(document.activeElement);
+  if (e.key==='ArrowDown'){ e.preventDefault(); items[Math.min(i+1, items.length-1)].focus(); }
+  else if (e.key==='ArrowUp'){ e.preventDefault(); items[Math.max(i-1, 0)].focus(); }
+  else if (e.key==='Escape'){ closeMenu(); presetBtn.focus(); }
+});
+document.addEventListener('click', e=>{ if (!presetMenu.hidden && !e.target.closest('.row.picker')) closeMenu(); });
+
+const kb = document.getElementById('keyboard');
+KEYS.forEach(k=>{
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.innerHTML = `<span class="kb-sym">${tex(k.tex)}</span><span class="kb-name">${k.name}</span>`;
+  btn.addEventListener('mousedown', e=>e.preventDefault());
+  btn.addEventListener('click', ()=>{ fWrap.classList.add('editing'); k.wrap ? wrapSelection(fInput) : insertAtCursor(fInput, k.ch); });
+  kb.appendChild(btn);
+});
+// "( )" wraps whatever is selected, or drops the cursor between a fresh pair
+function wrapSelection(input){
+  const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0,a) + '(' + input.value.slice(a,b) + ')' + input.value.slice(b);
+  input.focus();
+  if (a===b) input.setSelectionRange(a+1, a+1); else input.setSelectionRange(b+2, b+2);
+  input.dispatchEvent(new Event('input'));
+}
+function insertAtCursor(input, text){
+  const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? input.value.length;
+  input.value = input.value.slice(0,a) + text + input.value.slice(b);
+  input.focus(); input.setSelectionRange(a+text.length, a+text.length);
+  input.dispatchEvent(new Event('input'));
+}
+function escapeHtml(s){ return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+/* The quantifiers are two buttons (always p and q, in either order); the text box holds only the
+   rest of the statement, so there can't be a third quantifier or a variable other than p and q. */
+let prefix = [{q:'E', v:'p'}, {q:'E', v:'q'}];
+const prefixText = () => prefix.map(Q=>(Q.q==='E'?'∃':'∀')+Q.v).join('');
+const statementSource = () => prefixText() + ' ' + fInput.value.trim();
+const quantsEl = document.getElementById('quants');
+function renderQuants(){
+  quantsEl.innerHTML = prefix.map((Q,i)=>
+    `<button type="button" class="qbtn" data-q="${i}" title="Click to switch to ${Q.q==='E'?'∀':'∃'} · drag to reorder" `+
+    `aria-label="${Q.q==='E'?'exists':'for all'} ${Q.v}. Enter switches it, arrow keys move it">${tex(quantTex(Q))}</button>`
+  ).join('');
+  quantsEl.querySelectorAll('[data-q]').forEach(wireQuant);
+}
+const flipQuant = i => { const Q = prefix[i]; Q.q = Q.q==='E' ? 'A' : 'E'; applyStatement(); };
+const swapQuants = focusIdx => { prefix.reverse(); applyStatement(); const b = quantsEl.querySelector(`[data-q="${focusIdx}"]`); if (b) b.focus(); };
+// click = flip ∃/∀; drag past the other chip = swap the order; keyboard: Enter/Space flips, ←/→ moves
+function wireQuant(btn){
+  const i = +btn.dataset.q;
+  let drag = null;
+  btn.addEventListener('pointerdown', e=>{
+    if (e.button!==0) return;
+    const other = quantsEl.querySelector(`[data-q="${1-i}"]`);
+    drag = {x0:e.clientX, moved:false, other, w:other.getBoundingClientRect().width + 4, cross:false};
+    btn.setPointerCapture(e.pointerId);
+  });
+  btn.addEventListener('pointermove', e=>{
+    if (!drag) return;
+    let dx = e.clientX - drag.x0;
+    if (!drag.moved && Math.abs(dx) < 5) return;
+    drag.moved = true; btn.classList.add('dragging');
+    // only sideways toward the other chip, and not past it
+    dx = i===0 ? Math.max(0, Math.min(dx, drag.w)) : Math.min(0, Math.max(dx, -drag.w));
+    btn.style.transform = `translateX(${dx}px)`;
+    drag.cross = Math.abs(dx) > drag.w/2;
+    drag.other.style.transform = drag.cross ? `translateX(${i===0 ? -btn.getBoundingClientRect().width - 4 : btn.getBoundingClientRect().width + 4}px)` : '';
+  });
+  const end = cancelled => {
+    if (!drag) return;
+    const d = drag; drag = null;
+    btn.classList.remove('dragging');
+    if (!d.moved){ if (!cancelled) flipQuant(i); return; }
+    if (d.cross && !cancelled) swapQuants(1-i);
+    else { btn.style.transform = ''; d.other.style.transform = ''; }
+  };
+  btn.addEventListener('pointerup', ()=>end(false));
+  btn.addEventListener('pointercancel', ()=>end(true));
+  btn.addEventListener('keydown', e=>{
+    if (e.key==='Enter' || e.key===' '){ e.preventDefault(); flipQuant(i); quantsEl.querySelector(`[data-q="${i}"]`).focus(); }
+    else if ((e.key==='ArrowRight' && i===0) || (e.key==='ArrowLeft' && i===1)){ e.preventDefault(); swapQuants(1-i); }
+  });
+}
+// the body may only use p and q, and no quantifiers
+function checkBody(body){
+  if (!body.trim()) throw new Error('Type the rest of the statement, for example d(p) ∧ b(q).');
+  const toks = tokenize(body);
+  if (toks.some(t=>t.t==='Q')) throw new Error('Use the ∃ / ∀ buttons for quantifiers.');
+  const bad = toks.find(t=>t.t==='VAR' && t.v!=='p' && t.v!=='q');
+  if (bad) throw new Error(`Only p and q can be used as variables (found ${bad.v}).`);
+}
+// split a full statement ("∃p∀q …", "Ep Aq …", or an old one-quantifier "∃p …") into buttons + body
+function splitStatement(src){
+  const m = /^\s*([∃∀EA])\s*([pq])\s*(?:∈\s*P\s*)?(?:([∃∀EA])\s*([pq])\s*(?:∈\s*P\s*)?)?([\s\S]*)$/.exec(src);
+  if (!m || (m[4] && m[4]===m[2])) return null;
+  const q = c => (c==='∃'||c==='E') ? 'E' : 'A';
+  const first = {q:q(m[1]), v:m[2]};
+  // a missing second quantifier becomes ∀ over the other variable, which the body doesn't use
+  const second = m[3] ? {q:q(m[3]), v:m[4]} : {q:'A', v:m[2]==='p'?'q':'p'};
+  return {prefix:[first, second], body:m[5].trim()};
+}
+function showDisplay(){
+  fWrap.classList.remove('editing');
+  if (!fInput.value.trim()){ fDisplay.innerHTML = '<span class="placeholder">click to type the rest, e.g. d(p) ∧ b(q)</span>'; return; }
+  fDisplay.innerHTML = F ? tex(bodyTex(F.body)) : escapeHtml(fInput.value);
+}
+function showInput(){ fWrap.classList.add('editing'); fInput.focus(); fInput.select(); }
+fDisplay.addEventListener('click', showInput);
+// clicking anywhere in the box (but not on a quantifier) edits the statement
+document.getElementById('stmtBox').addEventListener('click', e=>{ if (!e.target.closest('.qbtn') && !fWrap.classList.contains('editing')) showInput(); });
+fDisplay.addEventListener('keydown', e=>{ if (e.key==='Enter'||e.key===' '){ e.preventDefault(); showInput(); } });
+fInput.addEventListener('blur', showDisplay);
+fInput.addEventListener('keydown', e=>{ if (e.key==='Enter'){ e.preventDefault(); fInput.blur(); } });
+
+// rebuild everything from the quantifier buttons + the text box
+function applyStatement(){
+  const src = statementSource();
+  errorBox.textContent = '';
+  try{ checkBody(fInput.value); F = new Parser(tokenize(src)).parse(); }
+  catch(err){ F = null; errorBox.textContent = err.message; }
+  const idx = PRESETS.findIndex(p=>p.replace(/\s/g,'')===src.replace(/\s/g,''));
+  if (idx>=0) presetIdx = idx;
+  presetBtn.textContent = idx>=0 ? `Example ${idx+1}` : 'Your own';
+  [...presetMenu.children].forEach((b,i)=>b.setAttribute('aria-selected', i===idx));
+  renderQuants();
+  freshState();
+  if (!fWrap.classList.contains('editing')) showDisplay();
+  reserveLiveHeight();
+  render();
+  syncHash();
+}
+// load a whole statement (examples, links)
+function setStatement(src){
+  const sp = splitStatement(src);
+  if (sp){ prefix = sp.prefix; fInput.value = sp.body; } else fInput.value = src;
+  applyStatement();
+}
+let typing;
+fInput.addEventListener('input', ()=>{ clearTimeout(typing); typing = setTimeout(applyStatement, 200); });
+function loadPreset(i){ setStatement(PRESETS[i]); }
+function step(d){
+  const custom = presetBtn.textContent==='Your own';
+  const base = custom ? (d>0 ? presetIdx-1 : presetIdx+1) : presetIdx;
+  loadPreset((base + d + PRESETS.length) % PRESETS.length);
+}
+document.getElementById('prevBtn').addEventListener('click', ()=>step(-1));
+document.getElementById('nextBtn').addEventListener('click', ()=>step(1));
+
+/* ---------- toolbar ---------- */
+const answersBtn = document.getElementById('answersBtn');
+answersBtn.addEventListener('click', ()=>{
+  showAnswers = !showAnswers;
+  answersBtn.setAttribute('aria-pressed', showAnswers);
+  answersBtn.textContent = showAnswers ? 'Hide answer' : 'Show answer';
+  render();
+});
+function setEditMode(on){
+  editMode = on;
+  document.getElementById('modeCheck').setAttribute('aria-pressed', !on);
+  document.getElementById('modeEdit').setAttribute('aria-pressed', on);
+  document.getElementById('clearBtn').disabled = on;   // stays in place so the header doesn't reflow
+  document.querySelector('.w-check').hidden = on;
+  document.querySelector('.w-edit').hidden = !on;
+  if (on) renderPalette();
+  freshState(); render();
+}
+document.getElementById('modeCheck').addEventListener('click', ()=>setEditMode(false));
+document.getElementById('modeEdit').addEventListener('click', ()=>setEditMode(true));
+/* ---------- board menu: the example boards (with a thumbnail each) and a fresh random one ---------- */
+const boardBtn = document.getElementById('boardBtn');
+const boardMenu = document.getElementById('boardMenu');
+let boardIsRandom = true;   // label for a board that isn't an example: "Random" until it's edited
+function thumbMarkup(pts){
+  const u = 7, m = 5, w = 5*u + 2*m, h = 7*u + 2*m;
+  let g = '';
+  for (let x=0;x<6;x++) g += `<line x1="${m+x*u}" y1="${m}" x2="${m+x*u}" y2="${h-m}"/>`;
+  for (let y=0;y<8;y++) g += `<line x1="${m}" y1="${m+y*u}" x2="${w-m}" y2="${m+y*u}"/>`;
+  return `<svg class="m-thumb" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}" aria-hidden="true">`+
+    `<rect x="0.5" y="0.5" width="${w-1}" height="${h-1}" rx="2" fill="#fbfdff" stroke="#c9dcea"/>`+
+    `<g stroke="#e3edf5" stroke-width="1">${g}</g>`+
+    pts.map(p=>shapeMarkup(p, m+p.x*u, m+(7-p.y)*u, 0.3)).join('') + `</svg>`;
+}
+const boardKey = pts => encodeBoard([...pts].sort((a,b)=>a.x-b.x || a.y-b.y));
+function boardIndex(){ const k = boardKey(diagrams[0]); return BOARDS.findIndex(b=>boardKey(b)===k); }
+function updateBoardLabel(){
+  const idx = boardIndex();
+  boardBtn.textContent = idx>=0 ? `Board ${idx+1}` : boardIsRandom ? 'Random' : 'Your own';
+  [...boardMenu.querySelectorAll('[role=option]')].forEach(b=>b.setAttribute('aria-selected', +b.dataset.i===idx));
+}
+function setBoard(pts, random){ diagrams = [pts.map(p=>({...p}))]; boardIsRandom = random; freshState(); render(); syncHash(); }
+BOARDS.forEach((pts,i)=>{
+  const b = document.createElement('button');
+  b.type = 'button'; b.setAttribute('role','option'); b.dataset.i = i;
+  b.innerHTML = `${thumbMarkup(pts)}<span>Board ${i+1}</span>`;
+  b.addEventListener('click', ()=>{ closeBoardMenu(); setBoard(BOARDS[i], false); boardBtn.focus(); });
+  boardMenu.appendChild(b);
+});
+boardMenu.insertAdjacentHTML('beforeend', '<div class="m-sep" role="separator"></div>');
+{
+  const b = document.createElement('button');
+  b.type = 'button'; b.setAttribute('role','option'); b.dataset.i = -2; b.id = 'randomBtn';
+  b.innerHTML = '<span>New random board</span>';
+  b.addEventListener('click', ()=>{ closeBoardMenu(); setBoard(randomBoard(), true); boardBtn.focus(); });
+  boardMenu.appendChild(b);
+}
+function openBoardMenu(){
+  boardMenu.hidden = false; boardBtn.setAttribute('aria-expanded','true');
+  const opts = [...boardMenu.querySelectorAll('button')], idx = boardIndex();
+  const sel = idx>=0 ? opts[idx] : opts[opts.length-1];
+  sel.focus(); sel.scrollIntoView({block:'nearest'});
+}
+function closeBoardMenu(){ boardMenu.hidden = true; boardBtn.setAttribute('aria-expanded','false'); }
+boardBtn.addEventListener('click', ()=> boardMenu.hidden ? openBoardMenu() : closeBoardMenu());
+boardMenu.addEventListener('keydown', e=>{
+  const items = [...boardMenu.querySelectorAll('button')], i = items.indexOf(document.activeElement);
+  if (e.key==='ArrowDown'){ e.preventDefault(); items[Math.min(i+1, items.length-1)].focus(); }
+  else if (e.key==='ArrowUp'){ e.preventDefault(); items[Math.max(i-1, 0)].focus(); }
+  else if (e.key==='Escape'){ closeBoardMenu(); boardBtn.focus(); }
+});
+document.addEventListener('click', e=>{ if (!boardMenu.hidden && !e.target.closest('#boardPicker')) closeBoardMenu(); });
+document.getElementById('clearBtn').addEventListener('click', ()=>{ gridState[cur] = blankState(); render(); });
+document.addEventListener('keydown', e=>{
+  if (document.activeElement===fInput || !presetMenu.hidden || !boardMenu.hidden) return;
+  if (e.key==='Escape'){ release(cur); render(); }
+});
+
+document.querySelectorAll('[data-tex]').forEach(el=> el.innerHTML = tex(el.dataset.tex));
+
+/* ---------- link: #s=<statement>&b=<board> always describes what's on screen ---------- */
+const encodeBoard = pts => pts.map(p=>`${p.x},${p.y},${p.diamond?'d':'o'}${p.black?'b':'w'}`).join(';');
+function syncHash(){
+  updateBoardLabel();
+  try{ history.replaceState(null, '', '#s=' + encodeURIComponent(statementSource()) + '&b=' + encodeURIComponent(encodeBoard(diagrams[0]))); }catch(e){}
+}
+
+/* ---------- start ---------- */
+// board format: "x,y,sc;x,y,sc;…" where s is o (circle) or d (diamond) and c is w (white) or b (black)
+function parseBoard(str){
+  const pts = [];
+  for (const part of str.split(';')){
+    const m = /^(\d),(\d),([od])([wb])$/.exec(part.trim());
+    if (!m) return null;
+    const x = +m[1], y = +m[2];
+    if (x>5 || y>7 || pts.some(p=>p.x===x && p.y===y)) return null;
+    pts.push({x, y, diamond:m[3]==='d', black:m[4]==='b'});
+  }
+  return pts.length && pts.length<=MAX_POINTS ? pts : null;
+}
+let initial = PRESETS[0];
+try{
+  const h = location.hash.slice(1);
+  if (h.startsWith('s=')){
+    const params = new URLSearchParams(h);
+    if (params.get('s')) initial = params.get('s');
+    const board = params.get('b') && parseBoard(params.get('b'));
+    if (board){ diagrams = [board]; boardIsRandom = false; }
+  } else if (h) initial = decodeURIComponent(h);
+}catch(e){}
+setStatement(initial);
+
+/* First visit only: the two quantifier chips slide past each other and back, so it's clear they can be
+   dragged to reorder. Purely visual (the statement doesn't change); skipped with reduced motion. */
+function demoSwap(){
+  const seenKey = 'quantifier-explorer:swap-demo-seen';
+  try{ if (localStorage.getItem(seenKey)) return; localStorage.setItem(seenKey, '1'); }catch(e){}
+  if (window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  const [a, b] = [0,1].map(i=>quantsEl.querySelector(`[data-q="${i}"]`));
+  if (!a || !b) return;
+  const wa = a.getBoundingClientRect().width, wb = b.getBoundingClientRect().width, gap = b.getBoundingClientRect().left - a.getBoundingClientRect().right;
+  let stopped = false;
+  const reset = () => { [a,b].forEach(el=>{ el.style.transition = ''; el.style.transform = ''; }); };
+  const stop = () => { stopped = true; reset(); };
+  quantsEl.addEventListener('pointerdown', stop, {once:true});
+  const move = (ta, tb) => { if (stopped) return; [a,b].forEach(el=> el.style.transition = 'transform .45s ease-in-out'); a.style.transform = ta; b.style.transform = tb; };
+  setTimeout(()=> move(`translateX(${wb+gap}px)`, `translateX(${-(wa+gap)}px)`), 1200);
+  setTimeout(()=> move('', ''), 2300);
+  setTimeout(()=> { if (!stopped) reset(); }, 2900);
+}
+demoSwap();
+</script>
+</body>
+</html>
