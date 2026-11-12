@@ -329,7 +329,6 @@ let diagrams = [randomBoard()];
 const KEYS = [
   {ch:'¬', tex:'\\neg', name:'not'}, {ch:'∧', tex:'\\land', name:'and'}, {ch:'∨', tex:'\\lor', name:'or'},
   {ch:'⇒', tex:'\\Rightarrow', name:'implies'}, {ch:'⇔', tex:'\\Leftrightarrow', name:'iff'}, {ch:'=', tex:'=', name:'equals'}, {ch:'≠', tex:'\\mathrel{\\maltese}', name:'not equal'},
-  {ch:'()', tex:'(\\;)', name:'group', wrap:true},
 ];
 
 function tokenize(src){
@@ -956,17 +955,9 @@ KEYS.forEach(k=>{
   btn.type = 'button';
   btn.innerHTML = `<span class="kb-sym">${tex(k.tex)}</span><span class="kb-name">${k.name}</span>`;
   btn.addEventListener('mousedown', e=>e.preventDefault());
-  btn.addEventListener('click', ()=>{ fWrap.classList.add('editing'); k.wrap ? wrapSelection(fInput) : insertAtCursor(fInput, k.ch); });
+  btn.addEventListener('click', ()=>{ fWrap.classList.add('editing'); insertAtCursor(fInput, k.ch); });
   kb.appendChild(btn);
 });
-// "( )" wraps whatever is selected, or drops the cursor between a fresh pair
-function wrapSelection(input){
-  const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? input.value.length;
-  input.value = input.value.slice(0,a) + '(' + input.value.slice(a,b) + ')' + input.value.slice(b);
-  input.focus();
-  if (a===b) input.setSelectionRange(a+1, a+1); else input.setSelectionRange(b+2, b+2);
-  input.dispatchEvent(new Event('input'));
-}
 function insertAtCursor(input, text){
   const a = input.selectionStart ?? input.value.length, b = input.selectionEnd ?? input.value.length;
   input.value = input.value.slice(0,a) + text + input.value.slice(b);
