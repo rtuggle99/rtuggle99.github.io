@@ -170,6 +170,28 @@
   .palette button.active{background:var(--info-soft);border:1.5px solid var(--info);color:var(--ink);}
   .big.editing-points svg{touch-action:none;}
 
+  /* All boards: the five example boards side by side, each with its own verdict */
+  .stage.wide{max-width:none;}
+  .multi{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;}
+  .mini{border:1.5px solid var(--rule);border-radius:3px;background:#fbfdfe;transition:border-color .15s, box-shadow .15s;}
+  .mini.yes{border-color:var(--good);} .mini.no{border-color:var(--danger);}
+  .mini.active{box-shadow:0 0 0 3px var(--info-soft);}
+  .mini svg{display:block;width:100%;height:auto;touch-action:manipulation;-webkit-user-select:none;user-select:none;}
+  .mini-cap{display:flex;justify-content:space-between;align-items:center;gap:6px;height:28px;padding:0 7px;
+    border-top:1px solid var(--rule);font-size:0.84rem;color:var(--ink-soft);white-space:nowrap;overflow:hidden;}
+  .mini.active .mini-cap .m-name{color:var(--ink);font-weight:700;}
+  .mini-cap .m-left{display:inline-flex;align-items:center;gap:3px;}
+  .m-clear{all:unset;cursor:pointer;color:var(--ink-soft);font-size:0.95rem;line-height:1;padding:2px 4px;border-radius:3px;}
+  .m-clear:hover{background:var(--info-soft);color:var(--ink);}
+  .m-clear:focus-visible{outline:2px solid var(--info);}
+  .mini-cap .verdict{font-size:0.78rem;padding:0 6px;}
+  .mini-cap .verdict.pending{font-size:0.78rem;background:transparent;}
+  @media (max-width:760px){ .multi{grid-template-columns:repeat(3,minmax(0,1fr));} }
+  @media (max-width:480px){
+    .multi{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;}
+    .mini-cap{font-size:0.78rem;padding:0 6px;height:26px;}
+    .mini-cap .verdict, .mini-cap .verdict.pending{font-size:0.72rem;}
+  }
   footer{margin-top:40px;font-size:0.78rem;color:#6f93ab;border-top:1px solid var(--rule);padding-top:12px;}
   @media (max-width:600px){
     .page{padding:18px 12px 60px;}
@@ -239,6 +261,10 @@
       <div class="panel-head">
         <h2>Board</h2>
         <div class="row">
+          <span class="seg" role="group" aria-label="View">
+            <button class="btn" id="viewOne" type="button" aria-pressed="true">One board</button>
+            <button class="btn" id="viewAll" type="button" aria-pressed="false">All boards</button>
+          </span>
           <span class="seg" role="group" aria-label="Mode">
             <button class="btn" id="modeCheck" type="button" aria-pressed="true">Check</button>
             <button class="btn" id="modeEdit" type="button" aria-pressed="false">Edit</button>
@@ -260,6 +286,7 @@
         <div class="big" id="big">
           <svg id="bigSvg"></svg>
         </div>
+        <div class="multi" id="multi" hidden></div>
       </div>
       <div class="key" id="key"></div>
     </section>
@@ -533,13 +560,25 @@ function tex(s){ return katex.renderToString(s, {throwOnError:false, strict:fals
    ===================================================================== */
 let F = null;                // parsed statement
 let gridState = [];          // per diagram: {outer, inner, preview, rec: Map(outerIdx -> {tested: Map(innerIdx -> bool)})}
-const cur = 0;               // the one board
+let cur = 0;                 // the board being worked on (always 0 with one board)
+let viewAll = false;         // All boards view: diagrams holds the five example boards
+let single = null;           // the one-board view's board, kept while All boards is showing
 let editMode = false, showAnswers = false;
 let tool = {erase:false, diamond:false, black:true};   // edit-mode brush
 const MAX_POINTS = 12;
 
 function blankState(){ return {outer:null, inner:null, preview:null, rec:new Map()}; }
-function freshState(){ gridState = diagrams.map(blankState); }
+// Progress belongs to a board, not to a view: it's stored by the board's exact layout, so Board 2 has the
+// same marks whether it's the single board or one of the five. A new statement starts everything fresh.
+const progress = new Map();
+const progressKey = pts => pts.map(p=>`${p.x},${p.y},${p.diamond?'d':'o'}${p.black?'b':'w'}`).join(';');
+function stateFor(pts){
+  const k = progressKey(pts);
+  if (!progress.has(k)) progress.set(k, blankState());
+  return progress.get(k);
+}
+function clearBoard(g){ progress.delete(progressKey(diagrams[g])); gridState[g] = stateFor(diagrams[g]); }
+function freshState(){ gridState = diagrams.map(stateFor); }
 // the q being shown: the hovered point if any, otherwise the last one tried
 function shownInner(st){ return st.preview!=null ? st.preview : st.inner; }
 
@@ -669,13 +708,14 @@ function drawBig(g){
 function verdictPill(g, short){
   if (!F) return '';
   const v = gridVerdict(g);
-  const word = b => short ? (b?'T':'F') : (b?'True':'False');
+  const word = b => short===true ? (b?'T':'F') : (b?'True':'False');
   if (v) return `<span class="verdict ${v==='T'?'yes':'no'}">${word(v==='T')}</span>`;
   if (showAnswers){
     const a = truthOf(F, diagrams[g]);
     return `<span class="verdict answer ${a?'yes':'no'}" title="Answer (not yet shown by your checks)">${word(a)}</span>`;
   }
-  return `<span class="verdict pending">not decided yet</span>`;
+  // the small boards use one word, so the caption stays on one line
+  return `<span class="verdict pending">${short ? 'undecided' : 'not decided yet'}</span>`;
 }
 
 /* =====================================================================
@@ -706,7 +746,8 @@ function renderLive(){
   const a = Q1.v, pt = i => `${shapeIcon(pts[i])}&thinsp;(${pts[i].x},&thinsp;${pts[i].y})`;
   const result = v => `<b class="${v?'t':'f'}">${v?'true':'false'}</b>`;
   if (outer==null){
-    setStatus(Q2 ? `Click a point to choose <i>${a}</i>.` : `Click points to check them as <i>${a}</i>.`);
+    const where = viewAll ? ' on any board' : '';
+    setStatus(Q2 ? `Click a point${where} to choose <i>${a}</i>.` : `Click points${where} to check them as <i>${a}</i>.`);
     return;
   }
   // line 1: which pair · line 2: the part after the quantifiers, for that pair · line 3: progress / hints
@@ -719,7 +760,10 @@ function renderLive(){
   else setStatus(`With <i>${a}</i> = ${pt(outer)} and <i>${b}</i> = ${pt(qi)}:`, after(ev(F.body, env)),
                  st.rec.get(outer).tested.has(qi) ? count : `${count} · click to try this one`);
 }
-function setStatus(line1, line2='', line3=''){ statusEl.innerHTML = `<div>${line1}</div><div>${line2}</div><div>${line3}</div>`; }
+function setStatus(line1, line2='', line3=''){
+  if (viewAll && F && line1 && gridState[cur].outer!=null) line1 = `Board ${cur+1} · ` + line1;
+  statusEl.innerHTML = `<div>${line1}</div><div>${line2}</div><div>${line3}</div>`;
+}
 
 // The formula above the board: the quantifiers, then a box around the part after them.
 // The box is outlined green / red by that part's value for the current p and q (neutral when unknown),
@@ -744,21 +788,36 @@ function reserveLiveHeight(){
 let resizeTimer;
 window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ reserveLiveHeight(); renderLive(); }, 120); });
 
+const answerLabel = () => (showAnswers ? 'Hide answer' : 'Show answer') + (viewAll ? 's' : '');
 function render(){
   // redrawing replaces the points, so remember which one had keyboard focus and put it back
-  const ae = document.activeElement, fpt = ae && bigSvg.contains(ae) && ae.closest ? ae.closest('.pt') : null;
-  const focusIdx = fpt ? +fpt.dataset.i : null;
-  bigSvg.innerHTML = drawBig(cur);
-  if (focusIdx!=null){
-    const el = bigSvg.querySelector(`.pt[data-i="${focusIdx}"]`);
+  const ae = document.activeElement, fpt = ae && ae.closest ? ae.closest('.pt') : null;
+  const fsvg = fpt ? fpt.ownerSVGElement : null, focusIdx = fpt ? +fpt.dataset.i : null;
+  if (viewAll){
+    miniSvgs.forEach((svg, g)=>{
+      svg.innerHTML = drawBig(g);
+      const v = gridVerdict(g);
+      minis[g].className = 'mini' + (v==='T'?' yes':v==='F'?' no':'') + (g===cur && gridState[g].outer!=null ? ' active' : '');
+      minis[g].querySelector('.m-clear').style.visibility = gridState[g].rec.size ? 'visible' : 'hidden';
+      minis[g].querySelector('.m-pill').innerHTML = verdictPill(g, 'mini');
+    });
+  } else bigSvg.innerHTML = drawBig(cur);
+  if (fsvg && focusIdx!=null){
+    const el = fsvg.querySelector(`.pt[data-i="${focusIdx}"]`);
     if (el){ refocusing = true; el.focus({preventScroll:true}); refocusing = false; }
   }
-  document.getElementById('bigPill').innerHTML = editMode ? '' : verdictPill(cur, false);
+  // the row above the board: with one board it holds that board's verdict; with all five,
+  // each board carries its own verdict, so the row keeps only the button
+  document.getElementById('bigPill').innerHTML = (editMode || viewAll) ? '' : verdictPill(cur, false);
   document.getElementById('capLabel').style.visibility = (editMode || !F) ? 'hidden' : 'visible';
-  // once the checks have decided the whole statement, there's nothing left to reveal:
+  // with all five boards the row holds only the button (each board shows its own verdict), centred
+  document.getElementById('capLabel').hidden = viewAll;
+  document.getElementById('bigPill').hidden = viewAll;
+  // once the checks have decided everything, there's nothing left to reveal:
   // the button goes away but keeps its space, so nothing in the row moves
-  const decided = F && gridVerdict(cur)!=null;
-  if (decided && showAnswers){ showAnswers = false; answersBtn.setAttribute('aria-pressed', false); answersBtn.textContent = 'Show answer'; }
+  const decided = F && diagrams.every((_, g)=>gridVerdict(g)!=null);
+  if (decided && showAnswers){ showAnswers = false; answersBtn.setAttribute('aria-pressed', false); }
+  answersBtn.textContent = answerLabel();
   answersBtn.style.visibility = F && !decided ? 'visible' : 'hidden';
   const v = gridVerdict(cur);
   big.className = 'big' + (v==='T'?' yes':v==='F'?' no':'') + (editMode?' editing-points':'');
@@ -807,7 +866,7 @@ function cellAt(e){
   return {x, y};
 }
 const occupied = (g, x, y, except) => diagrams[g].some((p,j)=> j!==except && p.x===x && p.y===y);
-function edited(g){ gridState[g] = blankState(); boardIsRandom = false; syncHash(); }
+function edited(g){ gridState[g] = stateFor(diagrams[g]); boardIsRandom = false; syncHash(); }
 function applyTool(g, i){
   const pts = diagrams[g];
   if (tool.erase){ if (pts.length>1) pts.splice(i, 1); }
@@ -862,29 +921,56 @@ function renderPalette(){
 }
 
 const ptIndex = e => { const el = e.target.closest && e.target.closest('.pt'); return el ? +el.dataset.i : null; };
-bigSvg.addEventListener('pointermove', e=>{
-  if (editMode){ dragMove(e); return; }
-  if (e.pointerType==='touch') return;
-  const i = ptIndex(e);
-  if (i===hoverIdx) return;
-  hoverIdx = i;
-  setPreview(i);
-});
-bigSvg.addEventListener('pointerleave', ()=>{ hoverIdx = null; setPreview(null); });
-bigSvg.addEventListener('click', e=>{
-  if (editMode || !F) return;          // edit mode is handled on pointerdown/up so drags work
-  activate(ptIndex(e));
-});
-bigSvg.addEventListener('keydown', e=>{
-  const i = ptIndex(e);
-  if (i==null) return;
-  if (e.key==='Enter' || e.key===' '){ e.preventDefault(); activate(i); }
-});
-bigSvg.addEventListener('focusin', e=>{
-  // keyboard focus previews, like hovering; clicks and our own re-focus are ignored
-  if (refocusing || !e.target.matches(':focus-visible')) return;
-  setPreview(ptIndex(e));
-});
+// g = which board this svg shows; working on a board makes it the current one
+// only one board is in use at a time: clicking another board lets go of p on the old one
+// (its ✓ / ✗ marks stay; only the chosen p, its shading and the q marks for it go away)
+function focusBoard(g){
+  if (cur===g) return;
+  release(cur); hoverIdx = null;
+  cur = g;
+}
+function wireBoard(svg, g){
+  svg.addEventListener('pointermove', e=>{
+    if (editMode){ dragMove(e); return; }
+    if (e.pointerType==='touch') return;
+    const i = ptIndex(e);
+    if (cur!==g) return;                 // hovering another board doesn't switch to it; clicking does
+    if (i===hoverIdx) return;
+    hoverIdx = i;
+    setPreview(i);
+  });
+  svg.addEventListener('pointerleave', ()=>{ if (cur!==g) return; hoverIdx = null; setPreview(null); });
+  svg.addEventListener('click', e=>{
+    if (editMode || !F) return;          // edit mode is handled on pointerdown/up so drags work
+    focusBoard(g);
+    activate(ptIndex(e));
+  });
+  svg.addEventListener('keydown', e=>{
+    const i = ptIndex(e);
+    if (i==null) return;
+    if (e.key==='Enter' || e.key===' '){ e.preventDefault(); focusBoard(g); activate(i); }
+  });
+  svg.addEventListener('focusin', e=>{
+    // keyboard focus previews, like hovering; clicks and our own re-focus are ignored
+    if (refocusing || !e.target.matches(':focus-visible')) return;
+    if (cur!==g) return;
+    setPreview(ptIndex(e));
+  });
+}
+wireBoard(bigSvg, 0);
+// the five small boards for the All boards view
+const multiEl = document.getElementById('multi');
+const minis = [], miniSvgs = [];
+for (let g=0; g<5; g++){
+  const m = document.createElement('div');
+  m.className = 'mini';
+  m.innerHTML = `<svg viewBox="0 0 ${W} ${H}" aria-label="Board ${g+1}"></svg><div class="mini-cap"><span class="m-left"><span class="m-name">Board ${g+1}</span>`+
+    `<button class="m-clear" type="button" title="Clear the marks on Board ${g+1}" aria-label="Clear the marks on Board ${g+1}">↺</button></span>`+
+    `<span class="m-pill"></span></div>`;
+  multiEl.appendChild(m); minis.push(m);
+  const svg = m.querySelector('svg'); miniSvgs.push(svg); wireBoard(svg, g);
+  m.querySelector('.m-clear').addEventListener('click', ()=>{ clearBoard(g); render(); });
+}
 function activate(i){
   if (editMode){ if (i!=null){ applyTool(cur, Math.min(i, diagrams[cur].length-1)); update(Math.min(i, diagrams[cur].length-1)); } return; }
   const st = gridState[cur];
@@ -1059,7 +1145,7 @@ function applyStatement(){
   presetBtn.textContent = idx>=0 ? `Example ${idx+1}` : 'Your own';
   [...presetMenu.children].forEach((b,i)=>b.setAttribute('aria-selected', i===idx));
   renderQuants();
-  freshState();
+  progress.clear(); freshState();
   if (!fWrap.classList.contains('editing')) showDisplay();
   reserveLiveHeight();
   render();
@@ -1087,7 +1173,6 @@ const answersBtn = document.getElementById('answersBtn');
 answersBtn.addEventListener('click', ()=>{
   showAnswers = !showAnswers;
   answersBtn.setAttribute('aria-pressed', showAnswers);
-  answersBtn.textContent = showAnswers ? 'Hide answer' : 'Show answer';
   render();
 });
 function setEditMode(on){
@@ -1098,8 +1183,32 @@ function setEditMode(on){
   document.querySelector('.w-check').hidden = on;
   document.querySelector('.w-edit').hidden = !on;
   if (on) renderPalette();
-  freshState(); render();
+  release(cur); freshState(); render();
 }
+function setView(all){
+  if (all===viewAll) return;
+  if (all && editMode) setEditMode(false);
+  release(cur);   // progress stays with each board; only the chosen p is let go
+  if (all){
+    single = diagrams[0];
+    diagrams = BOARDS.map(b=>b.map(p=>({...p})));
+  } else {
+    diagrams = [single];
+  }
+  viewAll = all; hoverIdx = null;
+  document.getElementById('viewOne').setAttribute('aria-pressed', !all);
+  document.getElementById('viewAll').setAttribute('aria-pressed', all);
+  // the example boards can't be edited or swapped here; these stay in place, disabled, so the header doesn't move
+  document.getElementById('modeEdit').disabled = all;
+  boardBtn.disabled = all;
+  document.getElementById('clearBtn').title = all ? 'Clear the marks on every board' : 'Clear the check marks';
+  document.querySelector('.stage').classList.toggle('wide', all);
+  big.hidden = all; multiEl.hidden = !all;
+  freshState(); cur = 0;
+  render(); syncHash();
+}
+document.getElementById('viewOne').addEventListener('click', ()=>setView(false));
+document.getElementById('viewAll').addEventListener('click', ()=>setView(true));
 document.getElementById('modeCheck').addEventListener('click', ()=>setEditMode(false));
 document.getElementById('modeEdit').addEventListener('click', ()=>setEditMode(true));
 /* ---------- board menu: the example boards (with a thumbnail each) and a fresh random one ---------- */
@@ -1117,7 +1226,7 @@ function thumbMarkup(pts){
     pts.map(p=>shapeMarkup(p, m+p.x*u, m+(7-p.y)*u, 0.3)).join('') + `</svg>`;
 }
 const boardKey = pts => encodeBoard([...pts].sort((a,b)=>a.x-b.x || a.y-b.y));
-function boardIndex(){ const k = boardKey(diagrams[0]); return BOARDS.findIndex(b=>boardKey(b)===k); }
+function boardIndex(){ const k = boardKey(viewAll ? single : diagrams[0]); return BOARDS.findIndex(b=>boardKey(b)===k); }
 function updateBoardLabel(){
   const idx = boardIndex();
   boardBtn.textContent = idx>=0 ? `Board ${idx+1}` : boardIsRandom ? 'Random' : 'Your own';
@@ -1154,7 +1263,7 @@ boardMenu.addEventListener('keydown', e=>{
   else if (e.key==='Escape'){ closeBoardMenu(); boardBtn.focus(); }
 });
 document.addEventListener('click', e=>{ if (!boardMenu.hidden && !e.target.closest('#boardPicker')) closeBoardMenu(); });
-document.getElementById('clearBtn').addEventListener('click', ()=>{ gridState[cur] = blankState(); render(); });
+document.getElementById('clearBtn').addEventListener('click', ()=>{ diagrams.forEach((_, g)=>clearBoard(g)); render(); });
 document.addEventListener('keydown', e=>{
   if (document.activeElement===fInput || !presetMenu.hidden || !boardMenu.hidden) return;
   if (e.key==='Escape'){ release(cur); render(); }
@@ -1162,11 +1271,11 @@ document.addEventListener('keydown', e=>{
 
 document.querySelectorAll('[data-tex]').forEach(el=> el.innerHTML = tex(el.dataset.tex));
 
-/* ---------- link: #s=<statement>&b=<board> always describes what's on screen ---------- */
+/* ---------- link: #s=<statement>&b=<board>[&v=all] always describes what's on screen ---------- */
 const encodeBoard = pts => pts.map(p=>`${p.x},${p.y},${p.diamond?'d':'o'}${p.black?'b':'w'}`).join(';');
 function syncHash(){
   updateBoardLabel();
-  try{ history.replaceState(null, '', '#s=' + encodeURIComponent(statementSource()) + '&b=' + encodeURIComponent(encodeBoard(diagrams[0]))); }catch(e){}
+  try{ history.replaceState(null, '', '#s=' + encodeURIComponent(statementSource()) + '&b=' + encodeURIComponent(encodeBoard(viewAll ? single : diagrams[0])) + (viewAll ? '&v=all' : '')); }catch(e){}
 }
 
 /* ---------- start ---------- */
@@ -1182,7 +1291,7 @@ function parseBoard(str){
   }
   return pts.length && pts.length<=MAX_POINTS ? pts : null;
 }
-let initial = PRESETS[0];
+let initial = PRESETS[0], startAll = false;
 try{
   const h = location.hash.slice(1);
   if (h.startsWith('s=')){
@@ -1190,9 +1299,11 @@ try{
     if (params.get('s')) initial = params.get('s');
     const board = params.get('b') && parseBoard(params.get('b'));
     if (board){ diagrams = [board]; boardIsRandom = false; }
+    if (params.get('v')==='all') startAll = true;
   } else if (h) initial = decodeURIComponent(h);
 }catch(e){}
 setStatement(initial);
+if (startAll) setView(true);
 
 /* First visit only: the two quantifier chips slide past each other and back, so it's clear they can be
    dragged to reorder. Purely visual (the statement doesn't change); skipped with reduced motion. */
