@@ -907,7 +907,7 @@ function update(){ render(); }   // render() keeps keyboard focus on the same po
 function renderKey(){
   const pt = {diamond:true, black:false};
   const a = F ? F.quants[0].v : 'p', Q2 = F && F.quants[1];
-  const icon = (side, kind) => `<svg width="30" height="22" viewBox="${side==='left'?'-22':'-8'} -11 30 22">${shapeMarkup(pt,0,0,0.62)}${markMarkup(kind, side==='left'?-14:14, 0, 0.75)}</svg>`;
+  const icon = (side, kind) => `<svg width="30" height="22" viewBox="${side==='left'?'-22':'-8'} -11 30 22">${shapeMarkup(pt,0,0,0.62)}${markMarkup(kind, side==='left'?-14:13, 0, side==='left'?0.75:0.6)}</svg>`;
   const item = (side, kind, v) => `<span>${icon(side, kind)}<span>${kind==='T'?'works':'fails'} as <i>${v}</i></span></span>`;
   const key = document.getElementById('key');
   key.classList.toggle('one', !Q2);
