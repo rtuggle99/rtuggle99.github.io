@@ -281,9 +281,8 @@
     const order = startStates.concat(M.states.filter(s=>!s.isStart));   // start states first, then in the order they were drawn
     const q = s => `<i>${labelHTML(s.label)}</i>`, serif = t => `<span style="font-family:var(--serif)">${t}</span>`;
     const cols = SIGMA.concat([EPS]);
-    // one start state: Sipser's (Q, Σ, δ, q0, F); several: the set of start states S in its place
-    const one = startStates.length===1, SS = '<i>S</i>';
-    let html = `<p class="tuple"><i>N</i> = (<i>Q</i>, Σ, δ, ${one ? q(startStates[0]) : SS}, <i>F</i>) where</p><dl class="parts">`;
+    // the start states form a set S, written just like the accept states F
+    let html = `<p class="tuple"><i>N</i> = (<i>Q</i>, Σ, δ, <i>S</i>, <i>F</i>) where</p><dl class="parts">`;
     html += `<dt><i>Q</i></dt><dd>= ${setList(order.map(q))}</dd>`;
     html += `<dt>Σ</dt><dd>= ${setList(SIGMA.map(esc))}</dd>`;
     html += `<dt>δ</dt><dd>${serif('is given by this table:')}</dd></dl>`;
@@ -299,8 +298,7 @@
       html += '</tr>';
     });
     html += '</tbody></table></div>';
-    html += `<dl class="parts after">` + (one ? `<dt>${q(startStates[0])}</dt><dd>${serif('is the start state')}</dd>` : `<dt>${SS}</dt><dd>= ${setList(startStates.map(q))}</dd>`)
-      + `<dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
+    html += `<dl class="parts after"><dt><i>S</i></dt><dd>= ${setList(startStates.map(q))}</dd><dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
     $('formal').innerHTML = html;
   }
 
