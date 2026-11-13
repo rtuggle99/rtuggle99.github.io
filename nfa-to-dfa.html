@@ -442,6 +442,11 @@
         d:`M ${g.tip.x} ${g.tip.y} L ${base.x - uy*Wd} ${base.y + ux*Wd} L ${base.x + uy*Wd} ${base.y - ux*Wd} Z`}));
       labels.push({g, text:syms.join(', '), now, grow, key:a.key});
     });
+    // alignment guides while a state is being dragged
+    if(C.snap){
+      if(C.snap.x!=null) svg.appendChild(el('line',{class:'snap-guide', x1:C.snap.x, y1:0, x2:C.snap.x, y2:C.height}));
+      if(C.snap.y!=null) svg.appendChild(el('line',{class:'snap-guide', x1:0, y1:C.snap.y, x2:C.width, y2:C.snap.y}));
+    }
     // start arrow
     const s0 = C.start;
     svg.appendChild(el('path',{class:'dstart', d:`M ${s0.x - s0.r - 48} ${s0.y} L ${s0.x - s0.r - 12} ${s0.y}`}));
@@ -500,7 +505,15 @@
       const p = toSvg(e);
       if(drag.kind==='state'){
         const d = drag.d, m = d.r + 14;
-        d.x = Math.max(m, Math.min(C.width - m, p.x)); d.y = Math.max(m, Math.min(C.height - m, p.y));
+        let px = Math.max(m, Math.min(C.width - m, p.x)), py = Math.max(m, Math.min(C.height - m, p.y));
+        // line up with another state when close, with a dashed guide, as in the builder (10 screen pixels)
+        const ctm = svg.getScreenCTM(), tol = 10/(ctm ? ctm.a : 1);
+        let bx = null, bxd = tol, by = null, byd = tol;
+        C.dstates.forEach(o=>{ if(o===d) return;
+          const dx = Math.abs(px-o.x); if(dx < bxd){ bxd = dx; bx = o.x; }
+          const dy = Math.abs(py-o.y); if(dy < byd){ byd = dy; by = o.y; } });
+        if(bx!=null) px = bx; if(by!=null) py = by;
+        d.x = px; d.y = py; C.snap = {x:bx, y:by};
         routeArrows(C);
       } else {
         const a = drag.a; a.manual = true;
@@ -516,7 +529,11 @@
     });
     const end = e=>{
       if(!drag || e.pointerId!==drag.id) return;
-      svg.classList.remove('dragging'); drag = null;
+      svg.classList.remove('dragging');
+      const had = C && C.snap && (C.snap.x!=null || C.snap.y!=null);
+      if(C) C.snap = null;
+      if(had) drawDFA(player.idx, false, true);
+      drag = null;
     };
     svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
     $('layoutBtn').addEventListener('click', ()=>{
