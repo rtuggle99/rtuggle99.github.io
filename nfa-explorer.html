@@ -113,6 +113,7 @@
     return m;
   }
   const findState = id => b.findState(id);
+  const starts = () => b.M.states.filter(s=>s.isStart).map(s=>s.id);
   const parseRules = text => ({rules: String(text).split(',').map(s=>s.trim()).filter(Boolean).map(read=>({read}))});
   const inferSigma = M => { const set = new Set(); M.edges.forEach(e=>e.rules.forEach(r=>{ if(r.read!==EPS) set.add(r.read); })); return [...set].sort(); };
   let SIGMA = [];
@@ -121,9 +122,11 @@
     hashKey: 'nfa',
     title: 'Your NFA',
     aName: 'An NFA',
+    multiStart: true,          // several start states are allowed, as in the regex converter
     tools: ['move','state','arrow','start','accept','delete'],
     hints: {
       move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to change its symbols.',
+      start: 'Tap a state to toggle whether it is a start state. An NFA here can have several.',
       accept: 'Tap a state to make it an accept state, or tap it again to undo.'
     },
     exampleMenu: [
@@ -180,13 +183,13 @@
   // exact answer: follow the set of states the NFA could be in
   function accepts(w){
     const closure = set => { const st = [...set]; while(st.length){ const q = st.pop(); movesFrom(q).forEach(m=>{ if(!m.read && !set.has(m.to)){ set.add(m.to); st.push(m.to); } }); } return set; };
-    let cur = closure(new Set([b.M.startId]));
+    let cur = closure(new Set(starts()));
     for(const c of w){ const next = new Set(); cur.forEach(q=>movesFrom(q).forEach(m=>{ if(m.read===c) next.add(m.to); })); cur = closure(next); }
     return [...cur].some(isAccept);
   }
   function makeTree(w){
     return S.buildTree({
-      root: {q:b.M.startId, i:0},
+      roots: starts().map(q=>({q, i:0})),
       key: c => c.q+'|'+c.i,
       accepting: c => c.i===w.length && isAccept(c.q),
       expand: c => movesFrom(c.q).filter(m=>!m.read || (c.i<w.length && w[c.i]===m.read))
@@ -223,7 +226,7 @@
     render(i, animate, ok){
       if(!b.locked) return;
       if(!ok || !run){
-        b.draw(copySvg, {interactive:false, prefix:'c-', cur:b.M.startId}); S.fitCopy(copySvg, copyFit);
+        b.draw(copySvg, {interactive:false, prefix:'c-', cur:new Set(starts())}); S.fitCopy(copySvg, copyFit);
         treeSvg.innerHTML = ''; treeSvg.removeAttribute('width'); treeSvg.removeAttribute('height');
         treeNote.textContent = ''; setVerdict('', ''); return;
       }
@@ -264,7 +267,7 @@
       if(r.read===EPS) eps.get(e.from).push(e.to);
       else { const m = trans.get(e.from); if(!m.has(r.read)) m.set(r.read, []); m.get(r.read).push(e.to); }
     }));
-    const lang = U.faLanguage({states:M.states.map(s=>s.id), start:[M.startId], trans, eps, sigma:SIGMA,
+    const lang = U.faLanguage({states:M.states.map(s=>s.id), start:starts(), trans, eps, sigma:SIGMA,
       accept:new Set(M.states.filter(s=>s.kind==='accept').map(s=>s.id))});
     U.renderLanguage($('langBox'), $('langFlag'), lang, 'NFA');
   }
@@ -274,17 +277,19 @@
     pick: w => { inputEl.value = w; resetRun(); $('runPanel').scrollIntoView({behavior:'smooth', block:'start'}); player.start(); }
   });
   function renderFormal(){
-    const M = b.M, start = findState(M.startId), accepts = M.states.filter(s=>s.kind==='accept');
-    const order = M.states.filter(s=>s.id===M.startId).concat(M.states.filter(s=>s.id!==M.startId));   // start state first, then in the order they were drawn
+    const M = b.M, accepts = M.states.filter(s=>s.kind==='accept'), startStates = M.states.filter(s=>s.isStart);
+    const order = startStates.concat(M.states.filter(s=>!s.isStart));   // start states first, then in the order they were drawn
     const q = s => `<i>${labelHTML(s.label)}</i>`, serif = t => `<span style="font-family:var(--serif)">${t}</span>`;
     const cols = SIGMA.concat([EPS]);
-    let html = `<p class="tuple"><i>N</i> = (<i>Q</i>, Σ, δ, ${q(start)}, <i>F</i>) where</p><dl class="parts">`;
+    // one start state: Sipser's (Q, Σ, δ, q0, F); several: a set of start states Q0 in its place
+    const one = startStates.length===1, Q0 = '<i>Q</i><sub>0</sub>';
+    let html = `<p class="tuple"><i>N</i> = (<i>Q</i>, Σ, δ, ${one ? q(startStates[0]) : Q0}, <i>F</i>) where</p><dl class="parts">`;
     html += `<dt><i>Q</i></dt><dd>= ${setList(order.map(q))}</dd>`;
     html += `<dt>Σ</dt><dd>= ${setList(SIGMA.map(esc))}</dd>`;
     html += `<dt>δ</dt><dd>${serif('is given by this table:')}</dd></dl>`;
     html += '<div class="tbl-wrap"><table class="delta"><thead><tr><th class="corner">state \\ reads</th>' + cols.map(c=>`<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
     order.forEach(s=>{
-      html += `<tr><th${s.kind==='accept' ? ' class="to-acc"' : ''}>${s.id===M.startId?'→ ':''}<span class="qq">${labelHTML(s.label)}</span></th>`;
+      html += `<tr><th${s.kind==='accept' ? ' class="to-acc"' : ''}>${s.isStart?'→ ':''}<span class="qq">${labelHTML(s.label)}</span></th>`;
       cols.forEach(c=>{
         const dest = [...new Set(M.edges.filter(e=>e.from===s.id && e.rules.some(r=>r.read===c)).map(e=>e.to))].map(findState)
           .sort((a,c2)=>a.label.localeCompare(c2.label, undefined, {numeric:true}));
@@ -294,7 +299,8 @@
       html += '</tr>';
     });
     html += '</tbody></table></div>';
-    html += `<dl class="parts after"><dt>${q(start)}</dt><dd>${serif('is the start state')}</dd><dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
+    html += `<dl class="parts after">` + (one ? `<dt>${q(startStates[0])}</dt><dd>${serif('is the start state')}</dd>` : `<dt>${Q0}</dt><dd>= ${setList(startStates.map(q))}</dd>`)
+      + `<dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
     $('formal').innerHTML = html;
   }
 

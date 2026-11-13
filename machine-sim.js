@@ -106,7 +106,7 @@
   //  computation trees
   // ======================================================================
   // Each node is a configuration; each edge is one move. Built breadth-first so that every level is one step.
-  // o: {root, key(cfg) → string, accepting(cfg) → bool, expand(cfg) → [{cfg, edgeId, ruleIdx, label}], maxNodes, maxDepth}
+  // o: {root (or roots, for several start states), key(cfg) → string, accepting(cfg) → bool, expand(cfg) → [{cfg, edgeId, ruleIdx, label}], maxNodes, maxDepth}
   // A node's status ends up as: 'inner' (it has children), 'accept' (✓, not expanded further),
   // 'dead' (× no move applies), 'repeat' (↻ same configuration as one of its ancestors, so this branch only loops),
   // or 'cut' (… not expanded because the tree got too big).
@@ -116,8 +116,8 @@
       const n = {id:nodes.length, cfg, parent, via, depth: parent ? parent.depth+1 : 0, children:[], status:'open', key:o.key(cfg)};
       nodes.push(n); return n;
     };
-    const root = mk(o.root, null, null);
-    let frontier = [root], firstAccept = null, cut = false;
+    const roots = (o.roots || [o.root]).map(cfg=>mk(cfg, null, null));
+    let frontier = roots.slice(), firstAccept = null, cut = false;
     while(frontier.length){
       const next = [];
       for(const n of frontier){
@@ -138,7 +138,7 @@
     for(let a = firstAccept; a; a = a.parent) path.add(a.id);
     // steps: one per level, plus one more to show what happened to the deepest branches
     const ends = nodes.filter(n=>n.depth===depth).some(n=>n.status!=='accept');
-    return {nodes, root, firstAccept, cut, depth, last: depth + (ends ? 1 : 0), path};
+    return {nodes, roots, root:roots[0], firstAccept, cut, depth, last: depth + (ends ? 1 : 0), path};
   }
 
   // Draws the tree into `svg` (inside a scrolling box). Positions are fixed for the whole tree, and
@@ -152,11 +152,12 @@
     // leaves left to right; a parent sits centered over its children
     let slot = 0;
     const SLOT = boxW + 34;
-    (function place(n){
+    const place = (function place(n){
       if(!n.children.length){ n.x = slot*SLOT + SLOT/2; slot++; return; }
       n.children.forEach(place);
       n.x = (n.children[0].x + n.children[n.children.length-1].x)/2;
-    })(T.root);
+    });
+    T.roots.forEach(place);   // several start states: their trees sit side by side
     const levelH = [];
     T.nodes.forEach(n=>{ levelH[n.depth] = Math.max(levelH[n.depth]||0, boxH(n)); });
     const levelY = []; let y = 14;
