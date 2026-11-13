@@ -151,7 +151,10 @@
     const boxH = n => hasStack ? Math.max(30, Math.max(1, stackShown(n).length)*CELL + 8) : 30;
     // leaves left to right; a parent sits centered over its children
     let slot = 0;
-    const SLOT = boxW + 34;
+    // columns are wide enough for the input written under each box (up to INPUT_MAX symbols; longer ones get "…")
+    const INPUT_MAX = 24, CH = 6.4;
+    const inputLen = [...((d.read ? d.read(T.root) : '') + d.rest(T.root))].length;
+    const SLOT = Math.max(boxW + 34, Math.ceil(Math.min(inputLen, INPUT_MAX)*CH) + 18);
     const place = (function place(n){
       if(!n.children.length){ n.x = slot*SLOT + SLOT/2; slot++; return; }
       n.children.forEach(place);
@@ -165,7 +168,7 @@
     // every box in a level is as tall as the tallest, so the stacks all rest on the same floor
     T.nodes.forEach(n=>{ n.y = levelY[n.depth]; n.w = boxW; n.h = levelH[n.depth]; });
     T.width = Math.max(slot*SLOT, SLOT); T.height = y - 40;
-    T.hasStack = hasStack; T.stackShown = stackShown; T.CELL = CELL; T.SLOT = SLOT;
+    T.hasStack = hasStack; T.stackShown = stackShown; T.CELL = CELL; T.SLOT = SLOT; T.INPUT_MAX = INPUT_MAX;
   }
   // animate: the newest level grows in (edges draw downward, then their arrowheads, labels and boxes fade in)
   function drawTree(svg, T, upto, d, animate){
@@ -230,9 +233,15 @@
       const rt = el('text',{class:'tree-input', x:n.x, y:y + n.h + 12});
       if(!read && !rest){ rt.classList.add('none'); rt.textContent = 'ε'; }
       else {
-        const MAXC = Math.max(4, Math.floor((T.SLOT - 8) / 6.4));
+        const MAXC = T.INPUT_MAX;
         const r = [...read], u = [...rest];
-        if(r.length + u.length > MAXC){ const keep = Math.max(0, MAXC - 1 - u.length); read = '…' + r.slice(r.length - keep).join(''); }
+        if(r.length + u.length > MAXC){
+          // keep the symbols around the reading point: the newest read ones and the next unread ones
+          const keepU = Math.min(u.length, Math.max(MAXC - 6, Math.ceil(MAXC/2)));
+          const keepR = Math.min(r.length, MAXC - 2 - keepU);
+          read = (r.length > keepR ? '…' : '') + r.slice(r.length - keepR).join('');
+          rest = u.slice(0, keepU).join('') + (u.length > keepU ? '…' : '');
+        }
         if(read){ const a = document.createElementNS(SVG_NS,'tspan'); a.setAttribute('class','tree-read'); a.textContent = read; rt.appendChild(a); }
         if(rest){ const b2 = document.createElementNS(SVG_NS,'tspan'); b2.setAttribute('class','tree-rest'); b2.textContent = rest; rt.appendChild(b2); }
         const ti = document.createElementNS(SVG_NS,'title');
