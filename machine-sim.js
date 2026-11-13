@@ -510,7 +510,7 @@
     ],
     ruleNoun: 'rule',
     editorTitle: 'Rules for',
-    editorHint: 'An empty box means ε; type <b>_</b> for a rule that is all ε (ε, ε → ε).<span class="kbd-tip"> Enter adds a rule, and Enter on an empty rule finishes.</span>',
+    editorHint: '<span class="kbd-tip">Enter adds a rule, and Enter on an empty rule finishes.</span>',   // empty boxes still mean ε, and _ still types ε
     ruleText: pdaRuleText,
     parseRules: pdaParseRules,
     symInput: v => /_/.test(v) ? v.replace(/_/g, EPS) : v,
