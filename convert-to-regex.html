@@ -9,6 +9,7 @@
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.11/katex.min.js"></script>
 <title>Finite Automaton to Regular Expression</title>
+<link rel="stylesheet" href="machine-builder.css">
 <style>
   :root{
     --paper:#eaf4fb;
@@ -36,38 +37,9 @@
   .panels{display:flex;flex-direction:column;gap:22px;}
   .panel{background:var(--panel);border:1px solid var(--rule);border-radius:3px;padding:16px 16px 18px;position:relative;}
   .panel-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:8px;}
-  #builderLockable{position:relative;transition:opacity 0.15s ease;}
-  #builderLockable.locked{opacity:0.9;pointer-events:none;}
-  #builderLockable.locked::before{
-    content:'';
-    position:absolute; inset:-16px -16px 0 -16px;
-    background:rgba(90,100,118,0.16);
-    border-radius:3px;
-    pointer-events:none;
-  }
-  #builderLockable.locked::after{
-    content:'🔒';
-    position:absolute;
-    top:8px; right:10px;
-    font-size:15px;
-    line-height:1;
-    opacity:0.85;
-    pointer-events:none;
-  }
   .panel-head h2{font-family:var(--serif);font-size:0.78rem;font-weight:700;text-transform:uppercase;
     letter-spacing:0.09em;color:var(--ink-soft);margin:0;}
   .hint{color:var(--ink-soft);font-size:0.84rem;margin:2px 0 12px;min-height:2.6em;line-height:1.4;}
-  .toolbar{display:flex;gap:6px;flex-wrap:wrap;}
-  .tool{
-    font-family:var(--mono);font-size:0.82rem;padding:6px 11px;border-radius:3px;
-    border:1px solid var(--rule);background:#f5fafd;color:var(--ink);cursor:pointer;
-  }
-  .tool:hover{background:var(--info-soft);border-color:var(--info);}
-  .tool.active{background:var(--info);border-color:var(--info);color:#fff;}
-  svg.stage{width:100%;height:auto;display:block;background:var(--panel);
-    border:1px solid var(--rule); border-radius:3px; cursor:crosshair; touch-action:none; -webkit-user-select:none; user-select:none;
-  }
-  svg.stage.mode-move{cursor:default;}
   #gnfaStack{display:flex;flex-direction:column;align-items:stretch;}
   .gnfa-controls-row{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-top:14px;}
   .gnfa-controls-row-top{margin-top:0;margin-bottom:14px;}
@@ -109,51 +81,38 @@
   .mode-switch-track input:checked ~ .mode-switch-thumb{background:var(--info);}
   .mode-switch-track input:checked ~ .mode-switch-thumb::before{transform:translateX(18px);}
   .mode-switch-track input:focus-visible ~ .mode-switch-thumb{box-shadow:0 0 0 3px var(--info-soft);}
-  .btn{font-family:var(--mono);font-size:0.86rem;padding:8px 16px;border-radius:3px;border:1px solid var(--rule);
+  .btn{font-family:var(--mono);font-size:0.86rem;padding:8px 16px;border-radius:3px;border:1px solid var(--rule);line-height:normal;white-space:normal;
     background:#f5fafd;color:var(--ink);cursor:pointer;}
   .btn:hover{background:var(--info-soft);border-color:var(--info);}
   .btn.primary{background:var(--info);border-color:var(--info);color:#fff;}
   .btn.primary:hover{background:#255277;}
   .btn:disabled{opacity:0.45;cursor:not-allowed;}
 
-  .state-circle{fill:var(--panel);stroke:var(--ink);stroke-width:2.2;}
-  .state-hit{fill:transparent;stroke:none;}
-  .state-circle.eliminable:hover{fill:var(--danger-soft);stroke:var(--danger);cursor:pointer;}
-  .state-circle.selected{stroke:var(--info);stroke-width:3;}
+  /* the elimination boxes keep their own diagram styles; the builder above uses machine-builder.css */
+  .gnfa-box .state-circle{fill:var(--panel);stroke:var(--ink);stroke-width:2.2;transition:none;}
+  .gnfa-box .state-hit{fill:transparent;stroke:none;}
+  .gnfa-box .state-circle.eliminable:hover{fill:var(--danger-soft);stroke:var(--danger);cursor:pointer;}
+  .gnfa-box .state-circle.selected{stroke:var(--info);stroke-width:3;}
   /* explicit baseline offset instead of dominant-baseline, which iOS Safari places too high */
-  .state-label{font-family:var(--serif);font-size:15px;fill:var(--ink);text-anchor:middle;user-select:none;pointer-events:none;}
-  .sf-label{font-family:var(--serif);font-style:italic;font-size:16px;}
-  .edge-path{fill:none;stroke:var(--ink-soft);stroke-width:1.6;marker-end:url(#arrow);pointer-events:none;}
-  .edge-path-colored{stroke-width:2.6;}
-  .edge-hit{fill:none;stroke:transparent;stroke-width:22;cursor:grab;}
-  .edge-hit:hover + .edge-path{stroke:var(--danger);}
-  .edge-label{font-family:var(--symbols);font-size:13px;fill:var(--ink);text-anchor:middle;}
-  .edge-label-placeholder{font-family:var(--serif);font-style:italic;font-size:11px;fill:var(--ink-soft);}
-  .edge-label-bg{fill:var(--panel);}
-  .start-arrow{stroke:var(--info);stroke-width:2.2;marker-end:url(#arrow);}
-  .start-hit{stroke:transparent;stroke-width:22;cursor:grab;}
-  .snap-guide{stroke:var(--info);stroke-width:1.2;stroke-dasharray:5 4;opacity:0.75;pointer-events:none;}
-  .select-pending{stroke:var(--info) !important;stroke-width:3.2 !important;}
+  .gnfa-box .state-label{user-select:none;}   /* otherwise the shared state-label look */
+  .gnfa-box .edge-path{fill:none;stroke:var(--ink-soft);stroke-width:1.6;marker-end:url(#arrow);pointer-events:none;}
+  .gnfa-box .edge-path-colored{stroke-width:2.6;}
+  .gnfa-box .edge-hit{fill:none;stroke:transparent;stroke-width:22;cursor:grab;}
+  .gnfa-box .edge-hit:hover + .edge-path{stroke:var(--danger);}
+  .gnfa-box .edge-label{font-family:var(--symbols);font-size:13px;fill:var(--ink);text-anchor:middle;}
+  .gnfa-box .edge-label-placeholder{font-family:var(--serif);font-style:italic;font-size:11px;fill:var(--ink-soft);}
+  .gnfa-box .edge-label-bg{fill:var(--panel);fill-opacity:1;}
+  .gnfa-box .start-arrow{stroke:var(--ink);stroke-width:2.2;marker-end:url(#arrow-start);}
+  .gnfa-box .start-hit{stroke:transparent;stroke-width:22;cursor:grab;}
+  .gnfa-box .snap-guide{stroke:var(--info);stroke-width:1.2;stroke-dasharray:5 4;opacity:0.75;pointer-events:none;}
 
   .regex-result{margin-top:16px;padding:12px 16px;background:var(--info-soft);border-left:3px solid var(--info);
     border-radius:0 3px 3px 0;display:flex;flex-direction:column;gap:6px;}
   .regex-caption{font-family:var(--serif);font-style:italic;font-size:0.92rem;color:var(--ink-soft);}
   .regex-value{font-size:1.15rem;color:var(--ink);max-width:100%;overflow-x:auto;overflow-y:hidden;}
-  .transition-editor{display:flex;align-items:center;gap:8px;flex-wrap:wrap;background:var(--info-soft);
-    border-left:3px solid var(--info);border-radius:0 3px 3px 0;padding:9px 12px;margin-bottom:10px;}
-  .te-label{font-size:0.84rem;color:var(--ink);white-space:nowrap;}
-  .te-input{
-    -webkit-appearance:none;appearance:none;font-family:var(--symbols);font-size:0.95rem;
-    background:#f5fafd;border:1.5px solid var(--ink);border-radius:3px;padding:6px 9px;color:var(--ink);
-    flex:1;min-width:120px;
-  }
-  .te-btn{padding:6px 13px;font-size:0.82rem;}
-  .te-eps{font-family:var(--symbols);font-size:1rem;padding:5px 12px;}
-  .te-btn.danger-btn{color:var(--danger);border-color:var(--danger-soft);}
-  .te-btn.danger-btn:hover{background:var(--danger-soft);border-color:var(--danger);}
-  .te-error{flex-basis:100%;color:var(--danger);font-size:0.8rem;}
-  .build-error{color:var(--danger);font-size:0.84rem;margin:8px 0 0;}
-  .te-hint{flex-basis:100%;color:var(--ink-soft);font-size:0.8rem;}
+
+  /* this page's panels have 16px side padding */
+  #buildPanel.is-locked:not(.collapsed) #lockZone::before{inset:-16px -16px -8px -16px;}
 
   footer{margin-top:50px;color:#6f93ab;font-size:0.78rem;line-height:1.6;border-top:1px solid var(--rule);padding-top:14px;}
 </style>
@@ -166,39 +125,7 @@
   </header>
 
   <main class="panels">
-    <section class="panel" id="builderPanel">
-      <div id="builderLockable">
-        <div class="panel-head">
-          <h2>Your automaton</h2>
-        </div>
-        <div class="toolbar" id="toolbar">
-          <button class="tool active" data-tool="move">Move</button>
-          <button class="tool" data-tool="state">Add state</button>
-          <button class="tool" data-tool="transition">Draw arrow</button>
-          <button class="tool" data-tool="start">Toggle start</button>
-          <button class="tool" data-tool="accept">Toggle accept</button>
-          <button class="tool" data-tool="delete">Delete</button>
-        </div>
-        <p class="hint" id="builderHint">Drag a state to move it, or drag an arrow to bend it. Tap an arrow to edit its label.</p>
-        <div class="transition-editor" id="transitionEditor" hidden>
-          <label class="te-label" id="transitionEditorLabel" for="transitionEditorInput">Labels:</label>
-          <input type="text" class="te-input" id="transitionEditorInput" autocomplete="off" spellcheck="false" placeholder="e.g. 0, 1">
-          <button type="button" class="btn te-btn te-eps" id="insertEpsilonBtn" title="Insert an epsilon transition"><span class="tex-sym" data-tex="\varepsilon"></span></button>
-          <button class="btn primary te-btn" id="transitionEditorAdd">Add</button>
-          <button class="btn te-btn" id="transitionEditorCancel">Cancel</button>
-          <button class="btn te-btn danger-btn" id="transitionEditorDelete">Delete</button>
-          <span class="te-hint" id="transitionEditorHint">Provide a list of single characters, each separated by a comma (e.g. 0, 1). Use the <span class="tex-sym" data-tex="\varepsilon"></span> button for an epsilon transition</span>
-          <span class="te-error" id="transitionEditorError" hidden></span>
-        </div>
-        <svg class="stage mode-move" id="builderSvg" viewBox="0 0 900 500"></svg>
-        <p class="build-error" id="buildError" hidden></p>
-      </div>
-      <div class="panel-actions">
-        <button class="btn secondary" id="clearBtn">Clear</button>
-        <button class="btn primary" id="convertBtn">Convert to regex</button>
-        <button class="btn primary" id="editAutomatonBtn" hidden>Edit automaton</button>
-      </div>
-    </section>
+    <section class="panel" id="buildPanel"></section>
 
     <div class="mode-switch-row" id="modeSwitchRow" hidden>
       <label class="mode-switch">
@@ -222,7 +149,7 @@
       </div>
       <div id="gnfaStack"></div>
       <div class="gnfa-controls-row">
-        <button class="btn secondary btn-reserve" id="undoBtn">Undo last removal</button>
+        <button class="btn secondary btn-reserve" id="undoElimBtn">Undo last removal</button>
         <div class="mode-segment" id="gnfaModeSegment" hidden>
           <button class="mode-segment-btn active" id="eliminateModeBtn" type="button">Eliminate</button>
           <button class="mode-segment-btn" id="repositionModeBtn" type="button">Reposition</button>
@@ -240,6 +167,7 @@
   </footer>
 </div>
 
+<script src="machine-builder.js"></script>
 <script>
 (function(){
   "use strict";
@@ -410,6 +338,10 @@
     const marker = el('marker',{id:'arrow', viewBox:'0 0 10 10', refX:'9', refY:'5', markerWidth:'7', markerHeight:'7', orient:'auto-start-reverse'});
     marker.appendChild(el('path',{d:'M0,0 L10,5 L0,10 z', fill:'#3d5a75'}));
     defs.appendChild(marker);
+    // the start arrow's head, in the same dark ink as the builder's
+    const startMarker = el('marker',{id:'arrow-start', viewBox:'0 0 10 10', refX:'9', refY:'5', markerWidth:'7', markerHeight:'7', orient:'auto-start-reverse'});
+    startMarker.appendChild(el('path',{d:'M0,0 L10,5 L0,10 z', fill:'#16324f'}));
+    defs.appendChild(startMarker);
     for(let i=0; i<EAGER_MARKER_COUNT; i++){
       const color = nextPaletteColor(i);
       defs.appendChild(makeArrowMarker(markerIdFor(color), color));
@@ -428,7 +360,6 @@
       defs.appendChild(makeArrowMarker(id, color));
     }
   }
-  addArrowDefs(document.getElementById('builderSvg'));
 
   const R = 24; // state radius
   function clamp(v, lo, hi){ return Math.max(lo, Math.min(hi, v)); }
@@ -501,21 +432,6 @@
     }
   }
 
-  // sets a <text> element's content to a label like "q2" with the trailing digits rendered
-  // as a true subscript (via a smaller, baseline-shifted tspan), not just "q2" as plain text.
-  // Labels with no trailing digits (S, F) render unchanged.
-  function setStateLabel(t, label){
-    const m = /^(.*?)(\d+)$/.exec(label);
-    if(!m){ t.textContent = label; return; }
-    const main = document.createElementNS(SVG_NS,'tspan');
-    main.textContent = m[1];
-    t.appendChild(main);
-    const sub = document.createElementNS(SVG_NS,'tspan');
-    sub.setAttribute('dy','0.25em');
-    sub.setAttribute('font-size','0.72em');
-    sub.textContent = m[2];
-    t.appendChild(sub);
-  }
 
   // x,y is a point ON the line/curve; nx,ny (if given) is the direction to push the label away from
   // it, computed only after the label's real rendered size is known so the gap is never too thin.
@@ -553,337 +469,70 @@
   }
 
   // ================= BUILDER =================
-  const builderSvg = document.getElementById('builderSvg');
-  let states = [];     // {id,x,y,label,isStart,isAccept}
-  let edges = [];      // {id,from,to,symbols:[..], curve, loopAngle, loopRadius}
-  let nextIdx = 0;
-  let nextEdgeIdx = 0;
-  let tool = 'move';
-  let pendingFrom = null; // for transition tool
-  let pendingTo = null;
-  let editingEdgeId = null; // set while the editor is open on a specific existing arrow
-
-  const transitionEditor = document.getElementById('transitionEditor');
-  const transitionEditorLabel = document.getElementById('transitionEditorLabel');
-  const transitionEditorInput = document.getElementById('transitionEditorInput');
-  const transitionEditorDelete = document.getElementById('transitionEditorDelete');
-  const transitionEditorError = document.getElementById('transitionEditorError');
-  const transitionEditorHint = document.getElementById('transitionEditorHint');
-  document.getElementById('transitionEditorAdd').addEventListener('click', confirmTransitionEdit);
-  document.getElementById('insertEpsilonBtn').addEventListener('click', ()=>{
-    const el = transitionEditorInput;
-    const start = el.selectionStart!=null ? el.selectionStart : el.value.length;
-    const end = el.selectionEnd!=null ? el.selectionEnd : el.value.length;
-    const before = el.value.slice(0,start), after = el.value.slice(end);
-    // insert as its own comma-separated symbol, adding a separator if needed
-    const needsLeadingComma = before.length>0 && !/[,\s]$/.test(before);
-    const insert = (needsLeadingComma ? ', ' : '') + '\u03b5';
-    el.value = before + insert + after;
-    const pos = (before+insert).length;
-    el.focus();
-    el.setSelectionRange(pos, pos);
+  // The drawing area is the shared machine builder (machine-builder.js); this page only says
+  // what kind of automaton it builds and what "Convert to regex" does with it.
+  const parseLabels = text => ({rules: String(text).split(',').map(x=>x.trim()).filter(Boolean).map(read=>({read}))});
+  const b = MachineBuilder.create({
+    title: 'Your automaton',
+    collapsible: false,
+    share: false,
+    tools: ['move','state','arrow','start','accept','delete'],
+    hints: {
+      move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to edit its label.'
+    },
+    example: key => EXAMPLES[key],
+    starter: () => MachineBuilder.util.emptyMachine(),
+    editorKind: 'list',
+    epsilonButton: true,
+    plainAccept: true,
+    multiStart: true,
+    columns: [ {key:'read', type:'sym', label:'symbol', required:true} ],
+    ruleNoun: 'label',
+    editorTitle: 'Labels for',
+    listPlaceholder: 'e.g. 0, 1',
+    editorHint: 'Separate symbols with commas. Use the ε button for an epsilon transition.',
+    ruleText: r => r.read,
+    labelLines: rules => [rules.map(r=>r.read).join(', ')],
+    usedLine: () => 0,
+    parseRules: parseLabels,
+    analyze: () => ({problems:[], conflictEdges:new Set()}),
+    clearButton: true,
+    lockLabel: 'Convert to regex',
+    editLabel: 'Edit automaton',
+    lockedPanels: [],
+    onLock(){ buildGnfaFromBuilder(); },
+    onUnlock(){ resetGnfa(); }
   });
-  document.getElementById('transitionEditorCancel').addEventListener('click', cancelTransitionEdit);
-  transitionEditorDelete.addEventListener('click', ()=>{
-    if(editingEdgeId) deleteEdgeById(editingEdgeId);
-    editingEdgeId = null; pendingFrom = null; pendingTo = null;
-    transitionEditor.hidden = true;
-    renderBuilder();
-  });
-  transitionEditorInput.addEventListener('keydown', (e)=>{
-    if(e.key==='Enter'){ e.preventDefault(); confirmTransitionEdit(); }
-    if(e.key==='Escape'){ e.preventDefault(); cancelTransitionEdit(); }
-  });
+  // the elimination code reads the automaton in this shape
+  function builderStates(){
+    return b.M.states.map(s=>({id:s.id, x:s.x, y:s.y, label:s.label, isStart:!!s.isStart, isAccept:s.kind==='accept'}));
+  }
+  function builderEdges(){
+    return b.M.edges.map(e=>({id:e.id, from:e.from, to:e.to, symbols:e.rules.map(r=>r.read),
+      curve: e.curveManual ? e.curve : null, curveManual: !!e.curveManual, labelSide: e.labelSide,
+      loopAngle: e.loopAngle, loopRadius: e.loopRadius}));
+  }
+  // preloaded example: { w in {0,1}* : w starts with 0 and has odd length }
+  const EXAMPLES = {
+    odd0: { input:'', build:()=>b.mk(
+      [['q0',320,150],               // nothing read yet
+       ['q1',570,150,'accept'],      // started with 0, odd length so far (accepting)
+       ['q2',570,400],               // started with 0, even length so far
+       ['q3',320,400]],              // didn't start with 0, dead forever
+      [['q0','q1','0',{side:-1}],    // label above the line, not below
+       ['q0','q3','1'],
+       ['q1','q2','0, 1'],
+       ['q2','q1','0, 1'],
+       ['q3','q3','0, 1',{loop:0}]], // pointed right, since up would collide with the q0->q3 edge above it
+      'q0') }
+  };
 
-  // splits on commas into trimmed symbols; each symbol must be exactly one character:
-  // the alphabet here is single characters only, no multi-character tokens
-  function parseSymbols(raw){
-    const parts = raw.split(',').map(s=>s.trim()).filter(Boolean);
-    const invalid = parts.filter(p=>p.length!==1);
-    return {parts, invalid};
-  }
-  function showTransitionError(msg){
-    transitionEditorError.textContent = msg;
-    transitionEditorError.hidden = false;
-    transitionEditorHint.hidden = true;
-  }
-  function hideTransitionError(){
-    transitionEditorError.hidden = true;
-    transitionEditorHint.hidden = false;
-  }
-
-  function openArrowEditor(edgeId){
-    const edge = findEdgeById(edgeId);
-    if(!edge) return;
-    editingEdgeId = edgeId;
-    pendingFrom = edge.from; pendingTo = edge.to;
-    const fromLabel = findState(edge.from).label, toLabel = findState(edge.to).label;
-    transitionEditorLabel.textContent = `Labels for ${fromLabel} \u2192 ${toLabel}:`;
-    transitionEditorInput.value = edge.symbols.join(', ');
-    hideTransitionError();
-    transitionEditor.hidden = false;
-    renderBuilder();
-    transitionEditorInput.focus();
-    transitionEditorInput.select();
-  }
-  function cancelTransitionEdit(){
-    editingEdgeId = null; pendingFrom = null; pendingTo = null;
-    hideTransitionError();
-    transitionEditor.hidden = true;
-    renderBuilder();
-  }
-  function confirmTransitionEdit(){
-    const {parts:syms, invalid} = parseSymbols(transitionEditorInput.value);
-    if(invalid.length){
-      showTransitionError(`Each symbol must be a single character: "${invalid[0]}" isn't. Separate symbols with commas, e.g. "0, 1".`);
-      return; // leave the editor open so it can be fixed
-    }
-    hideTransitionError();
-    if(editingEdgeId){
-      const edge = findEdgeById(editingEdgeId);
-      if(edge) edge.symbols = syms; // may be left empty -> shows as an unlabeled arrow
-      if(syms.length) document.getElementById('buildError').hidden = true;
-    }
-    editingEdgeId = null; pendingFrom = null; pendingTo = null;
-    transitionEditor.hidden = true;
-    renderBuilder();
-  }
-
-  const toolbar = document.getElementById('toolbar');
-  toolbar.addEventListener('click', (e)=>{
-    const btn = e.target.closest('.tool');
-    if(!btn) return;
-    tool = btn.dataset.tool;
-    [...toolbar.children].forEach(b=>b.classList.toggle('active', b===btn));
-    pendingFrom = null; pendingTo = null;
-    transitionEditor.hidden = true;
-    builderSvg.classList.toggle('mode-move', tool==='move');
-    const hints = {
-      move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to edit its label.',
-      state: 'Tap empty space to place a new state.',
-      transition: 'Tap a state, then tap another (or the same one again) to draw a new arrow. Then tap that arrow to add a label.',
-      start: 'Tap a state to toggle whether it is a start state.',
-      accept: 'Tap a state to toggle whether it is an accept state.',
-      delete: 'Tap a state or an arrow to delete it.'
-    };
-    document.getElementById('builderHint').textContent = hints[tool];
-    renderBuilder();
-  });
-
+  // used by the elimination boxes
   function svgPoint(svg, evt){
     const pt = svg.createSVGPoint();
     pt.x = evt.clientX; pt.y = evt.clientY;
     const loc = pt.matrixTransform(svg.getScreenCTM().inverse());
     return {x:loc.x, y:loc.y};
-  }
-
-  // the lowest number not already in use, so deleting a state never leads to two states with one name
-  function freshLabel(){
-    const used = new Set(states.map(s=>s.label));
-    let i = 0; while(used.has('q'+i)) i++;
-    return 'q'+i;
-  }
-  function addState(x,y){
-    const id = 's'+(nextIdx++);
-    const label = freshLabel();
-    const isStart = states.length===0;
-    states.push({id, x, y, label, isStart, isAccept:false});
-    document.getElementById('buildError').hidden = true;
-    renderBuilder();
-  }
-  function findState(id){ return states.find(s=>s.id===id); }
-  function findEdgeById(id){ return edges.find(e=>e.id===id); }
-  function addEdge(from, to, syms){
-    const id = 'e'+(nextEdgeIdx++);
-    edges.push({id, from, to, symbols: syms, curve: null, curveManual: false, lastObstructed: false, labelSide: 1, loopAngle: null, loopRadius: null});
-    return id;
-  }
-
-  function deleteState(id){
-    states = states.filter(s=>s.id!==id);
-    edges = edges.filter(e=>e.from!==id && e.to!==id);
-    renderBuilder();
-  }
-  function deleteEdgeById(id){
-    edges = edges.filter(e=>e.id!==id);
-    renderBuilder();
-  }
-
-  let activePointerId = null;
-  let downX = 0, downY = 0;
-  let dragKind = null;   // 'state' | 'edge' | null
-  let dragTargetId = null;
-  let dragMoved = false;
-  let snapGuideX = null, snapGuideY = null; // active alignment guides while dragging a state
-  const DRAG_THRESHOLD = 5;
-
-  builderSvg.addEventListener('pointerdown', (e)=>{
-    if(!transitionEditor.hidden){
-      confirmTransitionEdit(); // tapping elsewhere saves & closes the editor immediately
-      dragKind = null; dragTargetId = null;
-      return;
-    }
-    const stateTarget = e.target.closest('[data-state-id]');
-    const edgeTarget = !stateTarget ? e.target.closest('[data-edge-id]') : null;
-    const startTarget = !stateTarget && !edgeTarget ? e.target.closest('.start-hit') : null;
-    downX = e.clientX; downY = e.clientY; dragMoved = false;
-
-    if(stateTarget || edgeTarget || startTarget){
-      dragKind = stateTarget ? 'state' : edgeTarget ? 'edge' : 'start';
-      dragTargetId = stateTarget ? stateTarget.dataset.stateId : edgeTarget ? edgeTarget.dataset.edgeId : startTarget.dataset.startStateId;
-      activePointerId = e.pointerId;
-      e.preventDefault(); // stop the browser from starting its own scroll/gesture for this touch
-      window.addEventListener('pointermove', onDragMove, {passive:false});
-      window.addEventListener('pointerup', onDragEnd);
-      window.addEventListener('pointercancel', onDragEnd);
-    } else {
-      dragKind = null; dragTargetId = null;
-    }
-  });
-
-  // empty-canvas taps (e.g. placing a new state) never involve a drag, so they're handled locally
-  builderSvg.addEventListener('pointerup', (e)=>{
-    if(dragKind) return; // an active state/edge interaction is handled by the window listeners below
-    handleTap(e, null, null);
-  });
-
-  function onDragMove(e){
-    if(activePointerId===null || e.pointerId!==activePointerId || !dragKind) return;
-    const dx = e.clientX-downX, dy = e.clientY-downY;
-    if(!dragMoved && Math.hypot(dx,dy) < DRAG_THRESHOLD) return;
-    dragMoved = true;
-    e.preventDefault();
-    const p = svgPoint(builderSvg, e);
-
-    if(dragKind==='state'){
-      const s = findState(dragTargetId);
-      if(s){
-        let px = Math.max(R+4, Math.min(900-R-4, p.x));
-        let py = Math.max(R+4, Math.min(500-R-4, p.y));
-
-        const others = states.filter(o=>o.id!==dragTargetId);
-        const SNAP = 10;
-        let bestX=null, bestXDist=SNAP, bestY=null, bestYDist=SNAP;
-        others.forEach(o=>{
-          const dx2 = Math.abs(px-o.x);
-          if(dx2<bestXDist){ bestXDist=dx2; bestX=o.x; }
-          const dy2 = Math.abs(py-o.y);
-          if(dy2<bestYDist){ bestYDist=dy2; bestY=o.y; }
-        });
-        for(let i=0;i<others.length;i++){
-          for(let j=i+1;j<others.length;j++){
-            const midX=(others[i].x+others[j].x)/2;
-            const dx2=Math.abs(px-midX);
-            if(dx2<bestXDist){ bestXDist=dx2; bestX=midX; }
-            const midY=(others[i].y+others[j].y)/2;
-            const dy2=Math.abs(py-midY);
-            if(dy2<bestYDist){ bestYDist=dy2; bestY=midY; }
-          }
-        }
-        if(bestX!=null) px = bestX;
-        if(bestY!=null) py = bestY;
-
-        s.x = px; s.y = py;
-        snapGuideX = bestX; snapGuideY = bestY;
-        renderBuilder();
-      }
-    } else if(dragKind==='edge'){
-      const edge = findEdgeById(dragTargetId);
-      if(!edge) return;
-      if(edge.from===edge.to){
-        const s = findState(edge.from);
-        if(!s) return;
-        edge.loopAngle = Math.atan2(p.y-s.y, p.x-s.x) * 180/Math.PI;
-        edge.loopRadius = clamp(Math.hypot(p.x-s.x, p.y-s.y) - R, 30, 150);
-      } else {
-        const a = findState(edge.from), b = findState(edge.to);
-        if(!a||!b) return;
-        const mx=(a.x+b.x)/2, my=(a.y+b.y)/2;
-        const lx=b.x-a.x, ly=b.y-a.y;
-        const len=Math.hypot(lx,ly)||1;
-        const nx=-ly/len, ny=lx/len;
-        const proj = (p.x-mx)*nx + (p.y-my)*ny;
-        const SNAP_TO_STRAIGHT = 18;
-        edge.curveManual = true; // a real drag always sticks, even if it lands on exactly 0
-        if(Math.abs(proj) < SNAP_TO_STRAIGHT){
-          // snap the edge dead straight, but remember which side you nudged toward so the
-          // label can still sit above or below it (same trick madebyevan's FSM designer uses)
-          edge.curve = 0;
-          edge.labelSide = proj<0 ? -1 : 1;
-        } else {
-          edge.curve = clamp(proj*2, -240, 240);
-        }
-      }
-      renderBuilder();
-    } else if(dragKind==='start'){
-      const s = findState(dragTargetId);
-      if(!s) return;
-      let angle = Math.atan2(p.y-s.y, p.x-s.x) * 180/Math.PI;
-      const cardinals = [-180, -90, 0, 90, 180];
-      for(const c of cardinals){
-        if(Math.abs(angle-c) < 10){ angle = c; break; }
-      }
-      s.startAngle = angle;
-      renderBuilder();
-    }
-  }
-
-  function onDragEnd(e){
-    window.removeEventListener('pointermove', onDragMove);
-    window.removeEventListener('pointerup', onDragEnd);
-    window.removeEventListener('pointercancel', onDragEnd);
-    if(activePointerId===null || e.pointerId!==activePointerId) return;
-    activePointerId = null;
-    const kind = dragKind, targetId = dragTargetId, moved = dragMoved;
-    dragKind = null; dragTargetId = null; dragMoved = false;
-    if(snapGuideX!=null || snapGuideY!=null){ snapGuideX=null; snapGuideY=null; renderBuilder(); }
-    if(kind && moved) return; // was a bend/move drag, not a tap
-    if(kind==='state') handleTap(e, targetId, null);
-    else if(kind==='edge') handleTap(e, null, targetId);
-  }
-
-  function handleTap(e, stateId, edgeId){
-    if(!transitionEditor.hidden) return;
-
-    if(stateId){
-      if(tool==='state') return; // adding states doesn't act on existing ones
-      if(tool==='transition'){
-        if(!pendingFrom){ pendingFrom = stateId; renderBuilder(); return; }
-        addEdge(pendingFrom, stateId, []);
-        pendingFrom = null; pendingTo = null;
-        renderBuilder();
-        return;
-      }
-      if(tool==='start'){
-        const s = findState(stateId);
-        if(s) s.isStart = !s.isStart;
-        document.getElementById('buildError').hidden = true;
-        renderBuilder();
-        return;
-      }
-      if(tool==='accept'){
-        const s = findState(stateId);
-        if(s) s.isAccept = !s.isAccept;
-        renderBuilder();
-        return;
-      }
-      if(tool==='delete'){
-        deleteState(stateId);
-        return;
-      }
-      return; // move mode: tapping a state (without dragging) does nothing
-    }
-
-    if(edgeId){
-      if(tool==='delete'){ deleteEdgeById(edgeId); return; }
-      openArrowEditor(edgeId);
-      return;
-    }
-
-    if(tool==='state'){
-      const p = svgPoint(builderSvg, e);
-      addState(p.x, p.y);
-    }
   }
 
   // a brand-new/solo edge drawn dead straight can end up passing right through some OTHER
@@ -907,125 +556,10 @@
     });
   }
 
-  function renderBuilder(){
-    builderSvg.innerHTML='';
-    addArrowDefs(builderSvg);
-
-    // group edges so parallel duplicates fan out with sensible defaults when not manually bent
-    const loopGroups = {}, pairGroups = {};
-    edges.forEach(edge=>{
-      if(edge.from===edge.to){
-        (loopGroups[edge.from] = loopGroups[edge.from]||[]).push(edge);
-      } else {
-        const pairKey = [edge.from,edge.to].sort().join('|'); // undirected: A-B and B-A count together
-        (pairGroups[pairKey] = pairGroups[pairKey]||[]).push(edge);
-      }
-    });
-
-    // edges first (behind states)
-    edges.forEach(edge=>{
-      const from = findState(edge.from), to = findState(edge.to);
-      if(!from||!to) return;
-      const label = edge.symbols.length ? edge.symbols.join(', ') : 'tap to label';
-      const placeholder = edge.symbols.length===0;
-      if(edge.from===edge.to){
-        const siblings = loopGroups[edge.from];
-        const idx = siblings.indexOf(edge);
-        const angle = edge.loopAngle!=null ? edge.loopAngle : (-90 + idx*70);
-        const radius = edge.loopRadius!=null ? edge.loopRadius : 62;
-        const g = selfLoopGeometry(from.x, from.y, angle);
-        drawColoredEdge(builderSvg, g, [], edge.id);
-        drawLabel(builderSvg, g.peakX, g.peakY, label, placeholder, g.nx, g.ny, 10, edge.id);
-      } else {
-        const pairKey = [edge.from,edge.to].sort().join('|');
-        const pairSiblings = pairGroups[pairKey];
-        // straight when it's the only arrow between these two states (either direction),
-        // unless another state sits on that line -- then curve away from it instead
-        let defaultCurve = 0;
-        if(pairSiblings.length===1){
-          const obstructedNow = lineHasObstruction(from.x,from.y,to.x,to.y, states, edge.from,edge.to);
-          // a fresh obstruction onset (wasn't obstructed last render, is now) re-arms the
-          // auto-curve even if the user previously flattened this edge -- so a manual
-          // flatten sticks only for the CURRENT obstruction episode, not forever. Moving
-          // the offending state away and back on later counts as a new episode.
-          if(obstructedNow && !edge.lastObstructed) edge.curveManual = false;
-          edge.lastObstructed = obstructedNow;
-          if(obstructedNow) defaultCurve = 50;
-        }
-        if(pairSiblings.length>1){
-          const idx = pairSiblings.indexOf(edge);
-          // one shared alternating sequence across BOTH directions of this pair, not two
-          // independent per-direction sequences: an opposite-direction edge computes its curve
-          // in a mirror-flipped frame, so an independently-alternating index can land two
-          // different arrows on the exact same visual side. Sharing one sequence and flipping
-          // the sign for whichever direction isn't "forward" guarantees every arrow between
-          // this pair gets a genuinely distinct side, no matter how the directions split.
-          const side = (idx%2===0) ? 1 : -1;
-          const magnitude = 55 + Math.floor(idx/2)*50;
-          const desiredSide = side*magnitude;
-          const isForward = edge.from < edge.to;
-          defaultCurve = isForward ? desiredSide : -desiredSide;
-        }
-        // curveManual distinguishes "the user dragged this edge during the CURRENT
-        // obstruction episode" (sticky for as long as that episode continues, at whatever
-        // value they chose -- including exactly straight, even hiding behind the
-        // obstruction, if that's what they wanted) from "never touched this episode"
-        // (always tracks the live obstruction state). See the re-arm check above for how
-        // a fresh episode clears this flag.
-        const curve = edge.curveManual ? edge.curve : defaultCurve;
-        const g = edgeGeometry(from.x, from.y, to.x, to.y, curve, edge.labelSide);
-        drawColoredEdge(builderSvg, g, [], edge.id);
-        drawLabel(builderSvg, g.peakX, g.peakY, label, placeholder, g.nx, g.ny, 10, edge.id);
-      }
-    });
-
-    // start arrows
-    states.filter(s=>s.isStart).forEach(startState=>{
-      const angle = (startState.startAngle!=null ? startState.startAngle : 180) * Math.PI/180;
-      const cosA = Math.cos(angle), sinA = Math.sin(angle);
-      const farX = startState.x + cosA*(R+46), farY = startState.y + sinA*(R+46);
-      const nearX = startState.x + cosA*(R+4), nearY = startState.y + sinA*(R+4);
-      builderSvg.appendChild(el('line',{class:'start-hit', 'data-start-state-id':startState.id, x1:farX, y1:farY, x2:nearX, y2:nearY}));
-      builderSvg.appendChild(el('line',{class:'start-arrow', x1:farX, y1:farY, x2:nearX, y2:nearY}));
-    });
-
-    // states
-    states.forEach(s=>{
-      const g = el('g',{'data-state-id':s.id, style:'cursor:'+(tool==='move'?'grab':'pointer')});
-      g.appendChild(el('circle',{class:'state-hit', cx:s.x, cy:s.y, r:R+12}));
-      const circle = el('circle',{class:'state-circle', cx:s.x, cy:s.y, r:R});
-      if(pendingFrom===s.id || pendingTo===s.id) circle.classList.add('select-pending');
-      g.appendChild(circle);
-      if(s.isAccept){
-        g.appendChild(el('circle',{class:'state-circle', cx:s.x, cy:s.y, r:R-6}));
-      }
-      const t = el('text',{class:'state-label', x:s.x, y:s.y+5.8});
-      setStateLabel(t, s.label);
-      g.appendChild(t);
-      builderSvg.appendChild(g);
-    });
-
-    // alignment guides, drawn last so they sit on top while actively dragging a state
-    if(snapGuideX!=null){
-      builderSvg.appendChild(el('line',{class:'snap-guide', x1:snapGuideX, y1:0, x2:snapGuideX, y2:500}));
-    }
-    if(snapGuideY!=null){
-      builderSvg.appendChild(el('line',{class:'snap-guide', x1:0, y1:snapGuideY, x2:900, y2:snapGuideY}));
-    }
-  }
-  document.getElementById('clearBtn').addEventListener('click', ()=>{
-    if(states.length>0 && !window.confirm("Are you sure you wish to clear your automaton? This cannot be undone.")) return;
-    states=[]; edges=[]; nextIdx=0; nextEdgeIdx=0; pendingFrom=null; pendingTo=null; editingEdgeId=null;
-    transitionEditor.hidden = true;
-    renderBuilder();
-    resetGnfa();
-  });
-
   // ================= GNFA / ELIMINATION =================
   const gnfaStack = document.getElementById('gnfaStack');
   const gnfaPanel = document.getElementById('gnfaPanel');
   const gnfaHint = document.getElementById('gnfaHint');
-  const resetBtn = document.getElementById('editAutomatonBtn');
   const regexResult = document.getElementById('regexResult');
   const regexValue = document.getElementById('regexValue');
   let snapshots = []; // [{states:[{id,x,y,label,special}], edges:{"from->to":ASTnode}, edgeList, connectorLabel}]
@@ -1051,23 +585,8 @@
                             // BUILDER (not move mode), so "Reset positions" can restore exactly this
                             // and nothing else — it must not undo curve/label choices made in the builder
 
-  document.getElementById('convertBtn').addEventListener('click', ()=>{
-    const buildError = document.getElementById('buildError');
-    if(states.length===0){ buildError.textContent='Add at least one state first.'; buildError.hidden=false; return; }
-    if(!states.some(s=>s.isStart)){ buildError.textContent='Set a start state first.'; buildError.hidden=false; return; }
-    const unlabeled = edges.filter(e=>e.symbols.length===0).length;
-    if(unlabeled>0){
-      buildError.textContent = unlabeled===1
-        ? 'One arrow still needs a label before converting.'
-        : `${unlabeled} arrows still need a label before converting.`;
-      buildError.hidden = false;
-      return;
-    }
-    buildError.hidden = true;
-    buildGnfaFromBuilder();
-  });
-
   function buildInitialEdges(){
+    const states = builderStates(), edges = builderEdges();
     const edgesObj = {};
     const put = (from,to,node)=>{ edgesObj[from+'->'+to] = mkUnion(edgesObj[from+'->'+to], node); };
     states.filter(s=>s.isStart).forEach(s=> put('__S__', s.id, EPS));
@@ -1077,6 +596,7 @@
   }
 
   function buildGnfaFromBuilder(){
+    const states = builderStates(), edges = builderEdges();
     const initialStates = states.map(s=>({id:s.id, x:s.x, y:s.y, label:s.label, special:null}));
     const minX = Math.min(...states.map(s=>s.x));
     const maxX = Math.max(...states.map(s=>s.x));
@@ -1114,9 +634,6 @@
     gnfaPanel.hidden = false;
     document.getElementById('modeSwitchRow').hidden = false;
     document.getElementById('notationFooter').hidden = false;
-    document.getElementById('builderLockable').classList.add('locked');
-    resetBtn.hidden = false;
-    document.getElementById('convertBtn').hidden = true;
     document.getElementById('gnfaModeSegment').hidden = false;
     updateResetPositionsVisibility();
     regexResult.hidden = true;
@@ -1134,7 +651,6 @@
     }
   }
 
-  resetBtn.addEventListener('click', resetGnfa);
   function resetGnfa(){
     snapshots = [];
     boxElements = [];
@@ -1142,13 +658,10 @@
     stepIndexOf = [];
     gEdgeCurve={}; gEdgeCurveManual={}; gEdgeLastObstructed={}; gEdgeLabelSide={}; gLoopMeta={}; gStartAngle={}; stateOverride={};
     setMoveMode(false);
-    document.getElementById('builderLockable').classList.remove('locked');
     gnfaPanel.hidden = true;
     document.getElementById('modeSwitchRow').hidden = true;
     document.getElementById('notationFooter').hidden = true;
-    resetBtn.hidden = true;
-    document.getElementById('convertBtn').hidden = false;
-    document.getElementById('undoBtn').classList.add('btn-reserve');
+    document.getElementById('undoElimBtn').classList.add('btn-reserve');
     document.getElementById('restartChainBtn').classList.add('btn-reserve');
     document.getElementById('gnfaModeSegment').hidden = true;
     document.getElementById('resetPositionsBtn').classList.add('btn-reserve');
@@ -1315,7 +828,7 @@
   // actually been eliminated
   function updateChainButtonsVisibility(){
     const hasHistory = eliminationOrder.length>0;
-    document.getElementById('undoBtn').classList.toggle('btn-reserve', !hasHistory);
+    document.getElementById('undoElimBtn').classList.toggle('btn-reserve', !hasHistory);
     document.getElementById('restartChainBtn').classList.toggle('btn-reserve', !hasHistory);
   }
 
@@ -1346,7 +859,7 @@
     renderRegexResult(last.states, last.edges);
     updateChainButtonsVisibility();
   }
-  document.getElementById('undoBtn').addEventListener('click', undoLastElimination);
+  document.getElementById('undoElimBtn').addEventListener('click', undoLastElimination);
 
   // drops every eliminated state and returns to the single starting GNFA box, without
   // touching the underlying automaton or requiring a full re-conversion
@@ -1868,8 +1381,11 @@
       if(s.special==='accept'){
         g.appendChild(el('circle',{class:'state-circle', cx:s.x, cy:s.y, r:R-6}));
       }
-      const t = el('text',{class:'state-label'+(s.special?' sf-label':''), x:s.x, y:s.y+5.8});
-      setStateLabel(t, s.label);
+      // drawn exactly like the builder's state names (italic, true subscripts)
+      const sub = MachineBuilder.util.splitLabel(s.label)[1];
+      const t = el('text',{class:'state-label', x:s.x, y:s.y + (sub ? 2.2 : 4)});
+      if(sub && sub.length>2) t.setAttribute('font-size','16');
+      MachineBuilder.util.setSvgLabel(t, s.label);
       g.appendChild(t);
       svg.appendChild(g);
     });
@@ -1887,34 +1403,7 @@
     if(isLive) svg.addEventListener('click', onLiveGnfaClick);
   }
 
-  // preloaded example: { w in {0,1}* : w starts with 0 and has odd length }
-  function loadExample(){
-    states = []; edges = []; nextIdx = 0; nextEdgeIdx = 0;
-
-    const addExState = (x,y,isStart,isAccept) => {
-      const id = 's'+(nextIdx++);
-      states.push({id, x, y, label:freshLabel(), isStart, isAccept});
-      return id;
-    };
-    const addExEdge = (from,to,syms,loopAngle,labelSide) => {
-      const id = 'e'+(nextEdgeIdx++);
-      edges.push({id, from, to, symbols:syms, curve:null, labelSide: labelSide!=null?labelSide:1, loopAngle: loopAngle!=null?loopAngle:null, loopRadius:null});
-    };
-
-    const start = addExState(320,150,true,false);   // nothing read yet
-    const oddFrom0 = addExState(570,150,false,true); // started with 0, odd length so far (accepting)
-    const evenFrom0 = addExState(570,400,false,false); // started with 0, even length so far
-    const trap = addExState(320,400,false,false);    // didn't start with 0, dead forever
-
-    addExEdge(start, oddFrom0, ['0'], null, -1); // label above the line, not below
-    addExEdge(start, trap, ['1']);
-    addExEdge(oddFrom0, evenFrom0, ['0','1']);
-    addExEdge(evenFrom0, oddFrom0, ['0','1']);
-    addExEdge(trap, trap, ['0','1'], 0); // pointed right, since up would collide with the q0->q3 edge above it
-  }
-
-  loadExample();
-  renderBuilder();
+  b.start('odd0');
 })();
 </script>
 </body>

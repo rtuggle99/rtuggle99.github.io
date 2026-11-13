@@ -1,0 +1,324 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<title>NFA Explorer</title>
+<link rel="stylesheet" href="machine-builder.css">
+<style>
+  .cols.two{grid-template-columns:repeat(2, minmax(0,1fr));}
+  @media (max-width:520px){ .cols.two{grid-template-columns:minmax(0,1fr);} }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>NFA Explorer</h1>
+    <p>Draw a nondeterministic finite automaton and lock it in, then give it inputs and watch every branch of its computation at once. Arrows can read ε, a state can have several arrows for the same symbol, and missing arrows are fine.</p>
+  </header>
+
+  <main class="panels">
+    <!-- =============== 1. BUILD =============== -->
+    <section class="panel" id="buildPanel"></section>
+
+    <!-- =============== 2. RUN =============== -->
+    <section class="panel" id="runPanel" hidden>
+      <div class="panel-head"><h2>Simulate on a string</h2></div>
+      <div class="row">
+        <label class="label" for="inputString">Input:</label>
+        <input class="text-in" id="inputString" type="text" autocomplete="off" spellcheck="false" placeholder="ε (empty string)">
+        <span class="input-err" id="inputErr"></span>
+      </div>
+
+      <div class="stage-box">
+        <svg class="copy" id="copySvg" viewBox="0 0 900 470"></svg>
+        <div class="tree-head"><b>Computation tree</b><span id="treeNote"></span></div>
+        <div class="tree-wrap" id="treeWrap"><svg id="treeSvg"></svg></div>
+      </div>
+
+      <div class="row player">
+        <button class="btn icon" id="resetBtn" title="Back to the start (R)">⏮</button>
+        <button class="btn icon" id="backBtn" title="Step back (←)">◀</button>
+        <button class="btn primary" id="playBtn" title="Play / pause (Space)" style="min-width:96px;">▶ Play</button>
+        <button class="btn icon" id="stepBtn" title="Step forward (→)">▶</button>
+        <button class="btn icon" id="endBtn" title="Jump to the end">⏭</button>
+        <input class="scrub" id="scrub" type="range" min="0" max="0" value="0" aria-label="Step">
+        <span class="stepcount" id="stepCount"></span>
+        <span class="verdict" id="verdict" hidden></span>
+        <button class="btn small" id="speedBtn" title="Change playback speed">Speed: normal</button>
+      </div>
+    </section>
+
+    <!-- =============== 3. THE LANGUAGE =============== -->
+    <section class="panel" id="langPanel" hidden>
+      <div class="panel-head"><h2>The language</h2></div>
+      <div class="lang-eq"><i>L</i>(<i>N</i>) =</div>
+      <div class="lang-box" id="langBox"></div>
+      <div class="lang-flag" id="langFlag"></div>
+    </section>
+
+    <!-- =============== 4. TEST =============== -->
+    <section class="panel" id="testPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="testBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Test many strings</h2></button></div>
+      <div class="panel-body" id="testBody" hidden>
+      <div class="row count-row">
+        <span class="note">Strings to test:</span>
+        <div class="seg" id="countSeg" role="radiogroup" aria-label="How many strings">
+          <button type="button" data-n="10">10</button><button type="button" data-n="25">25</button><button type="button" data-n="50">50</button><button type="button" data-n="100">100</button><button type="button" data-n="250">250</button><button type="button" data-n="custom">Custom</button>
+        </div>
+        <span class="note" id="countNote">the first <span id="countN">50</span> strings over <span class="sym" id="sigmaShow"></span>, shortest first</span>
+      </div>
+      <div class="custom-box" id="customBox" hidden>
+        <textarea class="strings" id="stringsIn" spellcheck="false" aria-label="Strings to test, one per line"></textarea>
+        <div class="row" style="justify-content:space-between;">
+          <span class="note">One string per line; ε is the empty string.</span>
+          <button class="btn primary small" id="testBtn">Test</button>
+        </div>
+      </div>
+      <p class="test-summary" id="testSummary"></p>
+      <div class="cols two" id="testCols"></div>
+      </div>
+    </section>
+
+    <!-- =============== 5. FORMAL DEFINITION =============== -->
+    <section class="panel" id="formalPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="formalBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Tuple definition</h2></button></div>
+      <div class="panel-body" id="formalBody" hidden><div id="formal"></div></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>An NFA can have several moves available at once: several arrows for the same symbol, or ε-arrows it may take without reading anything. It follows all of them at once, and the computation tree shows every branch, one move per level. Each box is a state, with the input not yet read underneath. The NFA accepts if some branch reads all of the input and ends in an accept state (✓, and that branch turns green); a branch with no move left dies (×), and a branch that comes back to a configuration it was already in (↻) is only going in circles, so it isn't followed further.</p>
+  </footer>
+</div>
+
+<script src="machine-builder.js"></script>
+<script src="machine-sim.js"></script>
+<script>
+(function(){
+  'use strict';
+  const U = MachineBuilder.util, S = MachineBuilder.sim, EPS = S.EPS;
+  const {$, esc, chars, labelHTML, setList, plainLabel, emptyMachine} = U;
+
+  // ======================================================================
+  //  machine model: an arrow reads a list of symbols, any of which may be ε
+  // ======================================================================
+  function starterMachine(){
+    const m = emptyMachine();
+    m.states.push({id:'s0', x:300, y:235, label:'q0', kind:'normal', startAngle:null, isStart:true});
+    m.startId = 's0'; m.nextS = 1;
+    return m;
+  }
+  const findState = id => b.findState(id);
+  const parseRules = text => ({rules: String(text).split(',').map(s=>s.trim()).filter(Boolean).map(read=>({read}))});
+  const inferSigma = M => { const set = new Set(); M.edges.forEach(e=>e.rules.forEach(r=>{ if(r.read!==EPS) set.add(r.read); })); return [...set].sort(); };
+  let SIGMA = [];
+
+  const b = MachineBuilder.create({
+    hashKey: 'nfa',
+    title: 'Your NFA',
+    aName: 'An NFA',
+    tools: ['move','state','arrow','start','accept','delete'],
+    hints: {
+      move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to change its symbols.',
+      accept: 'Tap a state to make it an accept state, or tap it again to undo.'
+    },
+    exampleMenu: [
+      ['ends01','Ends in 01'],
+      ['n1','Contains 101 or 11'],
+      ['third','Third symbol from the end is 1'],
+      ['mult23','Length a multiple of 2 or 3'],
+      ['blank','Start from scratch']
+    ],
+    example: key => EXAMPLES[key],
+    starter: starterMachine,
+    editorKind: 'list',
+    epsilonButton: true,
+    plainAccept: true,
+    columns: [ {key:'read', type:'sym', label:'symbol', required:true} ],
+    ruleNoun: 'symbol',
+    editorTitle: 'Symbols for',
+    listPlaceholder: 'e.g. 0, 1',
+    editorHint: 'Separate symbols with commas. Use the ε button for an arrow that reads nothing.<span class="kbd-tip"> Enter saves, Esc cancels.</span>',
+    ruleText: r => r.read,
+    labelLines: rules => [rules.map(r=>r.read).join(', ')],
+    usedLine: () => 0,
+    parseRules,
+    rulesToShare: rules => rules.map(r=>r.read),
+    rulesFromShare: syms => Array.isArray(syms) ? syms.map(read=>({read})) : [],
+    analyze: () => ({problems:[], conflictEdges:new Set()}),
+    sigma: { mode:'infer', infer: inferSigma },
+    lockedPanels: ['runPanel','langPanel','testPanel','formalPanel'],
+    onLock(){
+      SIGMA = b.sigma;
+      copyFit.box = null;
+      $('sigmaShow').textContent = setList(SIGMA);
+      resetRun();
+      renderLanguage();
+      renderFormal();
+      tests.refresh();
+    },
+    onUnlock(){ player.stop(); },
+    beforeLoad(){ if(player) player.stop(); },
+    getExtra: () => ({w: inputEl.value}),
+    setExtra: x => { inputEl.value = x.w || ''; }
+  });
+
+  // ======================================================================
+  //  simulation
+  // ======================================================================
+  // moves out of state q: [{to, read ('' for ε), edgeId, ruleIdx}]
+  function movesFrom(q){
+    const out = [];
+    b.M.edges.forEach(e=>{ if(e.from===q) e.rules.forEach((r,k)=>out.push({to:e.to, read:r.read===EPS ? '' : r.read, edgeId:e.id, ruleIdx:k})); });
+    return out;
+  }
+  const isAccept = q => findState(q).kind==='accept';
+  // exact answer: follow the set of states the NFA could be in
+  function accepts(w){
+    const closure = set => { const st = [...set]; while(st.length){ const q = st.pop(); movesFrom(q).forEach(m=>{ if(!m.read && !set.has(m.to)){ set.add(m.to); st.push(m.to); } }); } return set; };
+    let cur = closure(new Set([b.M.startId]));
+    for(const c of w){ const next = new Set(); cur.forEach(q=>movesFrom(q).forEach(m=>{ if(m.read===c) next.add(m.to); })); cur = closure(next); }
+    return [...cur].some(isAccept);
+  }
+  function makeTree(w){
+    return S.buildTree({
+      root: {q:b.M.startId, i:0},
+      key: c => c.q+'|'+c.i,
+      accepting: c => c.i===w.length && isAccept(c.q),
+      expand: c => movesFrom(c.q).filter(m=>!m.read || (c.i<w.length && w[c.i]===m.read))
+        .map(m=>({cfg:{q:m.to, i:c.i + (m.read ? 1 : 0)}, edgeId:m.edgeId, ruleIdx:m.ruleIdx, label:m.read || EPS})),
+      maxNodes: 600, maxDepth: 4*w.length + 16
+    });
+  }
+
+  // ======================================================================
+  //  run
+  // ======================================================================
+  const inputEl = $('inputString'), inputErr = $('inputErr'), copySvg = $('copySvg'), treeSvg = $('treeSvg'), treeWrap = $('treeWrap');
+  const verdictEl = $('verdict'), treeNote = $('treeNote');
+  const copyFit = {box:null};
+  let run = null;
+  const currentInput = () => inputEl.value.replace(/\s+/g,'');
+  function resetRun(){
+    const w = currentInput(), bad = [...new Set(chars(w).filter(c=>!SIGMA.includes(c)))];
+    if(bad.length){
+      inputEl.classList.add('bad');
+      inputErr.textContent = `${bad.map(c=>`“${c}”`).join(', ')} ${bad.length===1?'is':'are'} not in Σ = ${setList(SIGMA)}`;
+      run = null; player.reset(false); return;
+    }
+    inputEl.classList.remove('bad'); inputErr.textContent = '';
+    const ws = chars(w);
+    run = {w:ws, T:makeTree(ws), accepted:accepts(ws)};
+    treeWrap.scrollTo(0,0);
+    player.reset(true);
+  }
+  function setVerdict(cls, label, why){ verdictEl.hidden = !label; verdictEl.className = 'verdict ' + (cls||''); verdictEl.textContent = label || ''; verdictEl.title = why || ''; }
+  const player = S.player({
+    isLocked: () => b.locked,
+    last: () => run ? run.T.last : 0,
+    render(i, animate, ok){
+      if(!b.locked) return;
+      if(!ok || !run){
+        b.draw(copySvg, {interactive:false, prefix:'c-', cur:b.M.startId}); S.fitCopy(copySvg, copyFit);
+        treeSvg.innerHTML = ''; treeSvg.removeAttribute('width'); treeSvg.removeAttribute('height');
+        treeNote.textContent = ''; setVerdict('', ''); return;
+      }
+      const T = run.T, w = run.w;
+      const level = T.nodes.filter(n=>n.depth===i);
+      const done = i >= T.last || (T.firstAccept && i >= T.firstAccept.depth);
+      // where the NFA could be right now, and the arrows it just took
+      let cur = new Set(level.map(n=>n.cfg.q)), haltCls = null;
+      if(i >= T.last && T.firstAccept){ cur = new Set([T.firstAccept.cfg.q]); haltCls = 'st-halt-accept'; }
+      const used = level.filter(n=>n.via).map(n=>({edgeId:n.via.edgeId, ruleIdx:n.via.ruleIdx}));
+      const paths = b.draw(copySvg, {interactive:false, prefix:'c-', cur, used, haltCls});
+      S.fitCopy(copySvg, copyFit);
+      if(animate) S.animateTokens(copySvg, paths, player.stepMs);
+      S.drawTree(treeSvg, T, i, {state:n=>findState(n.cfg.q).label, stack:null, read:n=>w.slice(0, n.cfg.i).join(''), rest:n=>w.slice(n.cfg.i).join(''), edge:n=>n.via.label}, animate);
+      S.scrollTreeTo(treeWrap, T, i, animate);
+      const alive = level.filter(n=>n.status!=='dead').length;
+      treeNote.textContent = i >= T.last ? (T.cut ? 'The tree got too big, so some branches (…) weren’t followed.' : 'Every branch has ended.')
+        : i===0 ? 'Each level is one move. Under each box is the input, with the part already read grayed out; the tag on each edge is the move taken.' : `${alive} branch${alive===1?'':'es'} at this step.`;
+      if(done){
+        if(run.accepted) setVerdict('accept', 'Accepted', T.firstAccept ? 'The green branch reads all of the input and ends in an accept state.' : 'Some branch reads all of the input and ends in an accept state (deeper than the tree shown).');
+        else setVerdict('reject', 'Rejected', 'No branch reads all of the input and ends in an accept state.');
+      } else setVerdict('', '');
+    }
+  });
+  inputEl.addEventListener('input', ()=>{
+    const v = inputEl.value.replace(/\s/g,''); if(v!==inputEl.value) inputEl.value = v;
+    resetRun();
+  });
+  inputEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inputEl.blur(); player.start(); } });
+
+  // ======================================================================
+  //  language, tests, formal definition
+  // ======================================================================
+  function renderLanguage(){
+    const M = b.M, trans = new Map(), eps = new Map();
+    M.states.forEach(s=>{ trans.set(s.id, new Map()); eps.set(s.id, []); });
+    M.edges.forEach(e=>e.rules.forEach(r=>{
+      if(r.read===EPS) eps.get(e.from).push(e.to);
+      else { const m = trans.get(e.from); if(!m.has(r.read)) m.set(r.read, []); m.get(r.read).push(e.to); }
+    }));
+    const lang = U.faLanguage({states:M.states.map(s=>s.id), start:[M.startId], trans, eps, sigma:SIGMA,
+      accept:new Set(M.states.filter(s=>s.kind==='accept').map(s=>s.id))});
+    U.renderLanguage($('langBox'), $('langFlag'), lang, 'NFA');
+  }
+  const tests = S.tester({
+    sigma: () => SIGMA,
+    decide: w => accepts(chars(w)),
+    pick: w => { inputEl.value = w; resetRun(); $('runPanel').scrollIntoView({behavior:'smooth', block:'start'}); player.start(); }
+  });
+  function renderFormal(){
+    const M = b.M, start = findState(M.startId), accepts = M.states.filter(s=>s.kind==='accept');
+    const order = M.states.filter(s=>s.id===M.startId).concat(M.states.filter(s=>s.id!==M.startId));   // start state first, then in the order they were drawn
+    const q = s => `<i>${labelHTML(s.label)}</i>`, serif = t => `<span style="font-family:var(--serif)">${t}</span>`;
+    const cols = SIGMA.concat([EPS]);
+    let html = `<p class="tuple"><i>N</i> = (<i>Q</i>, Σ, δ, ${q(start)}, <i>F</i>) where</p><dl class="parts">`;
+    html += `<dt><i>Q</i></dt><dd>= ${setList(order.map(q))}</dd>`;
+    html += `<dt>Σ</dt><dd>= ${setList(SIGMA.map(esc))}</dd>`;
+    html += `<dt>δ</dt><dd>${serif('is given by this table:')}</dd></dl>`;
+    html += '<div class="tbl-wrap"><table class="delta"><thead><tr><th class="corner">state \\ reads</th>' + cols.map(c=>`<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
+    order.forEach(s=>{
+      html += `<tr><th${s.kind==='accept' ? ' class="to-acc"' : ''}>${s.id===M.startId?'→ ':''}<span class="qq">${labelHTML(s.label)}</span></th>`;
+      cols.forEach(c=>{
+        const dest = [...new Set(M.edges.filter(e=>e.from===s.id && e.rules.some(r=>r.read===c)).map(e=>e.to))].map(findState)
+          .sort((a,c2)=>a.label.localeCompare(c2.label, undefined, {numeric:true}));
+        const acc = dest.some(d=>d.kind==='accept');
+        html += `<td${acc ? ' class="to-acc"' : ''}>${dest.length ? setList(dest.map(d=>`<span class="qq">${labelHTML(d.label)}</span>`)) : '∅'}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    html += `<dl class="parts after"><dt>${q(start)}</dt><dd>${serif('is the start state')}</dd><dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
+    $('formal').innerHTML = html;
+  }
+
+  // ======================================================================
+  //  examples
+  // ======================================================================
+  const mk = (...a) => b.mk(...a);
+  const EXAMPLES = {
+    ends01: { input:'1001', build:()=>mk(
+      [['q0',200,250],['q1',450,250],['q2',700,250,'accept']],
+      [['q0','q0','0, 1',{loop:-90}], ['q0','q1','0'], ['q1','q2','1']], 'q0') },
+    n1: { input:'010110', build:()=>mk(      // Sipser's N1
+      [['q0',130,250],['q1',340,250],['q2',550,250],['q3',760,250,'accept']],
+      [['q0','q0','0, 1',{loop:-90}], ['q0','q1','1'], ['q1','q2','0, ε'], ['q2','q3','1'], ['q3','q3','0, 1',{loop:-90}]], 'q0') },
+    third: { input:'0100', build:()=>mk(     // Sipser's N2
+      [['q0',130,250],['q1',340,250],['q2',550,250],['q3',760,250,'accept']],
+      [['q0','q0','0, 1',{loop:-90}], ['q0','q1','1'], ['q1','q2','0, 1'], ['q2','q3','0, 1']], 'q0') },
+    mult23: { input:'000', build:()=>mk(     // Sipser's N3, over the alphabet {0}
+      [['q0',140,235],['q1',360,120,'accept'],['q2',620,120],['q3',360,350,'accept'],['q4',620,350],['q5',490,440]],
+      [['q0','q1','ε'], ['q0','q3','ε'], ['q1','q2','0'], ['q2','q1','0'], ['q3','q4','0'], ['q4','q5','0'], ['q5','q3','0']], 'q0') }
+  };
+
+  b.start('n1');
+})();
+</script>
+</body>
+</html>

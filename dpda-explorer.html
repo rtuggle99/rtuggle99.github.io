@@ -1,0 +1,343 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<title>DPDA Explorer</title>
+<link rel="stylesheet" href="machine-builder.css">
+<style>
+  .cols.two{grid-template-columns:repeat(2, minmax(0,1fr));}
+  /* the input being read: a row of cells with the reading head under the next symbol */
+  .read-wrap{position:relative;overflow-x:auto;overflow-y:hidden;padding:18px 14px 0;background:#f8fbfd;border-bottom:1px solid #e1edf5;}
+  .read-strip{position:relative;display:flex;height:calc(var(--cell) + 43px);width:max-content;padding-right:14px;}
+  .rcell{flex:none;width:var(--cell);height:var(--cell);border:1.5px solid var(--ink);margin-right:-1.5px;background:var(--panel);box-sizing:border-box;
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1.15rem;font-weight:700;transition:color 0.2s, background 0.2s;}
+  .rcell.done{color:var(--muted);background:#f1f6fa;}
+  .rcell.end{border:1.5px dashed var(--rule);background:transparent;}
+  .read-strip .head{top:calc(var(--cell) + 3px);}
+  .stage-row{display:flex;align-items:stretch;}
+  .stage-row svg.copy{flex:1 1 auto;min-width:0;}
+  @media (max-width:520px){ .cols.two{grid-template-columns:minmax(0,1fr);} }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>DPDA Explorer</h1>
+    <p>Draw a deterministic pushdown automaton and lock it in, then give it inputs and watch it run with its stack. Each rule <i>a</i>, <i>x</i> → <i>y</i> reads <i>a</i>, pops <i>x</i> and pushes <i>y</i>, and any of the three can be ε. The stack starts empty. At most one move may ever apply, and when none does, the DPDA rejects.</p>
+  </header>
+
+  <main class="panels">
+    <!-- =============== 1. BUILD =============== -->
+    <section class="panel" id="buildPanel"></section>
+
+    <!-- =============== 2. RUN =============== -->
+    <section class="panel" id="runPanel" hidden>
+      <div class="panel-head"><h2>Simulate on a string</h2></div>
+      <div class="row">
+        <label class="label" for="inputString">Input:</label>
+        <input class="text-in" id="inputString" type="text" autocomplete="off" spellcheck="false" placeholder="ε (empty string)">
+        <span class="input-err" id="inputErr"></span>
+      </div>
+
+      <div class="stage-box">
+        <div class="read-wrap" id="readWrap">
+          <div class="read-strip" id="readStrip">
+            <div class="head" id="head"><div class="tri"></div><div class="box" id="headBox"></div></div>
+          </div>
+        </div>
+        <div class="stage-row">
+          <svg class="copy" id="copySvg" viewBox="0 0 900 470"></svg>
+          <div class="stack-col" title="The stack, top first"><span class="cap">stack</span><div class="stack-cells" id="stackCells"></div></div>
+        </div>
+      </div>
+
+      <div class="row player">
+        <button class="btn icon" id="resetBtn" title="Back to the start (R)">⏮</button>
+        <button class="btn icon" id="backBtn" title="Step back (←)">◀</button>
+        <button class="btn primary" id="playBtn" title="Play / pause (Space)" style="min-width:96px;">▶ Play</button>
+        <button class="btn icon" id="stepBtn" title="Step forward (→)">▶</button>
+        <button class="btn icon" id="endBtn" title="Jump to the end">⏭</button>
+        <input class="scrub" id="scrub" type="range" min="0" max="0" value="0" aria-label="Step">
+        <span class="stepcount" id="stepCount"></span>
+        <span class="verdict" id="verdict" hidden></span>
+        <button class="btn small" id="speedBtn" title="Change playback speed">Speed: normal</button>
+      </div>
+    </section>
+
+    <!-- =============== 3. THE LANGUAGE =============== -->
+    <section class="panel" id="langPanel" hidden>
+      <div class="panel-head"><h2>The language</h2></div>
+      <div class="lang-eq"><i>L</i>(<i>M</i>) =</div>
+      <div class="lang-box" id="langBox"></div>
+      <div class="lang-flag" id="langFlag"></div>
+    </section>
+
+    <!-- =============== 4. TEST =============== -->
+    <section class="panel" id="testPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="testBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Test many strings</h2></button></div>
+      <div class="panel-body" id="testBody" hidden>
+      <div class="row count-row">
+        <span class="note">Strings to test:</span>
+        <div class="seg" id="countSeg" role="radiogroup" aria-label="How many strings">
+          <button type="button" data-n="10">10</button><button type="button" data-n="25">25</button><button type="button" data-n="50">50</button><button type="button" data-n="100">100</button><button type="button" data-n="250">250</button><button type="button" data-n="custom">Custom</button>
+        </div>
+        <span class="note" id="countNote">the first <span id="countN">50</span> strings over <span class="sym" id="sigmaShow"></span>, shortest first</span>
+      </div>
+      <div class="custom-box" id="customBox" hidden>
+        <textarea class="strings" id="stringsIn" spellcheck="false" aria-label="Strings to test, one per line"></textarea>
+        <div class="row" style="justify-content:space-between;">
+          <span class="note">One string per line; ε is the empty string.</span>
+          <button class="btn primary small" id="testBtn">Test</button>
+        </div>
+      </div>
+      <p class="test-summary" id="testSummary"></p>
+      <div class="cols two" id="testCols"></div>
+      </div>
+    </section>
+
+    <!-- =============== 5. FORMAL DEFINITION =============== -->
+    <section class="panel" id="formalPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="formalBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Tuple definition</h2></button></div>
+      <div class="panel-body" id="formalBody" hidden><div id="formal"></div></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>A DPDA reads its input left to right and makes at most one move at a time: no two of a state's rules may ever apply together. Two rules clash when their read symbols match (or one reads ε) and their pop symbols match (or one pops ε). When no move applies, the DPDA rejects. It accepts if it reads all of the input and is then in an accept state, whatever is left on the stack.</p>
+  </footer>
+</div>
+
+<script src="machine-builder.js"></script>
+<script src="machine-sim.js"></script>
+<script>
+(function(){
+  'use strict';
+  const U = MachineBuilder.util, S = MachineBuilder.sim, EPS = S.EPS;
+  const {$, esc, chars, labelHTML, setList, plainLabel, emptyMachine, qi} = U;
+
+  function starterMachine(){
+    const m = emptyMachine();
+    m.states.push({id:'s0', x:300, y:235, label:'q0', kind:'normal', startAngle:null, isStart:true});
+    m.startId = 's0'; m.nextS = 1;
+    return m;
+  }
+  const findState = id => b.findState(id);
+  const quote = r => `“${esc(S.pdaRuleText(r))}”`;
+  let SIGMA = [], GAMMA = [];
+
+  // two of a state's rules that could apply at the same moment
+  function analyze(M){
+    const problems = [], conflictEdges = new Set();
+    M.states.forEach(s=>{
+      const rs = [];
+      M.edges.forEach(e=>{ if(e.from===s.id) e.rules.forEach(r=>rs.push({e, r})); });
+      for(let i=0;i<rs.length;i++) for(let j=i+1;j<rs.length;j++) if(S.pdaClash(rs[i].r, rs[j].r)){
+        problems.push(`${plainLabel(s.label)} has two moves that can apply at once: ${S.pdaRuleText(rs[i].r)} and ${S.pdaRuleText(rs[j].r)}.`);
+        conflictEdges.add(rs[i].e.id); conflictEdges.add(rs[j].e.id);
+      }
+    });
+    return {problems:[...new Set(problems)], conflictEdges};
+  }
+
+  const b = MachineBuilder.create(Object.assign({}, S.pdaEditor, {
+    hashKey: 'dpda',
+    title: 'Your DPDA',
+    aName: 'A DPDA',
+    tools: ['move','state','arrow','start','accept','delete'],
+    hints: {
+      move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to edit its rules.',
+      accept: 'Tap a state to make it an accept state, or tap it again to undo.'
+    },
+    exampleMenu: [
+      ['anbn','0ⁿ1ⁿ'],
+      ['wcw','w#wᴿ (marked palindromes)'],
+      ['parens','Balanced parentheses'],
+      ['blank','Start from scratch']
+    ],
+    example: key => EXAMPLES[key],
+    starter: starterMachine,
+    checkRule(rule, {seen, others, edge}){
+      const same = seen.find(r=>S.pdaClash(r, rule));
+      if(same) return {key:'read', msg:`This clashes with ${quote(same)} on this arrow: both could apply at once.`};
+      const o = others.find(o=>S.pdaClash(o.rule, rule));
+      if(o) return {key:'read', msg:`${qi(findState(edge.from).label)} already has ${quote(o.rule)} on its arrow to ${qi(findState(o.edge.to).label)}, and both could apply at once. A DPDA allows at most one possible move.`};
+      return null;
+    },
+    analyze,
+    sigma: { mode:'infer', infer: S.pdaSigma },
+    lockedPanels: ['runPanel','langPanel','testPanel','formalPanel'],
+    onLock(){
+      SIGMA = b.sigma; GAMMA = S.pdaGamma(b.M);
+      P = S.pdaFromMachine(b.M); C = S.pdaCore(P);
+      copyFit.box = null;
+      $('sigmaShow').textContent = setList(SIGMA);
+      resetRun();
+      renderLanguage();
+      renderFormal();
+      tests.refresh();
+    },
+    onUnlock(){ player.stop(); },
+    beforeLoad(){ if(player) player.stop(); },
+    getExtra: () => ({w: inputEl.value}),
+    setExtra: x => { inputEl.value = x.w || ''; }
+  }));
+  let P = null, C = null;
+
+  // ======================================================================
+  //  simulation: one path, since at most one move ever applies
+  // ======================================================================
+  const STEP_CAP = 2000;
+  const isAccept = q => findState(q).kind==='accept';
+  function trace(w){
+    let c = {q:b.M.startId, i:0, stack:[]};
+    const cfgs = [c], used = [null], key = c => c.q+'|'+c.i+'|'+c.stack.join('\u0001'), seen = new Set([key(c)]);
+    let end = {type:'grow'};
+    for(let k=0; k<STEP_CAP; k++){
+      if(c.i===w.length && isAccept(c.q)){ end = {type:'accept'}; break; }
+      const ms = S.pdaMoves(P, w, c);
+      if(!ms.length){ end = {type:'stuck'}; break; }
+      c = ms[0].cfg; cfgs.push(c); used.push({edgeId:ms[0].rule.edgeId, ruleIdx:ms[0].rule.ruleIdx});
+      const k2 = key(c);
+      if(seen.has(k2)){ end = {type:'loop'}; break; }
+      seen.add(k2);
+    }
+    return {w, cfgs, used, end, last:cfgs.length-1};
+  }
+
+  // ======================================================================
+  //  run
+  // ======================================================================
+  const inputEl = $('inputString'), inputErr = $('inputErr'), copySvg = $('copySvg');
+  const readWrap = $('readWrap'), readStrip = $('readStrip'), headEl = $('head'), headBox = $('headBox'), stackCells = $('stackCells');
+  const verdictEl = $('verdict');
+  const copyFit = {box:null};
+  let run = null;
+  const currentInput = () => inputEl.value.replace(/\s+/g,'');
+  function resetRun(){
+    const w = currentInput(), bad = [...new Set(chars(w).filter(c=>!SIGMA.includes(c)))];
+    if(bad.length){
+      inputEl.classList.add('bad');
+      inputErr.textContent = `${bad.map(c=>`“${c}”`).join(', ')} ${bad.length===1?'is':'are'} not in Σ = ${setList(SIGMA)}`;
+      run = null; player.reset(false); return;
+    }
+    inputEl.classList.remove('bad'); inputErr.textContent = '';
+    const ws = chars(w);
+    run = trace(ws); run.accepted = S.pdaAccepts(C, ws);
+    player.reset(true);
+  }
+  function cellPx(){ return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 42; }
+  function renderStrip(w, idx, animate){
+    const want = w.length + 1;
+    [...readStrip.querySelectorAll('.rcell')].slice(want).forEach(c=>c.remove());
+    while(readStrip.querySelectorAll('.rcell').length < want){ const d = document.createElement('div'); d.className = 'rcell'; readStrip.insertBefore(d, headEl); }
+    [...readStrip.querySelectorAll('.rcell')].forEach((d,i)=>{
+      d.textContent = i < w.length ? w[i] : '';
+      d.classList.toggle('done', i < idx);
+      d.classList.toggle('end', i === w.length);
+    });
+    const x = idx*(cellPx() - 1.5);
+    if(!animate) headEl.style.transition = 'none';
+    headEl.style.transform = `translateX(${x}px)`;
+    if(!animate){ void headEl.offsetWidth; headEl.style.transition = ''; }
+    const view = readWrap.clientWidth;
+    if(x - readWrap.scrollLeft > view*0.7 || x < readWrap.scrollLeft) readWrap.scrollTo({left: Math.max(0, x - view*0.3), behavior: animate ? 'smooth' : 'auto'});
+  }
+  function renderStack(stack){
+    const top = stack.slice().reverse(), MAX = 10;
+    const shown = top.length > MAX ? top.slice(0, MAX-1) : top;
+    stackCells.innerHTML = !top.length ? '<span class="empty">empty</span>'
+      : shown.map((c,i)=>`<div class="sc${i===0?' top':''}">${esc(c)}</div>`).join('') + (top.length > MAX ? `<div class="sc more" title="${top.length - MAX + 1} more">⋮</div>` : '');
+  }
+  function setVerdict(cls, label, why){ verdictEl.hidden = !label; verdictEl.className = 'verdict ' + (cls||''); verdictEl.textContent = label || ''; verdictEl.title = why || ''; }
+  function why(R){
+    const c = R.cfgs[R.last], q = plainLabel(findState(c.q).label), top = c.stack[c.stack.length-1];
+    if(R.end.type==='accept') return `It read all of the input and is in ${q}, an accept state.`;
+    if(R.end.type==='stuck') return c.i < R.w.length
+      ? `In ${q}, with ${top ? top+' on top of the stack' : 'an empty stack'} and ${R.w[c.i]} next, no move applies, so it rejects.`
+      : `It read all of the input, but ${q} isn't an accept state and no move applies.`;
+    if(R.end.type==='loop') return 'It keeps making the same ε-moves in a loop without reading any more input, so it never accepts.';
+    return R.accepted ? `It accepts, but only after more than ${STEP_CAP.toLocaleString()} moves.` : `It keeps making ε-moves without reading any more input, so it never accepts.`;
+  }
+  const player = S.player({
+    isLocked: () => b.locked,
+    last: () => run ? run.last : 0,
+    render(i, animate, ok){
+      if(!b.locked) return;
+      if(!ok || !run){
+        renderStrip(chars(currentInput()), 0, false); renderStack([]);
+        headBox.innerHTML = labelHTML(findState(b.M.startId).label); headEl.className = 'head';
+        b.draw(copySvg, {interactive:false, prefix:'c-', cur:b.M.startId}); S.fitCopy(copySvg, copyFit);
+        setVerdict('', ''); return;
+      }
+      const c = run.cfgs[i], st = findState(c.q);
+      renderStrip(run.w, c.i, animate); renderStack(c.stack);
+      headBox.innerHTML = labelHTML(st.label);
+      let headCls = 'head', haltCls = null;
+      if(i >= run.last){
+        if(run.accepted){ headCls += ' accept'; haltCls = 'st-halt-accept'; setVerdict('accept', 'Accepted', why(run)); }
+        else { headCls += ' reject'; haltCls = 'st-halt-reject'; setVerdict('reject', 'Rejected', why(run)); }
+      } else setVerdict('', '');
+      headEl.className = headCls;
+      const path = b.draw(copySvg, {interactive:false, prefix:'c-', cur:c.q, used:run.used[i], haltCls});
+      S.fitCopy(copySvg, copyFit);
+      if(animate && path) S.animateTokens(copySvg, [path], player.stepMs);
+    }
+  });
+  inputEl.addEventListener('input', ()=>{
+    const v = inputEl.value.replace(/\s/g,''); if(v!==inputEl.value) inputEl.value = v;
+    resetRun();
+  });
+  inputEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inputEl.blur(); player.start(); } });
+
+  // ======================================================================
+  //  language, tests, formal definition
+  // ======================================================================
+  function renderLanguage(){ U.renderLanguage($('langBox'), $('langFlag'), S.pdaLanguage(P, SIGMA), 'DPDA'); }
+  const tests = S.tester({
+    sigma: () => SIGMA,
+    decide: w => S.pdaAccepts(C, chars(w)),
+    pick: w => { inputEl.value = w; resetRun(); $('runPanel').scrollIntoView({behavior:'smooth', block:'start'}); player.start(); }
+  });
+  function renderFormal(){
+    const M = b.M, start = findState(M.startId), accepts = M.states.filter(s=>s.kind==='accept');
+    const order = M.states.filter(s=>s.id===M.startId).concat(M.states.filter(s=>s.id!==M.startId));
+    const q = s => `<i>${labelHTML(s.label)}</i>`, serif = t => `<span style="font-family:var(--serif)">${t}</span>`;
+    let html = `<p class="tuple"><i>M</i> = (<i>Q</i>, Σ, Γ, δ, ${q(start)}, <i>F</i>) where</p><dl class="parts">`;
+    html += `<dt><i>Q</i></dt><dd>= ${setList(order.map(q))}</dd>`;
+    html += `<dt>Σ</dt><dd>= ${setList(SIGMA.map(esc))}</dd>`;
+    html += `<dt>Γ</dt><dd>= ${setList(GAMMA.map(esc))}</dd>`;
+    html += `<dt>δ</dt><dd>${serif('is given by:')}</dd></dl>`;
+    html += S.pdaDeltaHTML(M, findState, true);
+    html += `<dl class="parts after"><dt>${q(start)}</dt><dd>${serif('is the start state')}</dd><dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
+    $('formal').innerHTML = html;
+  }
+
+  // ======================================================================
+  //  examples
+  // ======================================================================
+  const mk = (...a) => b.mk(...a);
+  const EXAMPLES = {
+    anbn: { input:'0011', build:()=>mk(      // Sipser's M1, which is deterministic
+      [['q0',220,120,'accept'],['q1',640,120],['q2',640,350],['q3',220,350,'accept']],
+      [['q0','q1','ε, ε → $'], ['q1','q1','0, ε → 0',{loop:-90}], ['q1','q2','1, 0 → ε'],
+       ['q2','q2','1, 0 → ε',{loop:0}], ['q2','q3','ε, $ → ε']], 'q0') },
+    wcw: { input:'01#10', build:()=>mk(
+      [['q0',120,250],['q1',340,250],['q2',580,250],['q3',800,250,'accept']],
+      [['q0','q1','ε, ε → $'], ['q1','q1','0, ε → 0; 1, ε → 1',{loop:-90}], ['q1','q2','#, ε → ε'],
+       ['q2','q2','0, 0 → ε; 1, 1 → ε',{loop:-90}], ['q2','q3','ε, $ → ε']], 'q0') },
+    // checking for $ means popping it, so q3 looks at the top and puts it back
+    parens: { input:'(()())', build:()=>mk(
+      [['q0',110,250],['q1',330,250,'accept'],['q2',590,140],['q3',590,370]],
+      [['q0','q1','ε, ε → $'], ['q1','q2','(, ε → ('], ['q2','q2','(, ε → (',{loop:-90}],
+       ['q2','q3','), ( → ε'], ['q3','q2','ε, ( → ('], ['q3','q1','ε, $ → $']], 'q0') }
+  };
+
+  b.start('anbn');
+})();
+</script>
+</body>
+</html>
