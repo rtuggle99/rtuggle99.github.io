@@ -91,7 +91,7 @@
   </main>
 
   <footer>
-    <p>An NFA can have several moves available at once: several arrows for the same symbol, or ε-arrows it may take without reading anything. It follows all of them at once, and the computation tree shows every branch, one move per level. Each box is a state, with the input not yet read underneath. The NFA accepts if some branch reads all of the input and ends in an accept state (✓, and that branch turns green); a branch with no move left dies (×), and a branch that comes back to a configuration it was already in (↻) is only going in circles, so it isn't followed further.</p>
+    <p>An NFA can have several moves available at once: several arrows for the same symbol, or ε-arrows it may take without reading anything. It follows all of them at once, and the computation tree shows every branch, one move per level. Each box is a state, with the input not yet read underneath. The NFA accepts if at least one branch reads all of the input and ends in an accept state (✓). One is enough, so the first accepting branch found is highlighted in green; a branch with no move left dies (×), and a branch that comes back to a configuration it was already in (↻) is only going in circles, so it isn't followed further.</p>
   </footer>
 </div>
 
@@ -243,7 +243,11 @@
       S.drawTree(treeSvg, T, i, {state:n=>findState(n.cfg.q).label, stack:null, read:n=>w.slice(0, n.cfg.i).join(''), rest:n=>w.slice(n.cfg.i).join(''), edge:n=>n.via.label}, animate);
       S.scrollTreeTo(treeWrap, T, i, animate);
       const alive = level.filter(n=>n.status!=='dead').length;
-      treeNote.textContent = i >= T.last ? (T.cut ? 'The tree got too big, so some branches (…) weren’t followed.' : 'Every branch has ended.')
+      // when several branches accept, say why only one is green
+      const accepting = T.nodes.filter(n=>n.status==='accept' && n.depth<=i).length;
+      const others = accepting > 1 && T.firstAccept && i >= T.firstAccept.depth ? 'The green branch accepts. The other ✓ branches accept too, but one is enough. ' : '';
+      treeNote.textContent = i >= T.last ? others + (T.cut ? 'The tree got too big, so some branches (…) weren’t followed.' : 'Every branch has ended.')
+        : others ? others
         : i===0 ? 'Each level is one move. Under each box is the input, with the part already read grayed out; the tag on each edge is the move taken.' : `${alive} branch${alive===1?'':'es'} at this step.`;
       if(done){
         if(run.accepted) setVerdict('accept', 'Accepted', T.firstAccept ? 'The green branch reads all of the input and ends in an accept state.' : 'Some branch reads all of the input and ends in an accept state (deeper than the tree shown).');

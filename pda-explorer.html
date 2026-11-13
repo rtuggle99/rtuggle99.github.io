@@ -91,7 +91,7 @@
   </main>
 
   <footer>
-    <p>A PDA can have several moves available at once, and it follows all of them. The computation tree shows every branch, one move per level. Each box is a configuration: the state, the stack beside it (top first), and underneath, the input not yet read. The PDA accepts if some branch reads all of the input and is then in an accept state, whatever is left on the stack (✓, and that branch turns green). A branch with no move left dies (×), and a branch that comes back to a configuration it was already in (↻) is only going in circles, so it isn't followed further.</p>
+    <p>A PDA can have several moves available at once, and it follows all of them. The computation tree shows every branch, one move per level. Each box is a configuration: the state, the stack beside it (top first), and underneath, the input not yet read. The PDA accepts if at least one branch reads all of the input and is then in an accept state, whatever is left on the stack (✓). One is enough, so the first accepting branch found is highlighted in green. A branch with no move left dies (×), and a branch that comes back to a configuration it was already in (↻) is only going in circles, so it isn't followed further.</p>
     <p>A PDA's tree can be infinite (for example, ε-moves that keep pushing), so the drawing stops at a size limit (…). The Accepted/Rejected verdict, the tests and the language listing never depend on that limit: they use an exact algorithm based on the PDA's equivalent context-free grammar.</p>
   </footer>
 </div>
@@ -211,7 +211,11 @@
         read:n=>w.slice(0, n.cfg.i).join(''), rest:n=>w.slice(n.cfg.i).join(''), edge:n=>n.via.label}, animate);
       S.scrollTreeTo(treeWrap, T, i, animate);
       const alive = level.filter(n=>n.status!=='dead').length;
-      treeNote.textContent = i >= T.last ? (T.cut ? 'The tree is too big to draw in full, so some branches (…) stop early.' : 'Every branch has ended.')
+      // when several branches accept, say why only one is green
+      const accepting = T.nodes.filter(n=>n.status==='accept' && n.depth<=i).length;
+      const others = accepting > 1 && T.firstAccept && i >= T.firstAccept.depth ? 'The green branch accepts. The other ✓ branches accept too, but one is enough. ' : '';
+      treeNote.textContent = i >= T.last ? others + (T.cut ? 'The tree is too big to draw in full, so some branches (…) stop early.' : 'Every branch has ended.')
+        : others ? others
         : i===0 ? 'Each level is one move. Each box shows the state and the stack; under it is the input, with the part already read grayed out. The tag on each edge is the move taken.' : `${alive} branch${alive===1?'':'es'} at this step.`;
       if(done){
         if(run.accepted) setVerdict('accept', 'Accepted', T.firstAccept ? 'The green branch reads all of the input and ends in an accept state.' : 'Some branch reads all of the input and ends in an accept state, deeper than the tree drawn here.');
