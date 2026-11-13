@@ -461,7 +461,7 @@
           const bx = g.tipX - ux*L, by = g.tipY - uy*L;
           svg.appendChild(el('path',{d:`M ${g.tipX} ${g.tipY} L ${bx - uy*Wd} ${by + ux*Wd} L ${bx + uy*Wd} ${by - ux*Wd} Z`, fill:MARKERS[markerId], 'pointer-events':'none'}));
         }
-        if(isUsed) usedPaths.push(p);
+        if(isUsed){ usedPaths.push(p); if(opts.tagUsed) p.setAttribute('data-edge', edge.id); }
         const lines = edge.rules.length ? labelLines(edge.rules) : [`add ${ruleNoun}s`];
         const usedIdx = isUsed ? (spec.usedLine ? spec.usedLine(uses[0].ruleIdx, edge.rules) : uses[0].ruleIdx) : -1;
         drawLabel(svg, g.px, g.py, lines, g.nx, g.ny, opts.interactive ? edge.id : null, usedIdx, edge.rules.length===0);
@@ -477,6 +477,7 @@
         let cls = 'st st-'+s.kind;
         if(isCur(s.id)) cls += ' ' + (opts.haltCls || 'st-current');
         if(opts.selected===s.id || opts.pending===s.id) cls += ' st-selected';
+        if(opts.classes && opts.classes.has(s.id)) cls += ' ' + opts.classes.get(s.id);
         const g = el('g',{class:cls});
         if(opts.interactive){
           g.setAttribute('data-state-id', s.id);

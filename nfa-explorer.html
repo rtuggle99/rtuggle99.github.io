@@ -114,21 +114,12 @@
   }
   const findState = id => b.findState(id);
   const starts = () => b.M.states.filter(s=>s.isStart).map(s=>s.id);
-  const parseRules = text => ({rules: String(text).split(',').map(s=>s.trim()).filter(Boolean).map(read=>({read}))});
-  const inferSigma = M => { const set = new Set(); M.edges.forEach(e=>e.rules.forEach(r=>{ if(r.read!==EPS) set.add(r.read); })); return [...set].sort(); };
   let SIGMA = [];
 
-  const b = MachineBuilder.create({
+  const b = MachineBuilder.create(Object.assign({}, S.nfaEditor, {
     hashKey: 'nfa',
     title: 'Your NFA',
     aName: 'An NFA',
-    multiStart: true,          // several start states are allowed, as in the regex converter
-    tools: ['move','state','arrow','start','accept','delete'],
-    hints: {
-      move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to change its symbols.',
-      start: 'Tap a state to toggle whether it is a start state. An NFA here can have several.',
-      accept: 'Tap a state to make it an accept state, or tap it again to undo.'
-    },
     exampleMenu: [
       ['ends01','Ends in 01'],
       ['n1','Contains 101 or 11'],
@@ -138,22 +129,6 @@
     ],
     example: key => EXAMPLES[key],
     starter: starterMachine,
-    editorKind: 'list',
-    epsilonButton: true,
-    plainAccept: true,
-    columns: [ {key:'read', type:'sym', label:'symbol', required:true} ],
-    ruleNoun: 'symbol',
-    editorTitle: 'Symbols for',
-    listPlaceholder: 'e.g. 0, 1',
-    editorHint: 'Separate symbols with commas. Use the ε button for an arrow that reads nothing.<span class="kbd-tip"> Enter saves, Esc cancels.</span>',
-    ruleText: r => r.read,
-    labelLines: rules => [rules.map(r=>r.read).join(', ')],
-    usedLine: () => 0,
-    parseRules,
-    rulesToShare: rules => rules.map(r=>r.read),
-    rulesFromShare: syms => Array.isArray(syms) ? syms.map(read=>({read})) : [],
-    analyze: () => ({problems:[], conflictEdges:new Set()}),
-    sigma: { mode:'infer', infer: inferSigma },
     lockedPanels: ['runPanel','langPanel','testPanel','formalPanel'],
     onLock(){
       SIGMA = b.sigma;
@@ -168,7 +143,7 @@
     beforeLoad(){ if(player) player.stop(); },
     getExtra: () => ({w: inputEl.value}),
     setExtra: x => { inputEl.value = x.w || ''; }
-  });
+  }));
 
   // ======================================================================
   //  simulation

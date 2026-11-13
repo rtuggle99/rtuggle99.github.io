@@ -384,3 +384,7 @@ footer p{margin:0 0 6px;}
 table.delta.pda-delta .grp{border-left:2px solid var(--rule);}
 table.delta.pda-delta thead th.pop{font-size:0.82rem;}
 table.delta.pda-delta td.none{color:#c3d3df;}
+
+/* a state that belongs to the set just computed (NFA → DFA); it can also be blue as part of the set we started from */
+.st-reach .state-circle{stroke:var(--good);stroke-width:3.2;}
+.st-reach .state-inner{stroke:var(--good);}

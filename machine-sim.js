@@ -79,22 +79,23 @@
     return P;
   }
 
-  // dots travelling along the arrows taken in one step (several at once for nondeterministic machines)
-  let tokenRaf = null;
+  // dots travelling along the arrows taken in one step (several at once for nondeterministic machines).
+  // Each drawing keeps its own animation, so two diagrams can have dots moving at the same time.
   function animateTokens(svg, paths, ms){
-    cancelAnimationFrame(tokenRaf);
+    if(svg._tokens){ cancelAnimationFrame(svg._tokens.raf); svg._tokens.dots.forEach(d=>d.remove()); svg._tokens = null; }
     if(!paths || !paths.length) return;
     if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
     const runs = [];
     paths.forEach(path=>{ let len; try{ len = path.getTotalLength(); }catch(e){ return; }
       const dot = el('circle',{class:'token', r:6}); svg.appendChild(dot); runs.push({path, len, dot}); });
+    const state = {raf:0, dots:runs.map(r=>r.dot)}; svg._tokens = state;
     const dur = Math.max(100, ms*0.7), t0 = performance.now();
     const frame = now=>{
       const k = Math.min(1, (now-t0)/dur), e = k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
       runs.forEach(r=>{ const p = r.path.getPointAtLength(e*r.len); r.dot.setAttribute('cx', p.x); r.dot.setAttribute('cy', p.y); });
-      if(k<1) tokenRaf = requestAnimationFrame(frame); else runs.forEach(r=>r.dot.remove());
+      if(k<1) state.raf = requestAnimationFrame(frame); else { runs.forEach(r=>r.dot.remove()); svg._tokens = null; }
     };
-    tokenRaf = requestAnimationFrame(frame);
+    state.raf = requestAnimationFrame(frame);
   }
   // fits a read-only copy of the diagram to its drawing once per lock-in
   function fitCopy(svg, holder){
@@ -562,6 +563,35 @@
     return html + '</tbody></table></div>';
   }
 
-  MachineBuilder.sim = {pdaRuleText, pdaParseRules, pdaEditor, pdaSigma, pdaGamma, pdaClash, pdaDeltaHTML,EPS, player, animateTokens, fitCopy, buildTree, drawTree, scrollTreeTo, tester,
+  // what the NFA builders share (the NFA explorer and the NFA → DFA converter): arrows read lists of
+  // symbols, any of which may be ε; several start states are allowed
+  const nfaSigma = M => { const set = new Set(); M.edges.forEach(e=>e.rules.forEach(r=>{ if(r.read!==EPS) set.add(r.read); })); return [...set].sort(); };
+  const nfaEditor = {
+    multiStart: true,
+    tools: ['move','state','arrow','start','accept','delete'],
+    hints: {
+      move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to change its symbols.',
+      start: 'Tap a state to toggle whether it is a start state. An NFA here can have several.',
+      accept: 'Tap a state to make it an accept state, or tap it again to undo.'
+    },
+    editorKind: 'list',
+    epsilonButton: true,
+    plainAccept: true,
+    columns: [ {key:'read', type:'sym', label:'symbol', required:true} ],
+    ruleNoun: 'symbol',
+    editorTitle: 'Symbols for',
+    listPlaceholder: 'e.g. 0, 1',
+    editorHint: 'Separate symbols with commas. Use the ε button for an arrow that reads nothing.<span class="kbd-tip"> Enter saves, Esc cancels.</span>',
+    ruleText: r => r.read,
+    labelLines: rules => [rules.map(r=>r.read).join(', ')],
+    usedLine: () => 0,
+    parseRules: text => ({rules: String(text).split(',').map(x=>x.trim()).filter(Boolean).map(read=>({read}))}),
+    rulesToShare: rules => rules.map(r=>r.read),
+    rulesFromShare: syms => Array.isArray(syms) ? syms.map(read=>({read})) : [],
+    analyze: () => ({problems:[], conflictEdges:new Set()}),
+    sigma: { mode:'infer', infer: nfaSigma }
+  };
+
+  MachineBuilder.sim = {nfaEditor, nfaSigma, pdaRuleText, pdaParseRules, pdaEditor, pdaSigma, pdaGamma, pdaClash, pdaDeltaHTML,EPS, player, animateTokens, fitCopy, buildTree, drawTree, scrollTreeTo, tester,
     pdaMoves, pdaCore, pdaAccepts, pdaGrammarFacts, pdaLanguage, pdaFromMachine};
 })();
