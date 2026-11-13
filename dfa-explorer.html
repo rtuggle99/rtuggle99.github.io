@@ -1,0 +1,542 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<title>DFA Explorer</title>
+<link rel="stylesheet" href="machine-builder.css">
+<style>
+  /* the input being read: a row of cells with the reading head under the next symbol */
+  .read-wrap{position:relative;overflow-x:auto;overflow-y:hidden;padding:18px 14px 0;background:#f8fbfd;border-bottom:1px solid #e1edf5;}
+  .read-strip{position:relative;display:flex;height:calc(var(--cell) + 43px);width:max-content;padding-right:14px;}
+  .rcell{flex:none;width:var(--cell);height:var(--cell);border:1.5px solid var(--ink);margin-right:-1.5px;background:var(--panel);box-sizing:border-box;
+    display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:1.15rem;font-weight:700;transition:color 0.2s, background 0.2s;}
+  .rcell.done{color:var(--muted);background:#f1f6fa;}
+  .rcell.end{border:1.5px dashed var(--rule);background:transparent;}
+  .read-strip .head{top:calc(var(--cell) + 3px);}
+  .cols.two{grid-template-columns:repeat(2, minmax(0,1fr));}
+  @media (max-width:520px){ .cols.two{grid-template-columns:minmax(0,1fr);} }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>DFA Explorer</h1>
+    <p>Draw a deterministic finite automaton and lock it in, then give it inputs and watch it accept or reject. Every state needs exactly one arrow for each symbol.</p>
+  </header>
+
+  <main class="panels">
+    <!-- =============== 1. BUILD =============== -->
+    <section class="panel" id="buildPanel"></section>
+
+    <!-- =============== 2. RUN =============== -->
+    <section class="panel" id="runPanel" hidden>
+      <div class="panel-head"><h2>Simulate on a string</h2></div>
+      <div class="row">
+        <label class="label" for="inputString">Input:</label>
+        <input class="text-in" id="inputString" type="text" autocomplete="off" spellcheck="false" placeholder="ε (empty string)">
+        <span class="input-err" id="inputErr"></span>
+      </div>
+
+      <div class="stage-box">
+        <div class="read-wrap" id="readWrap">
+          <div class="read-strip" id="readStrip">
+            <div class="head" id="head"><div class="tri"></div><div class="box" id="headBox"></div></div>
+          </div>
+        </div>
+        <svg class="copy" id="copySvg" viewBox="0 0 900 470"></svg>
+      </div>
+
+      <div class="row player">
+        <button class="btn icon" id="resetBtn" title="Back to the start (R)">⏮</button>
+        <button class="btn icon" id="backBtn" title="Step back (←)">◀</button>
+        <button class="btn primary" id="playBtn" title="Play / pause (Space)" style="min-width:96px;">▶ Play</button>
+        <button class="btn icon" id="stepBtn" title="Step forward (→)">▶</button>
+        <button class="btn icon" id="endBtn" title="Jump to the end">⏭</button>
+        <input class="scrub" id="scrub" type="range" min="0" max="0" value="0" aria-label="Step">
+        <span class="stepcount" id="stepCount"></span>
+        <span class="verdict" id="verdict" hidden></span>
+        <button class="btn small" id="speedBtn" title="Change playback speed">Speed: normal</button>
+      </div>
+    </section>
+
+    <!-- =============== 3. THE LANGUAGE =============== -->
+    <section class="panel" id="langPanel" hidden>
+      <div class="panel-head"><h2>The language</h2></div>
+      <div class="lang-eq"><i>L</i>(<i>M</i>) =</div>
+      <div class="lang-box" id="langBox"></div>
+      <div class="lang-flag" id="langFlag"></div>
+    </section>
+
+    <!-- =============== 4. TEST =============== -->
+    <section class="panel" id="testPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="testBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Test many strings</h2></button></div>
+      <div class="panel-body" id="testBody" hidden>
+      <div class="row count-row">
+        <span class="note">Strings to test:</span>
+        <div class="seg" id="countSeg" role="radiogroup" aria-label="How many strings">
+          <button type="button" data-n="10">10</button><button type="button" data-n="25">25</button><button type="button" data-n="50">50</button><button type="button" data-n="100">100</button><button type="button" data-n="250">250</button><button type="button" data-n="custom">Custom</button>
+        </div>
+        <span class="note" id="countNote">the first <span id="countN">50</span> strings over <span class="sym" id="sigmaShow"></span>, shortest first</span>
+      </div>
+      <div class="custom-box" id="customBox" hidden>
+        <textarea class="strings" id="stringsIn" spellcheck="false" aria-label="Strings to test, one per line"></textarea>
+        <div class="row" style="justify-content:space-between;">
+          <span class="note">One string per line; ε is the empty string.</span>
+          <button class="btn primary small" id="testBtn">Test</button>
+        </div>
+      </div>
+      <p class="test-summary" id="testSummary"></p>
+      <div class="cols two" id="testCols"></div>
+      </div>
+    </section>
+
+    <!-- =============== 5. FORMAL DEFINITION =============== -->
+    <section class="panel" id="formalPanel" hidden>
+      <div class="panel-head"><button class="panel-toggle" type="button" data-body="formalBody" aria-expanded="false"><span class="chev" aria-hidden="true">▸</span><h2>Tuple definition</h2></button></div>
+      <div class="panel-body" id="formalBody" hidden><div id="formal"></div></div>
+    </section>
+  </main>
+
+  <footer>
+    <p>A DFA reads its input one symbol at a time, left to right, and follows the one arrow out of its current state that reads that symbol. After the last symbol it accepts if it is in an accept state (drawn with a double circle) and rejects otherwise.</p>
+  </footer>
+</div>
+
+<script src="machine-builder.js"></script>
+<script>
+(function(){
+  'use strict';
+  const U = MachineBuilder.util;
+  const {$, el, esc, chars, labelHTML, shortlex, plural, setList, qi, plainLabel, emptyMachine, freeSpot} = U;
+
+  // ======================================================================
+  //  machine model
+  // ======================================================================
+  // state: {id,x,y,label,kind:'normal'|'accept',startAngle,isStart}
+  // edge:  {id,from,to,rules:[{read}],…}   one rule per symbol the arrow reads
+  function starterMachine(){
+    const m = emptyMachine();
+    m.states.push({id:'s0', x:300, y:235, label:'q0', kind:'normal', startAngle:null, isStart:true});
+    m.startId = 's0'; m.nextS = 1;
+    return m;
+  }
+  const findState = id => b.findState(id);
+  const stateOf = (M, id) => M.states.find(s=>s.id===id);
+  function parseRules(text){
+    const syms = String(text).split(',').map(s=>s.trim()).filter(Boolean);
+    return {rules: syms.map(read=>({read}))};
+  }
+  // Σ is every symbol on some arrow
+  function inferSigma(M){
+    const set = new Set();
+    M.edges.forEach(e=>e.rules.forEach(r=>set.add(r.read)));
+    return [...set].sort();
+  }
+  function analyze(M){
+    const problems = [], conflictEdges = new Set(), byKey = {};
+    M.edges.forEach(e=>e.rules.forEach(r=>{ const k = e.from+'\u0000'+r.read; (byKey[k] = byKey[k]||[]).push(e); }));
+    Object.entries(byKey).forEach(([k,list])=>{
+      if(list.length>1){
+        const [sid, sym] = k.split('\u0000');
+        problems.push(`${plainLabel(stateOf(M, sid).label)} has ${list.length} arrows that read “${sym}”. Keep only one.`);
+        list.forEach(e=>conflictEdges.add(e.id));
+      }
+    });
+    return {problems:[...new Set(problems)], conflictEdges};
+  }
+  // for each state, the symbols of Σ it has no arrow for
+  function missingArrows(M, S){
+    return M.states.map(s=>{
+      const has = new Set();
+      M.edges.forEach(e=>{ if(e.from===s.id) e.rules.forEach(r=>has.add(r.read)); });
+      return {s, syms:S.filter(c=>!has.has(c))};
+    }).filter(x=>x.syms.length);
+  }
+  function compile(){
+    const M = b.M, delta = new Map();
+    M.states.forEach(s=>delta.set(s.id, new Map()));
+    M.edges.forEach(e=>e.rules.forEach((r,i)=>{ const m = delta.get(e.from); if(m && !m.has(r.read)) m.set(r.read, {edgeId:e.id, ruleIdx:i, to:e.to}); }));
+    return {delta, start:M.startId, accept:new Set(M.states.filter(s=>s.kind==='accept').map(s=>s.id))};
+  }
+  let SIGMA = [];
+
+  // ======================================================================
+  //  the builder
+  // ======================================================================
+  const b = MachineBuilder.create({
+    hashKey: 'dfa',
+    title: 'Your DFA',
+    aName: 'A DFA',
+    tools: ['move','state','arrow','start','accept','delete'],
+    hints: {
+      move: 'Drag a state to move it, or drag an arrow to bend it. Tap an arrow to change its symbols.',
+      accept: 'Tap a state to make it an accept state, or tap it again to undo.'
+    },
+    exampleMenu: [
+      ['ends01','Ends in 01'],
+      ['evenEven','Even 0s and even 1s'],
+      ['div3','Binary multiples of 3'],
+      ['no11','No two 1s in a row'],
+      ['aba','Contains aba'],
+      ['blank','Start from scratch']
+    ],
+    example: key => EXAMPLES[key],
+    starter: starterMachine,
+    editorKind: 'list',
+    plainAccept: true,
+    columns: [ {key:'read', type:'sym', label:'symbol', required:true} ],
+    ruleNoun: 'symbol',
+    editorTitle: 'Symbols for',
+    listPlaceholder: 'e.g. 0, 1',
+    editorHint: 'Separate symbols with commas.<span class="kbd-tip"> Enter saves, Esc cancels.</span>',
+    ruleText: r => r.read,
+    labelLines: rules => [rules.map(r=>r.read).join(', ')],
+    usedLine: () => 0,
+    parseRules,
+    rulesToShare: rules => rules.map(r=>r.read),
+    rulesFromShare: syms => Array.isArray(syms) ? syms.map(read=>({read})) : [],
+    checkRule(rule, {seen, others, edge}){
+      if(rule.read==='ε') return {key:'read', msg:'A DFA reads one symbol on every step, so it can’t have ε-arrows.'};
+      if(seen.some(r=>r.read===rule.read)) return {key:'read', msg:`This arrow already reads ${esc(rule.read)}.`};
+      const o = others.find(o=>o.rule.read===rule.read);
+      if(o) return {key:'read', msg:`${qi(findState(edge.from).label)} already reads ${esc(rule.read)} on its arrow to ${qi(findState(o.edge.to).label)}. A DFA has exactly one arrow per state and symbol.`};
+      return null;
+    },
+    analyze,
+    sigma: { mode:'infer', infer: inferSigma, emptyMsg: 'Give an arrow a symbol first, so the DFA has an alphabet.' },
+    lockCheck(S){
+      const miss = missingArrows(b.M, S);
+      if(!miss.length) return null;
+      const list = miss.slice(0,4).map(x=>`${qi(x.s.label)} on ${x.syms.map(esc).join(', ')}`).join('; ') + (miss.length>4 ? '; …' : '');
+      return `Every state needs an arrow for each symbol in Σ = ${setList(S.map(esc))}. Missing: ${list}.`
+        + `<button class="btn small" type="button" data-action="dead">Add a dead state for these</button>`;
+    },
+    actions: {
+      // send every missing arrow to a new non-accepting state that loops on everything
+      dead(){
+        const S = inferSigma(b.M);
+        let label = 'q_dead', i = 2;
+        b.edit(M=>{
+          while(M.states.some(s=>s.label===label)) label = 'q_dead' + (i++);
+          const miss = missingArrows(M, S);
+          const p = freeSpot(M), id = 's'+(M.nextS++);
+          M.states.push({id, x:p.x, y:p.y, label, kind:'normal', startAngle:null, isStart:false});
+          miss.forEach(({s, syms})=>{
+            const e = M.edges.find(e=>e.from===s.id && e.to===id);
+            if(e) e.rules.push(...syms.map(read=>({read})));
+            else M.edges.push(b.newEdge(s.id, id, syms.map(read=>({read}))));
+          });
+          const loop = M.edges.find(e=>e.from===id && e.to===id);
+          if(!loop) M.edges.push(b.newEdge(id, id, S.map(read=>({read}))));
+        });
+        b.note(`Added ${qi(label)}. Every missing arrow goes there, and it never leaves, so those strings are rejected.`, true);
+      }
+    },
+    lockedPanels: ['runPanel','langPanel','testPanel','formalPanel'],
+    onLock(){
+      SIGMA = b.sigma;
+      copyViewBox = null;
+      $('sigmaShow').textContent = setList(SIGMA);
+      resetRun();
+      renderLanguage();
+      renderFormal();
+      fillStrings();
+    },
+    onUnlock(){ stopPlay(); },
+    beforeLoad(){ stopPlay(); },
+    getExtra: () => ({w: inputEl.value}),
+    setExtra: x => { inputEl.value = x.w || ''; }
+  });
+
+  // ======================================================================
+  //  simulation
+  // ======================================================================
+  // states[i] is the state after reading i symbols; used[i] is the arrow taken for symbol i
+  function trace(C, input){
+    const w = chars(input), states = [C.start], used = [null];
+    let q = C.start;
+    for(const c of w){
+      const t = C.delta.get(q).get(c);
+      used.push({edgeId:t.edgeId, ruleIdx:t.ruleIdx, from:q, read:c});
+      q = t.to; states.push(q);
+    }
+    return {w, states, used, last:w.length, accept:C.accept.has(q)};
+  }
+
+  // ======================================================================
+  //  run
+  // ======================================================================
+  const inputEl = $('inputString'), inputErr = $('inputErr'), copySvg = $('copySvg');
+  const readWrap = $('readWrap'), readStrip = $('readStrip'), headEl = $('head'), headBox = $('headBox');
+  const verdictEl = $('verdict'), stepCountEl = $('stepCount'), scrub = $('scrub'), speedBtn = $('speedBtn');
+  const resetBtn = $('resetBtn'), backBtn = $('backBtn'), playBtn = $('playBtn'), stepBtn = $('stepBtn'), endBtn = $('endBtn');
+  let run = null, playing = false, playTimer = null, copyViewBox = null;
+  const SPEEDS = [['slow', 1000], ['normal', 450], ['fast', 120]];
+  let speedIdx = 0, stepMs = SPEEDS[0][1];   // starts slow: DFA runs are short, and each step is worth watching
+
+  function currentInput(){ return inputEl.value.replace(/\s+/g,''); }
+  function resetRun(){
+    stopPlay();
+    const w = currentInput();
+    const bad = [...new Set(chars(w).filter(c=>!SIGMA.includes(c)))];
+    if(bad.length){
+      inputEl.classList.add('bad');
+      inputErr.textContent = `${bad.map(c=>`“${c}”`).join(', ')} ${bad.length===1?'is':'are'} not in Σ = ${setList(SIGMA)}`;
+      run = {invalid:true};
+    } else {
+      inputEl.classList.remove('bad'); inputErr.textContent = '';
+      run = {T: trace(compile(), w), idx:0};
+    }
+    renderRun(false);
+  }
+  function go(i, animate){ if(!run || run.invalid) return; run.idx = Math.max(0, Math.min(i, run.T.last)); renderRun(animate); }
+  function stepForward(){ if(!run || run.invalid || run.idx >= run.T.last) return false; go(run.idx+1, true); return true; }
+  function startPlay(){
+    if(!run || run.invalid) return;
+    if(run.idx >= run.T.last) go(0, false);
+    playing = true; updateButtons(); tick();
+  }
+  function tick(){
+    if(!playing) return;
+    playTimer = setTimeout(()=>{
+      if(!playing) return;
+      if(!stepForward() || run.idx >= run.T.last){ stopPlay(); return; }
+      tick();
+    }, run.idx===0 ? 150 : stepMs);
+  }
+  function stopPlay(){ playing = false; clearTimeout(playTimer); updateButtons(); }
+  function togglePlay(){ playing ? stopPlay() : startPlay(); }
+  function updateButtons(){
+    const ok = run && !run.invalid;
+    const atEnd = !ok || run.idx >= run.T.last, atStart = !ok || run.idx === 0;
+    playBtn.textContent = playing ? '❚❚ Pause' : (ok && atEnd && run.T.last>0 ? '↻ Replay' : '▶ Play');
+    playBtn.disabled = !ok || run.T.last===0;
+    resetBtn.disabled = atStart; backBtn.disabled = atStart;
+    stepBtn.disabled = atEnd; endBtn.disabled = atEnd;
+    scrub.disabled = !ok || run.T.last===0;
+  }
+
+  function cellPx(){ return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--cell')) || 42; }
+  // the input as cells (read ones grayed out), plus an empty slot at the end where the head stops
+  function renderStrip(w, idx, animate){
+    const want = w.length + 1;
+    [...readStrip.querySelectorAll('.rcell')].slice(want).forEach(c=>c.remove());
+    while(readStrip.querySelectorAll('.rcell').length < want){ const d = document.createElement('div'); d.className = 'rcell'; readStrip.insertBefore(d, headEl); }
+    [...readStrip.querySelectorAll('.rcell')].forEach((d,i)=>{
+      d.textContent = i < w.length ? w[i] : '';
+      d.classList.toggle('done', i < idx);
+      d.classList.toggle('end', i === w.length);
+    });
+    const P = cellPx() - 1.5, x = idx*P;
+    if(!animate) headEl.style.transition = 'none';
+    headEl.style.transform = `translateX(${x}px)`;
+    if(!animate){ void headEl.offsetWidth; headEl.style.transition = ''; }
+    // keep the head in view on long inputs
+    const view = readWrap.clientWidth;
+    if(x - readWrap.scrollLeft > view*0.7 || x < readWrap.scrollLeft) readWrap.scrollTo({left: Math.max(0, x - view*0.3), behavior: animate ? 'smooth' : 'auto'});
+  }
+  function setVerdict(cls, label, why){ verdictEl.hidden = !label; verdictEl.className = 'verdict ' + (cls||''); verdictEl.textContent = label || ''; verdictEl.title = why || ''; }
+
+  function renderCopy(cur, used, haltCls, animate){
+    const usedPath = b.draw(copySvg, {interactive:false, prefix:'c-', cur, used, haltCls});
+    if(!copyViewBox){
+      try{ const bb = copySvg.getBBox(); if(bb.width) copyViewBox = `${bb.x-16} ${bb.y-12} ${bb.width+32} ${bb.height+24}`; }catch(e){}
+    }
+    if(copyViewBox) copySvg.setAttribute('viewBox', copyViewBox);
+    if(animate && usedPath) animateToken(copySvg, usedPath);
+  }
+  let tokenRaf = null;
+  function animateToken(svg, path){
+    cancelAnimationFrame(tokenRaf);
+    if(window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    let len; try{ len = path.getTotalLength(); }catch(e){ return; }
+    const dot = el('circle',{class:'token', r:6}); svg.appendChild(dot);
+    const dur = Math.max(100, stepMs*0.7), t0 = performance.now();
+    const frame = now=>{
+      const k = Math.min(1, (now-t0)/dur), e = k<0.5 ? 2*k*k : 1-Math.pow(-2*k+2,2)/2;
+      const p = path.getPointAtLength(e*len);
+      dot.setAttribute('cx', p.x); dot.setAttribute('cy', p.y);
+      if(k<1) tokenRaf = requestAnimationFrame(frame); else dot.remove();
+    };
+    tokenRaf = requestAnimationFrame(frame);
+  }
+
+  function renderRun(animate){
+    if(!b.locked) return;
+    document.documentElement.style.setProperty('--step-ms', stepMs+'ms');
+    if(!run || run.invalid){
+      renderStrip(chars(currentInput()), 0, false);
+      headBox.innerHTML = labelHTML(findState(b.M.startId).label); headEl.className = 'head';
+      setVerdict('', '');
+      scrub.max = 0; scrub.value = 0; stepCountEl.textContent = '';
+      updateButtons(); renderCopy(b.M.startId, null, null, false);
+      return;
+    }
+    const T = run.T, i = run.idx, st = findState(T.states[i]);
+    renderStrip(T.w, i, animate);
+    headBox.innerHTML = labelHTML(st.label);
+    let headCls = 'head', haltCls = null;
+    if(i >= T.last){
+      const rest = T.last ? 'After the last symbol' : 'On the empty string';
+      if(T.accept){ headCls += ' accept'; haltCls = 'st-halt-accept'; setVerdict('accept', 'Accepted', `${rest} the DFA is in ${plainLabel(st.label)}, an accept state.`); }
+      else { headCls += ' reject'; haltCls = 'st-halt-reject'; setVerdict('reject', 'Rejected', `${rest} the DFA is in ${plainLabel(st.label)}, which is not an accept state.`); }
+    } else setVerdict('', '');
+    headEl.className = headCls;
+    scrub.max = T.last; scrub.value = i;
+    stepCountEl.textContent = `step ${i.toLocaleString()} of ${T.last.toLocaleString()}`;
+    updateButtons();
+    renderCopy(T.states[i], T.used[i], haltCls, animate);
+  }
+
+  inputEl.addEventListener('input', ()=>{
+    const v = inputEl.value.replace(/\s/g,'');
+    if(v!==inputEl.value) inputEl.value = v;
+    resetRun(); b.save();
+  });
+  inputEl.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inputEl.blur(); startPlay(); } });
+  resetBtn.addEventListener('click', ()=>{ stopPlay(); go(0,false); });
+  backBtn.addEventListener('click', ()=>{ stopPlay(); go(run.idx-1,false); });
+  stepBtn.addEventListener('click', ()=>{ stopPlay(); stepForward(); });
+  endBtn.addEventListener('click', ()=>{ stopPlay(); go(run.T.last,false); });
+  playBtn.addEventListener('click', togglePlay);
+  scrub.addEventListener('input', ()=>{ stopPlay(); go(+scrub.value,false); });
+  function applySpeed(){ stepMs = SPEEDS[speedIdx][1]; speedBtn.textContent = 'Speed: '+SPEEDS[speedIdx][0]; document.documentElement.style.setProperty('--step-ms', stepMs+'ms'); }
+  speedBtn.addEventListener('click', ()=>{ speedIdx = (speedIdx+1) % SPEEDS.length; applySpeed(); });
+
+  // ======================================================================
+  //  the language: finite or not, and its first strings
+  // ======================================================================
+  function renderLanguage(){
+    const M = b.M, trans = new Map();
+    M.states.forEach(s=>trans.set(s.id, new Map()));
+    M.edges.forEach(e=>e.rules.forEach(r=>trans.get(e.from).set(r.read, [e.to])));
+    const lang = U.faLanguage({states:M.states.map(s=>s.id), start:[M.startId], trans, sigma:SIGMA,
+      accept:new Set(M.states.filter(s=>s.kind==='accept').map(s=>s.id))});
+    U.renderLanguage($('langBox'), $('langFlag'), lang, 'DFA');
+  }
+
+  // ======================================================================
+  //  test many strings
+  // ======================================================================
+  const stringsIn = $('stringsIn'), testCols = $('testCols'), testSummary = $('testSummary'), countSeg = $('countSeg'), customBox = $('customBox');
+  let testCount = '50';
+  const firstStrings = n => U.firstStrings(SIGMA, n);
+  function listText(words){ return words.map(w=>w===''?'ε':w).join('\n'); }
+  function readCustom(){
+    return stringsIn.value.split('\n').map(s=>s.trim()).filter(Boolean)
+      .map(s=> (s==='ε' || s==='-' || s.toLowerCase()==='eps') ? '' : s.replace(/\s+/g,''));
+  }
+  function setCount(c){
+    if(c==='custom' && testCount!=='custom' && !stringsIn.value.trim()) stringsIn.value = listText(firstStrings(+testCount || 50));
+    testCount = c;
+    countSeg.querySelectorAll('button').forEach(x=>{ x.classList.toggle('on', x.dataset.n===c); x.setAttribute('aria-pressed', x.dataset.n===c); });
+    customBox.hidden = c!=='custom';
+    $('countNote').hidden = c==='custom';
+    if(c!=='custom') $('countN').textContent = c;
+    runTests();
+  }
+  function fillStrings(){ setCount(testCount); }
+  countSeg.addEventListener('click', e=>{ const x = e.target.closest('button'); if(x) setCount(x.dataset.n); });
+  function runTests(){
+    const C = compile();
+    const all = [...new Set(testCount==='custom' ? readCustom() : firstStrings(+testCount))].sort(shortlex);
+    const words = all.filter(w=>chars(w).every(c=>SIGMA.includes(c)));
+    const skipped = all.filter(w=>!words.includes(w));
+    const groups = {accept:[], reject:[]};
+    words.forEach(w=>groups[trace(C, w).accept ? 'accept' : 'reject'].push(w));
+    const chipsFor = ws => ws.map(w=>`<button class="chip${w?'':' eps'}" data-w="${esc(w)}" title="${w ? esc(w)+' (click to watch it run)' : 'Click to watch it run'}">${w?U.shortWord(w):'ε'}</button>`).join('');
+    const col = (key, title)=>{
+      const n = groups[key].length;
+      return `<div class="col ${key}"><h3><span>${title}</span><span>${n}</span></h3>${n ? `<div class="chips">${chipsFor(groups[key])}</div>` : '<span class="none">none</span>'}</div>`;
+    };
+    testCols.innerHTML = col('accept','Accepted') + col('reject','Rejected');
+    let msg = words.length ? `Tested ${plural(words.length,'string')}. Click any string to watch it run.` : 'Add some strings, one per line.';
+    if(skipped.length) msg += ` Skipped ${skipped.slice(0,3).map(w=>`“${esc(w)}”`).join(', ')}${skipped.length>3?'…':''}: not over Σ.`;
+    testSummary.innerHTML = msg;
+  }
+  $('testBtn').addEventListener('click', runTests);
+  testCols.addEventListener('click', e=>{
+    const c = e.target.closest('.chip'); if(!c) return;
+    inputEl.value = c.dataset.w; resetRun();
+    $('runPanel').scrollIntoView({behavior:'smooth', block:'start'});
+    startPlay();
+  });
+
+  // ======================================================================
+  //  formal definition
+  // ======================================================================
+  function renderFormal(){
+    const M = b.M, start = findState(M.startId);
+    const accepts = M.states.filter(s=>s.kind==='accept');
+    const order = M.states.slice().sort((a,c)=> (a.id===M.startId ? -1 : c.id===M.startId ? 1 : 0) || a.label.localeCompare(c.label, undefined, {numeric:true}));
+    const q = s => `<i>${labelHTML(s.label)}</i>`;
+    const C = compile();
+    const serif = t => `<span style="font-family:var(--serif)">${t}</span>`;
+    let html = `<p class="tuple"><i>M</i> = (<i>Q</i>, Σ, δ, ${q(start)}, <i>F</i>) where</p>`;
+    html += '<dl class="parts">';
+    html += `<dt><i>Q</i></dt><dd>= ${setList(order.map(q))}</dd>`;
+    html += `<dt>Σ</dt><dd>= ${setList(SIGMA.map(esc))}</dd>`;
+    html += `<dt>δ</dt><dd>${serif('is given by this table:')}</dd>`;
+    html += '</dl>';
+    html += '<div class="tbl-wrap"><table class="delta"><thead><tr><th class="corner">state \\ reads</th>' + SIGMA.map(c=>`<th>${esc(c)}</th>`).join('') + '</tr></thead><tbody>';
+    order.forEach(s=>{
+      html += `<tr><th${s.kind==='accept' ? ' class="to-acc"' : ''}>${s.id===M.startId?'→ ':''}<span class="qq">${labelHTML(s.label)}</span></th>`;
+      SIGMA.forEach(c=>{
+        const dest = findState(C.delta.get(s.id).get(c).to);
+        html += `<td${dest.kind==='accept' ? ' class="to-acc"' : ''}><span class="qq">${labelHTML(dest.label)}</span></td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    html += `<dl class="parts after"><dt>${q(start)}</dt><dd>${serif('is the start state')}</dd><dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
+    $('formal').innerHTML = html;
+  }
+
+  // ======================================================================
+  //  examples
+  // ======================================================================
+  const mk = (...a) => b.mk(...a);
+  const EXAMPLES = {
+    ends01: { input:'1101', build:()=>mk(
+      [['q0',200,250],['q1',450,250],['q2',700,250,'accept']],
+      [['q0','q0','1',{loop:-90}], ['q0','q1','0'], ['q1','q1','0',{loop:-90}], ['q1','q2','1'], ['q2','q1','0'], ['q2','q0','1',{curve:-260}]], 'q0') },
+    evenEven: { input:'0110', build:()=>mk(
+      [['q0',300,130,'accept'],['q1',600,130],['q2',300,350],['q3',600,350]],
+      [['q0','q1','0'], ['q1','q0','0'], ['q2','q3','0'], ['q3','q2','0'],
+       ['q0','q2','1'], ['q2','q0','1'], ['q1','q3','1'], ['q3','q1','1']], 'q0') },
+    div3: { input:'110', build:()=>mk(
+      [['q0',200,250,'accept'],['q1',450,250],['q2',700,250]],
+      [['q0','q0','0',{loop:-90}], ['q0','q1','1'], ['q1','q0','1'], ['q1','q2','0'], ['q2','q1','0'], ['q2','q2','1',{loop:-90}]], 'q0') },
+    no11: { input:'10100', build:()=>mk(
+      [['q0',200,250,'accept'],['q1',450,250,'accept'],['q2',700,250]],
+      [['q0','q0','0',{loop:-90}], ['q0','q1','1'], ['q1','q0','0'], ['q1','q2','1'], ['q2','q2','0, 1',{loop:-90}]], 'q0') },
+    aba: { input:'bbabab', build:()=>mk(
+      [['q0',140,220],['q1',360,220],['q2',580,220],['q3',800,220,'accept']],
+      [['q0','q0','b',{loop:-90}], ['q0','q1','a'], ['q1','q1','a',{loop:-90}], ['q1','q2','b'],
+       ['q2','q3','a'], ['q2','q0','b',{curve:-250}], ['q3','q3','a, b',{loop:-90}]], 'q0') }
+  };
+
+  // ======================================================================
+  //  keyboard while running (the builder handles undo and Escape)
+  // ======================================================================
+  document.addEventListener('keydown', e=>{
+    const tag = (e.target.tagName||'').toLowerCase();
+    if(tag==='input' || tag==='textarea' || tag==='select') return;
+    if(e.ctrlKey||e.metaKey||e.altKey) return;
+    if(e.key==='Escape' || !b.locked) return;
+    if(e.key===' ' && tag!=='button'){ e.preventDefault(); togglePlay(); }
+    else if(e.key==='ArrowRight'){ e.preventDefault(); stopPlay(); stepForward(); }
+    else if(e.key==='ArrowLeft'){ e.preventDefault(); stopPlay(); if(run && !run.invalid) go(run.idx-1,false); }
+    else if(e.key==='r' || e.key==='R'){ stopPlay(); go(0,false); }
+  });
+
+  applySpeed();
+  b.start('ends01');
+})();
+</script>
+</body>
+</html>

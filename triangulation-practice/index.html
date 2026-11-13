@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>2D Triangulation Practice</title>
+<style>
+  :root{
+    --paper:#eaf4fb;
+    --ink:#16324f;
+    --rule:#a9cbe4;
+    --info:#2f6690;
+    --info-soft:#d7ebf7;
+    --ink-soft:#3d5a75;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--serif);
+    line-height:1.5;
+    padding:32px 18px 80px;
+  }
+  .page{ max-width:680px; margin:0 auto; }
+  h1{
+    font-size:1.55rem;
+    font-weight:700;
+    letter-spacing:0.01em;
+    margin:0 0 4px;
+    border-bottom:3px solid var(--ink);
+    padding-bottom:10px;
+  }
+  .subtitle{ font-size:0.92rem; color:var(--ink-soft); font-style:italic; margin:0 0 24px; }
+  ol.sites{ list-style:none; margin:0; padding:0; counter-reset:site; }
+  ol.sites li{ margin:0 0 10px; counter-increment:site; }
+  a.site{
+    display:flex; align-items:center; gap:14px;
+    background:#fff; color:var(--ink); text-decoration:none;
+    border:1.5px solid var(--rule); border-radius:4px;
+    padding:14px 16px;
+  }
+  a.site::after{ content:"\203A"; margin-left:auto; padding-left:6px; font-size:1.6rem; line-height:1; color:var(--ink-soft); }
+  a.site:focus-visible{ outline:3px solid var(--info); outline-offset:2px; }
+  @media (hover: hover){
+    a.site:hover{ background:var(--info-soft); border-color:var(--info); }
+  }
+  .num{
+    flex:none; width:34px; height:34px; border-radius:50%;
+    background:var(--ink); color:#fff; font-weight:700;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .num::before{ content:counter(site); }
+  .text{ display:flex; flex-direction:column; gap:2px; }
+  .name{ font-weight:700; font-size:1.05rem; }
+  .desc{ font-size:0.92rem; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>2D Triangulation Practice</h1>
+  <p class="subtitle">Six interactive exercises, best done in order, followed by a visualization tool.</p>
+  <ol class="sites">
+    <li><a class="site" href="validate-triangulation.html">
+      <span class="num" aria-hidden="true"></span>
+      <span class="text"><span class="name">Validate the Triangulation</span><span class="desc">Practice recognizing valid and invalid triangulations of a 2D point set.</span></span>
+    </a></li>
+    <li><a class="site" href="validate-partial.html">
+      <span class="num" aria-hidden="true"></span>
+      <span class="text"><span class="name">Validate the Partial Triangulation</span><span class="desc">Practice recognizing valid and invalid partial triangulations of a 2D point set.</span></span>
+    </a></li>
+    <li><a class="site" href="classify-triangles.html">
+      <span class="num" aria-hidden="true"></span>
+      <span class="text"><span class="name">Classify the Triangles</span><span class="desc">Practice classifying triangles by how many boundary edges they have.</span></span>
+    </a></li>
+    <li><a class="site" href="select-removable.html">
+      <span class="num" aria-hidden="true"></span>
+      <span class="text"><span class="name">Select the Removable Triangles</span><span class="desc">Practice recognizing which triangles can be taken out and still leave a valid partial triangulation.</span></span>
+    </a></li>
+    <li><a class="site" href="climb-to-the-root.html">
+      <span class="num" aria-hidden="true"></span>
+      <span class="text"><span class="name">Climb to the Root</span><span class="desc">Practice finding the parent of a node.</span></span>
+    </a></li>
+    <li><a class="site" href="order-the-children.html">
+      <span class="num" aria-hidden="true"></span>
+      <span class="text"><span class="name">Order the Children</span><span class="desc">Practice finding the children of a node in order.</span></span>
+    </a></li>
+    <li><a class="site" href="visualize-the-forest.html">
+      <span class="num" aria-hidden="true"></span>
+      <span class="text"><span class="name">Visualize the Forest</span><span class="desc">Place your own points, then see the whole reverse-search forest they produce.</span></span>
+    </a></li>
+  </ol>
+</div>
+</body>
+</html>

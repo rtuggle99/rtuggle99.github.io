@@ -1,0 +1,660 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400&family=Noto+Sans+Symbols+2&display=swap" rel="stylesheet">
+<title>NFA to DFA Converter</title>
+<link rel="stylesheet" href="machine-builder.css">
+<style>
+  /* the DFA hangs right under the NFA diagram, like the NFA explorer's computation tree */
+  .stage-box > .tree-head{background:#f8fbfd;border-top:1px solid #e1edf5;padding-bottom:2px;}
+  /* what this step does, in words */
+  .step-note{margin:0;padding:2px 14px 8px;background:#f8fbfd;font-size:0.92rem;line-height:1.5;color:var(--ink);}
+  .step-note .q{font-style:italic;}
+  .step-note b{font-weight:700;}
+  .step-note .new{color:var(--good);font-weight:700;}
+  @keyframes row-in{from{background:var(--good-soft);}}
+  /* both drawings sized so the NFA and the DFA fit on one laptop screen together */
+  #copySvg{max-height:max(200px, min(320px, 30vh));}
+  .dfa-box{overflow:auto;max-height:max(260px, min(520px, 46vh));-webkit-overflow-scrolling:touch;background:#f8fbfd;}
+  /* fit: the whole DFA scaled into the box, so nothing scrolls or moves as it grows */
+  .dfa-box.fit{overflow:hidden;}
+  .dfa-box.fit svg{width:100%;height:auto;max-height:max(260px, min(520px, 46vh));}
+  .tree-head .spacer{flex:1;}
+  .tree-head .btn.small{margin-bottom:2px;}
+  .tree-head #layoutBtn{margin-right:6px;}
+  .dfa-box svg{display:block;margin:0 auto;}
+  .dstate circle.ring{fill:var(--panel);stroke:var(--ink);stroke-width:2.2;}
+  .dstate circle.inner{fill:none;stroke:var(--ink);stroke-width:2;}
+  .dstate.now circle.ring{fill:var(--info-soft);stroke:var(--info);stroke-width:2.8;}
+  .dstate.target circle.ring{stroke-width:3.4;}
+  .dstate text{font-family:var(--serif);fill:var(--ink);text-anchor:middle;}
+  .dstate text .lbl{font-style:italic;}
+  .dedge{fill:none;stroke:var(--ink-soft);stroke-width:1.6;pointer-events:none;}
+  .dedge.now{stroke:var(--info);stroke-width:2.6;}
+  .dhead{fill:var(--ink-soft);pointer-events:none;}
+  .dhead.now{fill:var(--info);}
+  .dedge-label{font-family:var(--symbols);font-size:13px;fill:var(--ink);text-anchor:middle;}
+  .dedge-label.now{fill:var(--info);font-weight:700;}
+  .dedge-label-bg{fill:var(--panel);fill-opacity:0.92;}
+  .dstart{stroke:var(--ink);stroke-width:2.2;fill:none;}
+  .dstart-head{fill:var(--ink);}
+  .dedge-hit{fill:none;stroke:transparent;stroke-width:16;cursor:grab;touch-action:none;}
+  .dstate{cursor:grab;touch-action:none;}
+  .dedge-label-bg, .dedge-label{cursor:grab;}
+  #dfaSvg.dragging, #dfaSvg.dragging *{cursor:grabbing;}
+  .drag-hint{font-size:12px;color:var(--muted);margin-left:12px;font-style:italic;}
+  @media (max-width:600px){ .drag-hint{display:none;} }
+  .dfa-box .pop{transform-box:fill-box;transform-origin:center;animation:d-pop calc(var(--step-ms) * 0.3) ease-out calc(var(--step-ms) * 0.36) both;}
+  .dfa-box .draw{stroke-dasharray:1;stroke-dashoffset:1;animation:d-draw calc(var(--step-ms) * 0.38) ease-in-out forwards;}
+  .dfa-box .fade{animation:d-fade calc(var(--step-ms) * 0.3) ease-out calc(var(--step-ms) * 0.2) both;}
+  .dfa-box .head-in{animation:d-fade calc(var(--step-ms) * 0.1) ease-out calc(var(--step-ms) * 0.36) both;}
+  @keyframes d-pop{from{opacity:0;transform:scale(0.7);}to{opacity:1;transform:none;}}
+  @keyframes d-draw{to{stroke-dashoffset:0;}}
+  @keyframes d-fade{from{opacity:0;}to{opacity:1;}}
+  @media (prefers-reduced-motion: reduce){ .dfa-box .pop, .dfa-box .fade{animation:none;} .dfa-box .draw{animation:none;stroke-dasharray:none;} }
+</style>
+</head>
+<body>
+<div class="page">
+  <header>
+    <h1>NFA to DFA Converter</h1>
+    <p>Draw an NFA and lock it in, then step through the conversion to a DFA.</p>
+  </header>
+
+  <main class="panels">
+    <!-- =============== 1. BUILD =============== -->
+    <section class="panel" id="buildPanel"></section>
+
+    <!-- =============== 2. CONVERT =============== -->
+    <section class="panel" id="convertPanel" hidden>
+      <div class="panel-head"><h2>Building the DFA</h2></div>
+      <div class="stage-box">
+        <svg class="copy" id="copySvg" viewBox="0 0 900 470"></svg>
+        <div class="tree-head"><b>The DFA so far</b><span class="drag-hint">Drag states or arrows to rearrange.</span><span class="spacer"></span><button class="btn small" id="layoutBtn" type="button" hidden title="Put every state and arrow back where it started">Reset layout</button><button class="btn small" id="zoomBtn" type="button" title="Show the DFA at full size, with scrolling">Zoom</button></div>
+        <p class="step-note" id="stepNote"></p>
+        <div class="dfa-box fit" id="dfaBox"><svg id="dfaSvg"></svg></div>
+      </div>
+
+      <div class="row player">
+        <button class="btn icon" id="resetBtn" title="Back to the start (R)">⏮</button>
+        <button class="btn icon" id="backBtn" title="Step back (←)">◀</button>
+        <button class="btn primary" id="playBtn" title="Play / pause (Space)" style="min-width:96px;">▶ Play</button>
+        <button class="btn icon" id="stepBtn" title="Step forward (→)">▶</button>
+        <button class="btn icon" id="endBtn" title="Jump to the end">⏭</button>
+        <input class="scrub" id="scrub" type="range" min="0" max="0" value="0" aria-label="Step">
+        <span class="stepcount" id="stepCount"></span>
+        <button class="btn small" id="speedBtn" title="Change playback speed">Speed: slow</button>
+      </div>
+    </section>
+
+  </main>
+
+</div>
+
+<script src="machine-builder.js"></script>
+<script src="machine-sim.js"></script>
+<script>
+(function(){
+  'use strict';
+  const U = MachineBuilder.util, S = MachineBuilder.sim, EPS = S.EPS;
+  const {$, el, esc, labelHTML, setList, emptyMachine, setSvgLabel, splitLabel, SVG_NS} = U;
+  const MAX_DFA_STATES = 64;
+
+  function starterMachine(){
+    const m = emptyMachine();
+    m.states.push({id:'s0', x:300, y:235, label:'q0', kind:'normal', startAngle:null, isStart:true});
+    m.startId = 's0'; m.nextS = 1;
+    return m;
+  }
+  const findState = id => b.findState(id);
+  let SIGMA = [];
+
+  const b = MachineBuilder.create(Object.assign({}, S.nfaEditor, {
+    hashKey: 'nfa2dfa',
+    title: 'Your NFA',
+    aName: 'An NFA',
+    exampleMenu: [
+      ['n4','Sipser’s example (with ε)'],
+      ['ends01','Ends in 01'],
+      ['n1','Contains 101 or 11'],
+      ['third','Third symbol from the end is 1'],
+      ['blank','Start from scratch']
+    ],
+    example: key => EXAMPLES[key],
+    starter: starterMachine,
+    lockLabel: 'Lock in and convert',
+    lockedPanels: ['convertPanel'],
+    onLock(){
+      SIGMA = b.sigma;
+      copyFit.box = null;
+      C = construct();
+      layoutDFA(C);
+      $('layoutBtn').hidden = true;
+      reserveNoteHeight();
+      player.reset(true);
+    },
+    onUnlock(){ player.stop(); },
+    beforeLoad(){ if(player) player.stop(); }
+  }));
+
+  // ======================================================================
+  //  the subset construction, recorded step by step
+  // ======================================================================
+  // NFA states are kept in the order they were drawn, so every set is written the same way
+  function construct(){
+    const M = b.M, order = new Map(M.states.map((s,i)=>[s.id, i]));
+    const sortIds = ids => [...new Set(ids)].sort((x,y)=>order.get(x)-order.get(y));
+    const keyOf = ids => ids.join(',');
+    const moves = (q, sym) => { const out = []; M.edges.forEach(e=>{ if(e.from===q) e.rules.forEach((r,k)=>{ if(r.read===sym) out.push({to:e.to, edgeId:e.id, ruleIdx:k}); }); }); return out; };
+    // E(R): R plus everything reachable by ε-arrows, and the ε-arrows that brought each new state in
+    function closure(ids){
+      const set = new Set(ids), st = [...ids], used = [], added = [];
+      while(st.length){ const q = st.pop(); moves(q, EPS).forEach(m=>{ if(!set.has(m.to)){ set.add(m.to); st.push(m.to); used.push(m); added.push(m.to); } }); }
+      return {ids: sortIds([...set]), used, added: sortIds(added)};
+    }
+    const isAccept = ids => ids.some(id=>findState(id).kind==='accept');
+    const dstates = [], byKey = new Map(), steps = [];
+    const add = (ids, step) => { const d = {key:keyOf(ids), ids, accept:isAccept(ids), step, idx:dstates.length, out:new Map()}; dstates.push(d); byKey.set(d.key, d); return d; };
+    const startIds = sortIds(M.states.filter(s=>s.isStart).map(s=>s.id));
+    const c0 = closure(startIds);
+    const start = add(c0.ids, 0);
+    steps.push({kind:'start', from:null, sym:null, moveIds:startIds, cUsed:[], epsUsed:c0.used, added:c0.added, to:start, isNew:true});
+    let overflow = false;
+    for(let qi = 0; qi < dstates.length; qi++){
+      const D = dstates[qi];
+      for(const c of SIGMA){
+        const per = [], cUsed = [];
+        D.ids.forEach(q=>{ const ms = moves(q, c); ms.forEach(m=>cUsed.push(m)); per.push({q, to:sortIds(ms.map(m=>m.to))}); });
+        const moveIds = sortIds(cUsed.map(m=>m.to));
+        const cl = closure(moveIds);
+        let to = byKey.get(keyOf(cl.ids)), isNew = false;
+        if(!to){
+          if(dstates.length >= MAX_DFA_STATES){ overflow = true; break; }
+          to = add(cl.ids, steps.length); isNew = true;
+        }
+        D.out.set(c, to);
+        steps.push({kind:'move', from:D, sym:c, per, moveIds, cUsed, epsUsed:cl.used, added:cl.added, to, isNew});
+      }
+      if(overflow) break;
+    }
+    steps.push({kind:'done'});
+    return {dstates, steps, start, overflow};
+  }
+
+  // ======================================================================
+  //  drawing sets of states
+  // ======================================================================
+  const nameHTML = id => `<span class="q">${labelHTML(findState(id).label)}</span>`;
+  const setHTML = ids => ids.length ? '{' + ids.map(nameHTML).join(', ') + '}' : '∅';
+  // a set as SVG text, {q0, q2}, with real subscripts. Each subscript drops by a fixed number of pixels and the
+  // text after it comes back up by the same amount, so the baseline never drifts.
+  function setSvg(t, ids, size){
+    t.setAttribute('font-size', size);
+    const drop = (size*0.28).toFixed(2);
+    let pending = 0;   // how far the next piece has to move back up
+    const add = (txt, cls, extra) => {
+      const ts = document.createElementNS(SVG_NS, 'tspan');
+      if(cls) ts.setAttribute('class', cls);
+      if(extra) for(const k in extra) ts.setAttribute(k, extra[k]);
+      if(pending){ ts.setAttribute('dy', (+(ts.getAttribute('dy')||0) - pending).toFixed(2)); pending = 0; }
+      ts.textContent = txt; t.appendChild(ts); return ts;
+    };
+    if(!ids.length){ add('∅'); return; }
+    add('{');
+    ids.forEach((id,i)=>{
+      const [a, sub] = splitLabel(findState(id).label);
+      add(a, 'lbl');
+      if(sub){ add(sub, 'sub', {dy:drop, 'font-size':(size*0.72).toFixed(1)}); pending = +drop; }
+      if(i < ids.length-1) add(', ');
+    });
+    add('}');
+  }
+  // the label's size and the circle's radius: the name shrinks to fit (down to 9px) before the circle grows
+  const R = 24;
+  function fitLabel(d, probe){
+    for(const size of [15, 13.5, 12, 11, 10, 9]){
+      probe.innerHTML = ''; setSvg(probe, d.ids, size);
+      let w; try{ w = probe.getBBox().width; }catch(e){ w = size*0.55*probe.textContent.length; }
+      if(w <= 2*R - 10 || size===9){ d.font = size; d.r = Math.max(R, Math.ceil(w/2 + 6)); return; }
+    }
+  }
+
+  // ======================================================================
+  //  the DFA's layout: states in columns by distance from the start, ordered to cut down crossings;
+  //  every arrow of the finished DFA is routed up front, so nothing moves while stepping
+  // ======================================================================
+  const HEAD = 10, HEAD_NOW = 12, LOOP_R = 19;
+  function layoutDFA(C){
+    // measure every label once, in a hidden scratch drawing
+    const scratch = el('svg',{width:0, height:0, style:'position:absolute;visibility:hidden'}); document.body.appendChild(scratch);
+    const probe = el('text',{class:'dstate', 'font-family':'Georgia, serif'}); scratch.appendChild(probe);
+    C.dstates.forEach(d=>fitLabel(d, probe));
+    scratch.remove();
+    // every arrow of the finished DFA, with the symbols for each pair of states gathered on one arrow
+    C.arrows = new Map();
+    C.steps.forEach((st,k)=>{ if(st.kind!=='move') return;
+      const key = st.from.key+'→'+st.to.key;
+      if(!C.arrows.has(key)) C.arrows.set(key, {key, from:st.from, to:st.to, syms:[], firstStep:k, curve:0, angle:-90, manual:false});
+      C.arrows.get(key).syms.push(st.sym);
+    });
+    placeStates(C);
+    C.moved = false;
+  }
+  function placeStates(C){
+    const depth = new Map([[C.start.key, 0]]), queue = [C.start];
+    while(queue.length){ const d = queue.shift(); d.out.forEach(t2=>{ if(!depth.has(t2.key)){ depth.set(t2.key, depth.get(d.key)+1); queue.push(t2); } }); }
+    const cols = [];
+    C.dstates.forEach(d=>{ const k = depth.get(d.key) ?? 0; d.col = k; (cols[k] = cols[k] || []).push(d); });
+    // order each column by the average position of its neighbours (a few sweeps right and left)
+    const nbrs = new Map(C.dstates.map(d=>[d, []]));
+    C.arrows.forEach(a=>{ if(a.from!==a.to){ nbrs.get(a.from).push(a.to); nbrs.get(a.to).push(a.from); } });
+    const pos = new Map();
+    const setPos = () => cols.forEach(col=>col.forEach((d,j)=>pos.set(d, j - (col.length-1)/2)));
+    setPos();
+    for(let sweep = 0; sweep < 6; sweep++){
+      const order = sweep%2 ? cols.slice().reverse() : cols;
+      order.forEach(col=>{
+        const bary = d => { const ns = nbrs.get(d).filter(o=>o.col!==d.col); return ns.length ? ns.reduce((s,o)=>s+pos.get(o),0)/ns.length : pos.get(d); };
+        const val = new Map(col.map(d=>[d, bary(d)]));
+        col.sort((p,q)=>val.get(p)-val.get(q) || p.idx-q.idx);
+        col.forEach((d,j)=>pos.set(d, j - (col.length-1)/2));
+      });
+    }
+    // start from the columns, then tidy the grid: shorter arrows, fewer crossings, no arrow through a state
+    cols.forEach((col,i)=>col.forEach((d,j)=>{ d.gc = i; d.gr = j + Math.floor((Math.max(...cols.map(c=>c.length)) - col.length)/2); }));
+    if(C.dstates.length <= 16) tidyGrid(C, cols.length);
+    // grid cells to pixels: each used column as wide as its widest state, empty rows and columns dropped
+    const usedC = [...new Set(C.dstates.map(d=>d.gc))].sort((p,q)=>p-q), usedR = [...new Set(C.dstates.map(d=>d.gr))].sort((p,q)=>p-q);
+    const ROW = 130, GAP = 130, PADX = 90, PADY = 90;
+    let x = PADX; const colX = new Map();
+    usedC.forEach(c=>{ const w = 2*Math.max(...C.dstates.filter(d=>d.gc===c).map(d=>d.r)); colX.set(c, x + w/2); x += w + GAP; });
+    C.dstates.forEach(d=>{ d.x = colX.get(d.gc); d.y = PADY + usedR.indexOf(d.gr)*ROW; });
+    C.width = x - GAP + PADX; C.height = PADY*2 + (usedR.length-1)*ROW;
+    C.arrows.forEach(a=>{ a.manual = false; });
+    routeArrows(C);
+  }
+
+  // a small, repeatable search over grid placements (same NFA, same picture every time)
+  function tidyGrid(C, ncols){
+    const D = C.dstates, n = D.length;
+    const W = Math.max(ncols, Math.ceil(Math.sqrt(n*1.6))), H = Math.max(...D.map(d=>d.gr)) + 2;
+    const segs = [];
+    C.arrows.forEach(a=>{ if(a.from===a.to) return; if(a.from.idx > a.to.idx && C.arrows.has(a.to.key+'→'+a.from.key)) return; segs.push([a.from, a.to]); });
+    const cross = (a,b,c,d) => { const o = (p,q,r) => Math.sign((q.gc-p.gc)*(r.gr-p.gr) - (q.gr-p.gr)*(r.gc-p.gc));
+      return o(a,b,c)*o(a,b,d) < 0 && o(c,d,a)*o(c,d,b) < 0; };
+    const near = (s, p, q) => { const lx = q.gc-p.gc, ly = q.gr-p.gr, L2 = lx*lx+ly*ly || 1;
+      const k = ((s.gc-p.gc)*lx + (s.gr-p.gr)*ly)/L2; if(k <= 0 || k >= 1) return false;
+      return Math.hypot(s.gc-(p.gc+k*lx), s.gr-(p.gr+k*ly)) < 0.3; };
+    const cost = () => {
+      let c = 0;
+      segs.forEach(([p,q])=>{ c += Math.hypot(p.gc-q.gc, p.gr-q.gr); D.forEach(s=>{ if(s!==p && s!==q && near(s,p,q)) c += 4; }); });
+      for(let i = 0; i < segs.length; i++) for(let j = i+1; j < segs.length; j++){
+        const [a,b] = segs[i], [c2,d] = segs[j];
+        if(a===c2 || a===d || b===c2 || b===d) continue;
+        if(cross(a,b,c2,d)) c += 2.5;
+      }
+      // keep the start state at the far left
+      D.forEach(d=>{ if(d!==C.start && d.gc <= C.start.gc) c += 3; });
+      return c;
+    };
+    let seed = 12345; const rnd = () => { seed = (seed*1103515245 + 12345) & 0x7fffffff; return seed/0x7fffffff; };
+    const at = new Map(D.map(d=>[d.gc+','+d.gr, d]));
+    let cur = cost(), temp = 2;
+    const ITER = 3000;
+    for(let it = 0; it < ITER; it++, temp *= 0.998){
+      const d = D[Math.floor(rnd()*n)], gc = Math.floor(rnd()*W), gr = Math.floor(rnd()*H);
+      if(gc===d.gc && gr===d.gr) continue;
+      const o = at.get(gc+','+gr), oc = d.gc, or = d.gr;
+      const move = () => { at.delete(oc+','+or); at.delete(gc+','+gr); d.gc = gc; d.gr = gr; at.set(gc+','+gr, d); if(o){ o.gc = oc; o.gr = or; at.set(oc+','+or, o); } };
+      const undo = () => { at.delete(gc+','+gr); if(o){ at.delete(oc+','+or); o.gc = gc; o.gr = gr; at.set(gc+','+gr, o); } d.gc = oc; d.gr = or; at.set(oc+','+or, d); };
+      move();
+      const c = cost();
+      if(c <= cur || rnd() < Math.exp((cur-c)/temp)) cur = c; else undo();
+    }
+  }
+
+  // ----- geometry, shaped like the builder's: arcs of circles between states, loops as most of a small circle -----
+  function arcGeom(p, q, curve){
+    const dx = q.x-p.x, dy = q.y-p.y, len = Math.hypot(dx,dy) || 1, ux = dx/len, uy = dy/len, nx = -uy, ny = ux;
+    if(Math.abs(curve) < 1){
+      const s = {x:p.x+ux*p.r, y:p.y+uy*p.r}, tip = {x:q.x-ux*(q.r+1), y:q.y-uy*(q.r+1)};
+      return {s, tip, nx, ny, px:(s.x+tip.x)/2, py:(s.y+tip.y)/2,
+        at: k => ({x:s.x+(tip.x-s.x)*k, y:s.y+(tip.y-s.y)*k}),
+        path: Lh => { const b = {x:tip.x-ux*Lh, y:tip.y-uy*Lh}; return {d:`M ${s.x} ${s.y} L ${b.x} ${b.y}`, base:b}; }};
+    }
+    const h = curve/2, x3 = (p.x+q.x)/2 + nx*h, y3 = (p.y+q.y)/2 + ny*h;
+    const x1 = p.x, y1 = p.y, x2 = q.x, y2 = q.y;
+    const D = 2*(x1*(y2-y3)+x2*(y3-y1)+x3*(y1-y2));
+    const cx = ((x1*x1+y1*y1)*(y2-y3)+(x2*x2+y2*y2)*(y3-y1)+(x3*x3+y3*y3)*(y1-y2))/D;
+    const cy = ((x1*x1+y1*y1)*(x3-x2)+(x2*x2+y2*y2)*(x1-x3)+(x3*x3+y3*y3)*(x2-x1))/D;
+    const r = Math.hypot(x1-cx, y1-cy), TAU = 2*Math.PI, norm = a => ((a % TAU) + TAU) % TAU;
+    const a1 = Math.atan2(y1-cy, x1-cx), a2 = Math.atan2(y2-cy, x2-cx), a3 = Math.atan2(y3-cy, x3-cx);
+    const dir = norm(a3-a1) < norm(a2-a1) ? 1 : -1;
+    const chord = rr => 2*Math.asin(Math.min(1, rr/(2*r)));        // angle on the arc that covers a distance rr
+    const s0 = a1 + dir*chord(p.r), e0 = a2 - dir*chord(q.r+1);
+    const span = dir>0 ? norm(e0-s0) : norm(s0-e0);
+    const pt = ang => ({x:cx+r*Math.cos(ang), y:cy+r*Math.sin(ang)});
+    const s = pt(s0), tip = pt(e0);
+    return {s, tip, px:x3, py:y3, nx:(x3-cx)/r, ny:(y3-cy)/r,
+      at: k => pt(s0 + dir*span*k),
+      path: Lh => { const be = e0 - dir*chord(Lh), sp = span - chord(Lh), b = pt(be);
+        return {d:`M ${s.x} ${s.y} A ${r} ${r} 0 ${sp>Math.PI?1:0} ${dir>0?1:0} ${b.x} ${b.y}`, base:b}; }};
+  }
+  function loopGeom(d, angleDeg){
+    const a = angleDeg*Math.PI/180, rl = LOOP_R, Dc = d.r + rl*0.65;
+    const c = {x:d.x + Math.cos(a)*Dc, y:d.y + Math.sin(a)*Dc};
+    // the loop starts and ends exactly where it meets the state's circle, so both sides match
+    const phi = Math.acos(Math.max(-1, Math.min(1, (rl*rl + Dc*Dc - d.r*d.r)/(2*rl*Dc))));
+    const s0 = a - (Math.PI - phi), e0 = a + (Math.PI - phi);
+    const pt = ang => ({x:c.x+rl*Math.cos(ang), y:c.y+rl*Math.sin(ang)});
+    const s = pt(s0), tip = pt(e0);
+    return {loop:true, c, s, tip, px:c.x + Math.cos(a)*rl, py:c.y + Math.sin(a)*rl, nx:Math.cos(a), ny:Math.sin(a),
+      at: k => pt(s0 + (e0-s0)*k),
+      path: Lh => { const b = pt(e0 - 2*Math.asin(Lh/(2*rl))); return {d:`M ${s.x} ${s.y} A ${rl} ${rl} 0 1 1 ${b.x} ${b.y}`, base:b}; }};
+  }
+  const geomOf = a => a.from===a.to ? loopGeom(a.from, a.angle) : arcGeom(a.from, a.to, a.curve);
+
+  // how badly an arrow runs into states it doesn't belong to (0 = clear)
+  function hits(C, a, g, loops){
+    let n = 0;
+    for(let k = 0.06; k < 0.95; k += 0.04){
+      const p = g.at(k);
+      C.dstates.forEach(o=>{ if(o!==a.from && o!==a.to && Math.hypot(o.x-p.x, o.y-p.y) < o.r + 12) n++; });
+      // and the loops already placed (with room for their labels)
+      if(loops) loops.forEach(L=>{ if(L.a!==a && L.a.from!==a.from && L.a.from!==a.to && Math.hypot(L.c.x-p.x, L.c.y-p.y) < LOOP_R + 16) n++; });
+      if(p.x < 10 || p.y < 10 || p.x > C.width-10 || p.y > C.height-10) n += 0.5;
+    }
+    return n;
+  }
+  // default routes for every arrow nobody has dragged: straight when the way is clear, bent around states
+  // otherwise, a pair of opposite arrows bowed apart, and loops pointed into open space
+  function routeArcs(C, loops){
+    C.arrows.forEach(a=>{
+      if(a.manual || a.from===a.to) return;
+      const pair = C.arrows.has(a.to.key+'→'+a.from.key);
+      const tries = pair ? [34, 60, 90, 130] : [0, 50, -50, 80, -80, 120, -120, 170, -170];
+      let best = tries[0], bestHit = Infinity;
+      for(const c of tries){ const h = hits(C, a, arcGeom(a.from, a.to, c), loops); if(h < bestHit - 0.01){ best = c; bestHit = h; } if(h===0) break; }
+      a.curve = best;
+    });
+  }
+  function placeLoops(C){
+    const arcs = [...C.arrows.values()].filter(o=>o.from!==o.to).map(o=>({o, g:geomOf(o)}));
+    C.arrows.forEach(a=>{
+      if(a.manual || a.from!==a.to) return;
+      const d = a.from;
+      // directions already taken at this state: its other arrows, and the start arrow
+      const used = [];
+      arcs.forEach(({o, g})=>{
+        if(o.from!==d && o.to!==d) return;
+        const p = o.from===d ? g.at(0.12) : g.at(0.88);
+        used.push(Math.atan2(p.y-d.y, p.x-d.x));
+      });
+      if(d===C.start) used.push(Math.PI);
+      let best = -90, score = -Infinity;
+      [-90, 90, -45, -135, 45, 135, 0, 180].forEach((c,rank)=>{
+        const ang = c*Math.PI/180, L = loopGeom(d, c);
+        const gap = used.length ? Math.min(...used.map(u=>{ const t = (((ang-u) % (2*Math.PI)) + 2*Math.PI) % (2*Math.PI); return Math.min(t, 2*Math.PI-t); })) : Math.PI;
+        // arrows passing through the spot where the loop and its label would go
+        let crowd = 0;
+        arcs.forEach(({o, g})=>{ for(let k = 0.05; k < 0.96; k += 0.03){ const p = g.at(k); if(Math.hypot(p.x-L.c.x, p.y-L.c.y) < LOOP_R + 22) crowd++; } });
+        const sc = Math.min(gap, 1.6) - 3*hits(C, a, L) - 0.6*crowd - rank*0.02;
+        if(sc > score){ score = sc; best = c; }
+      });
+      a.angle = best;
+    });
+  }
+  // default routes for every arrow nobody has dragged: straight when the way is clear, bent around states
+  // otherwise, a pair of opposite arrows bowed apart, and loops pointed into open space
+  function routeArrows(C){
+    routeArcs(C, null);
+    placeLoops(C);
+    routeArcs(C, [...C.arrows.values()].filter(o=>o.from===o.to).map(o=>({a:o, c:loopGeom(o.from, o.angle).c})));
+  }
+
+  // ======================================================================
+  //  draws the DFA as built after step i; the newest state and arrow grow in when animating
+  // ======================================================================
+  function drawDFA(i, animate, keepScroll){
+    const svg = $('dfaSvg'), cur = C.steps[i];
+    svg.innerHTML = '';
+    svg.setAttribute('viewBox', `0 0 ${C.width} ${C.height}`); svg.setAttribute('width', C.width); svg.setAttribute('height', C.height);
+    const known = C.dstates.filter(d=>d.step <= i);
+    let nowPath = null;
+    const labels = [];
+    C.arrows.forEach(a=>{
+      const steps = C.steps.slice(1, i+1).map((st,k)=>[st,k+1]).filter(([st])=>st.kind==='move' && st.from===a.from && st.to===a.to);
+      if(!steps.length) return;
+      const syms = steps.map(([st])=>st.sym), now = steps.some(([,k])=>k===i), fresh = now && steps.length===1;
+      const grow = animate && now, g = geomOf(a), L = now ? HEAD_NOW : HEAD, Wd = now ? 5.5 : 4.6;
+      const {d, base} = g.path(L);
+      // a wide invisible stroke to grab the arrow by
+      svg.appendChild(el('path',{class:'dedge-hit', d, 'data-arrow':a.key}));
+      const line = el('path',{class:'dedge' + (now ? ' now' : '') + (grow && fresh ? ' draw' : ''), d, pathLength:1});
+      svg.appendChild(line);
+      if(now) nowPath = line;
+      const ux0 = g.tip.x - base.x, uy0 = g.tip.y - base.y, ul = Math.hypot(ux0, uy0) || 1, ux = ux0/ul, uy = uy0/ul;
+      svg.appendChild(el('path',{class:'dhead' + (now ? ' now' : '') + (grow && fresh ? ' head-in' : ''),
+        d:`M ${g.tip.x} ${g.tip.y} L ${base.x - uy*Wd} ${base.y + ux*Wd} L ${base.x + uy*Wd} ${base.y - ux*Wd} Z`}));
+      labels.push({g, text:syms.join(', '), now, grow, key:a.key});
+    });
+    // alignment guides while a state is being dragged
+    if(C.snap){
+      if(C.snap.x!=null) svg.appendChild(el('line',{class:'snap-guide', x1:C.snap.x, y1:0, x2:C.snap.x, y2:C.height}));
+      if(C.snap.y!=null) svg.appendChild(el('line',{class:'snap-guide', x1:0, y1:C.snap.y, x2:C.width, y2:C.snap.y}));
+    }
+    // start arrow
+    const s0 = C.start;
+    svg.appendChild(el('path',{class:'dstart', d:`M ${s0.x - s0.r - 48} ${s0.y} L ${s0.x - s0.r - 12} ${s0.y}`}));
+    svg.appendChild(el('path',{class:'dstart-head', d:`M ${s0.x - s0.r - 1} ${s0.y} L ${s0.x - s0.r - 14} ${s0.y - 6.5} L ${s0.x - s0.r - 14} ${s0.y + 6.5} Z`}));
+    known.forEach(d=>{
+      let cls = 'dstate';
+      if(cur && cur.kind==='move' && cur.from===d) cls += ' now';
+      if(cur && cur.to===d) cls += ' target';
+      // (accept states are plain double circles here, as on the DFA explorer)
+      const g = el('g',{class:cls + (animate && d.step===i ? ' pop' : ''), 'data-state':d.key});
+      g.appendChild(el('circle',{class:'ring', cx:d.x, cy:d.y, r:d.r}));
+      if(d.accept) g.appendChild(el('circle',{class:'inner', cx:d.x, cy:d.y, r:d.r-5}));
+      const t2 = el('text',{x:d.x, y:d.y + d.font*0.33}); setSvg(t2, d.ids, d.font); g.appendChild(t2);
+      svg.appendChild(g);
+    });
+    // labels last, so no state or arrow covers them; each sits just outside its arrow's bend
+    labels.forEach(({g, text, now, grow, key})=>{
+      const wrap = el('g',{class: grow ? 'fade' : '', 'data-arrow':key});
+      const t = el('text',{class:'dedge-label' + (now ? ' now' : ''), x:g.px, y:g.py}); t.textContent = text;
+      wrap.appendChild(t); svg.appendChild(wrap);
+      let bb; try{ bb = t.getBBox(); }catch(e){ bb = null; }
+      if(!bb || !bb.width) bb = {x:g.px - 4*text.length, y:g.py-11, width:8*text.length, height:14};
+      const off = 6 + Math.abs(g.nx)*bb.width/2 + Math.abs(g.ny)*bb.height/2;
+      const dx = g.px + g.nx*off - (bb.x + bb.width/2), dy = g.py + g.ny*off - (bb.y + bb.height/2);
+      t.setAttribute('x', g.px + dx); t.setAttribute('y', g.py + dy);
+      wrap.insertBefore(el('rect',{class:'dedge-label-bg', x:bb.x+dx-3, y:bb.y+dy-1, width:bb.width+6, height:bb.height+2, rx:3}), t);
+    });
+    // at full size, keep the newest part in view (when fitted, everything already is)
+    const box = $('dfaBox'), focus = cur && cur.to ? cur.to : C.start;
+    if(fitDFA){ svg.removeAttribute('width'); svg.removeAttribute('height'); return nowPath; }
+    if(!keepScroll && focus && (focus.x < box.scrollLeft + 40 || focus.x > box.scrollLeft + box.clientWidth - 40 || focus.y > box.scrollTop + box.clientHeight - 40 || focus.y < box.scrollTop + 20))
+      box.scrollTo({left:Math.max(0, focus.x - box.clientWidth/2), top:Math.max(0, focus.y - box.clientHeight/2), behavior: animate ? 'smooth' : 'auto'});
+    return nowPath;
+  }
+
+  // ======================================================================
+  //  rearranging the DFA: drag a state to move it, drag an arrow to bend it (or swing a loop around)
+  // ======================================================================
+  (function(){
+    const svg = $('dfaSvg');
+    let drag = null;
+    const toSvg = e => { const m = svg.getScreenCTM(); if(!m) return {x:0, y:0}; const p = new DOMPoint(e.clientX, e.clientY).matrixTransform(m.inverse()); return {x:p.x, y:p.y}; };
+    svg.addEventListener('pointerdown', e=>{
+      if(!C || !b.locked || e.button > 0) return;
+      const sT = e.target.closest('[data-state]'), aT = e.target.closest('[data-arrow]');
+      if(!sT && !aT) return;
+      drag = sT ? {kind:'state', d:C.dstates.find(d=>d.key===sT.dataset.state)} : {kind:'arrow', a:C.arrows.get(aT.dataset.arrow)};
+      if(!drag.d && !drag.a){ drag = null; return; }
+      drag.id = e.pointerId; drag.x0 = e.clientX; drag.y0 = e.clientY; drag.moved = false;
+      svg.setPointerCapture(e.pointerId); e.preventDefault();
+    });
+    svg.addEventListener('pointermove', e=>{
+      if(!drag || e.pointerId!==drag.id) return;
+      if(!drag.moved && Math.hypot(e.clientX-drag.x0, e.clientY-drag.y0) < 4) return;
+      if(!drag.moved){ drag.moved = true; player.stop(); S.animateTokens(svg, []); S.animateTokens(copySvg, []); svg.classList.add('dragging'); }
+      const p = toSvg(e);
+      if(drag.kind==='state'){
+        const d = drag.d, m = d.r + 14;
+        let px = Math.max(m, Math.min(C.width - m, p.x)), py = Math.max(m, Math.min(C.height - m, p.y));
+        // line up with another state when close, with a dashed guide, as in the builder (10 screen pixels)
+        const ctm = svg.getScreenCTM(), tol = 10/(ctm ? ctm.a : 1);
+        let bx = null, bxd = tol, by = null, byd = tol;
+        C.dstates.forEach(o=>{ if(o===d) return;
+          const dx = Math.abs(px-o.x); if(dx < bxd){ bxd = dx; bx = o.x; }
+          const dy = Math.abs(py-o.y); if(dy < byd){ byd = dy; by = o.y; } });
+        if(bx!=null) px = bx; if(by!=null) py = by;
+        d.x = px; d.y = py; C.snap = {x:bx, y:by};
+        routeArrows(C);
+      } else {
+        const a = drag.a; a.manual = true;
+        if(a.from===a.to) a.angle = Math.atan2(p.y - a.from.y, p.x - a.from.x)*180/Math.PI;
+        else {
+          const P = a.from, Q = a.to, len = Math.hypot(Q.x-P.x, Q.y-P.y) || 1, nx = -(Q.y-P.y)/len, ny = (Q.x-P.x)/len;
+          const proj = (p.x-(P.x+Q.x)/2)*nx + (p.y-(P.y+Q.y)/2)*ny;
+          a.curve = Math.abs(proj) < 12 ? 0 : Math.max(-600, Math.min(600, proj*2));
+        }
+      }
+      C.moved = true; $('layoutBtn').hidden = false;
+      drawDFA(player.idx, false, true);
+    });
+    const end = e=>{
+      if(!drag || e.pointerId!==drag.id) return;
+      svg.classList.remove('dragging');
+      const had = C && C.snap && (C.snap.x!=null || C.snap.y!=null);
+      if(C) C.snap = null;
+      if(had) drawDFA(player.idx, false, true);
+      drag = null;
+    };
+    svg.addEventListener('pointerup', end); svg.addEventListener('pointercancel', end);
+    $('layoutBtn').addEventListener('click', ()=>{
+      if(!C) return;
+      placeStates(C); C.moved = false; $('layoutBtn').hidden = true;
+      drawDFA(player.idx, false);
+    });
+  })();
+
+
+  // ======================================================================
+  //  what this step does, in words
+  // ======================================================================
+  function noteFor(i){
+    const st = C.steps[i];
+    if(st.kind==='start'){
+      const S0 = setHTML(st.moveIds);
+      return st.added.length
+        ? `The DFA starts in ${setHTML(st.to.ids)}: the start states ${S0}, plus ${st.added.map(nameHTML).join(', ')}, which ${st.added.length===1 ? 'is' : 'are'} reachable from them by ε-arrows.`
+        : `The DFA starts in ${setHTML(st.to.ids)}, the set of start states (no ε-arrows lead out of them).`;
+    }
+    if(st.kind==='done'){
+      const n = C.dstates.length;
+      return C.overflow
+        ? `Stopped after ${n} DFA states, to keep the picture readable. The construction can need up to 2<sup>${b.M.states.length}</sup> states for this NFA.`
+        : `Done: every DFA state has an arrow for every symbol, so the DFA is complete, with ${n} state${n===1?'':'s'}. Its accept states are the sets that contain an accept state of the NFA.`;
+    }
+    const from = setHTML(st.from.ids), c = `<b>${esc(st.sym)}</b>`;
+    const parts = st.per.filter(x=>x.to.length).map(x=>`${nameHTML(x.q)} → ${setHTML(x.to)}`);
+    let s = `From ${from} reading ${c}: `;
+    const none = st.per.filter(x=>!x.to.length).map(x=>nameHTML(x.q));
+    const noneText = none.length ? `${none.join(', ')} ${none.length===1 ? 'has' : 'have'} no ${c}-arrow${none.length===1 ? '' : 's'}` : '';
+    s += parts.length ? parts.join(', ') + (none.length ? '; ' + noneText : '') + '.' : `no state in it has a ${c}-arrow.`;
+    if(st.added.length) s += ` Following ε-arrows from there adds ${st.added.map(nameHTML).join(', ')}.`;
+    s += ` So δ(${from}, ${c}) = ${setHTML(st.to.ids)}, `;
+    s += st.isNew ? `<span class="new">a new DFA state</span>${st.to.ids.length ? '' : ': once the NFA has nowhere to go, it stays stuck and rejects'}.` : 'which the DFA already has.';
+    return s;
+  }
+
+  // the explanation keeps the height of its longest version, so the DFA below it never shifts
+  function reserveNoteHeight(){
+    const note = $('stepNote');
+    note.style.minHeight = '';
+    let tallest = 0;
+    C.steps.forEach((_, k)=>{ note.innerHTML = noteFor(k); tallest = Math.max(tallest, note.getBoundingClientRect().height); });
+    note.style.minHeight = Math.ceil(tallest) + 'px';
+  }
+  let resizeTimer = null;
+  window.addEventListener('resize', ()=>{ clearTimeout(resizeTimer); resizeTimer = setTimeout(()=>{ if(b.locked && C){ reserveNoteHeight(); player.refresh(); } }, 150); });
+
+  // ======================================================================
+  //  the player: one step per (DFA state, symbol)
+  // ======================================================================
+  const copySvg = $('copySvg'), copyFit = {box:null};
+  let fitDFA = true;
+  $('zoomBtn').addEventListener('click', ()=>{
+    fitDFA = !fitDFA;
+    $('dfaBox').classList.toggle('fit', fitDFA);
+    $('zoomBtn').textContent = fitDFA ? 'Zoom' : 'Fit to window';
+    $('zoomBtn').title = fitDFA ? 'Show the DFA at full size, with scrolling' : 'Fit the whole DFA in the box';
+    if(C) drawDFA(player.idx, false);
+  });
+  let C = null, phaseTimer = null;
+  function drawNFA(st, phase, animate){
+    // phase 1: the set we start from, and the arrows on this step's symbol; phase 2 adds the result and its ε-arrows
+    const classes = new Map();
+    let cur = new Set(), used = [];
+    if(st.kind==='move'){ cur = new Set(st.from.ids); used = st.cUsed.slice(); }
+    if(st.kind==='start'){ cur = new Set(st.moveIds); }
+    if(phase===2 && st.to){ cur = new Set(st.to.ids); used = used.concat(st.epsUsed); }
+    if(st.kind==='done'){ cur = new Set(); }
+    const paths = b.draw(copySvg, {interactive:false, prefix:'c-', cur, used:used.map(m=>({edgeId:m.edgeId, ruleIdx:m.ruleIdx})), classes, tagUsed:true});
+    S.fitCopy(copySvg, copyFit);
+    if(animate){
+      const want = phase===1 ? st.cUsed : st.epsUsed;
+      const ids = new Set(want.map(m=>m.edgeId));
+      S.animateTokens(copySvg, paths.filter(p=>ids.has(pathEdge(p))), player.stepMs*0.55);
+    }
+  }
+  // which edge a drawn path belongs to (the builder draws used edges in edge order)
+  function pathEdge(p){ return p.getAttribute('data-edge'); }
+  const player = S.player({
+    isLocked: () => b.locked,
+    last: () => C ? C.steps.length-1 : 0,
+    stepText: (i, last) => i===last ? `done (${C.dstates.length} DFA state${C.dstates.length===1?'':'s'})` : `step ${i} of ${last-1}`,
+    render(i, animate, ok){
+      if(!b.locked || !C) return;
+      clearTimeout(phaseTimer);
+      const st = C.steps[i];
+      $('stepNote').innerHTML = noteFor(i);
+      const dfaPath = drawDFA(i, animate);
+      // the DFA reads the symbol at the same moment as the NFA: one dot along its arrow, alongside the NFA's dots
+      if(animate && dfaPath) S.animateTokens($('dfaSvg'), [dfaPath], player.stepMs*0.55);
+      if(animate && st.kind!=='done'){
+        drawNFA(st, 1, true);
+        phaseTimer = setTimeout(()=>drawNFA(st, 2, true), player.stepMs*0.5);
+      } else drawNFA(st, 2, false);
+    }
+  });
+
+  // ======================================================================
+  //  examples
+  // ======================================================================
+  const mk = (...a) => b.mk(...a);
+  const EXAMPLES = {
+    n4: { build:()=>mk(      // Sipser's N4 (Example 1.41), states renamed q0, q1, q2
+      [['q0',220,140,'accept'],['q1',640,140],['q2',430,370]],
+      [['q0','q1','b'], ['q0','q2','ε'], ['q1','q1','a',{loop:-90}], ['q1','q2','a, b'], ['q2','q0','a']], 'q0') },
+    ends01: { build:()=>mk(
+      [['q0',200,250],['q1',450,250],['q2',700,250,'accept']],
+      [['q0','q0','0, 1',{loop:-90}], ['q0','q1','0'], ['q1','q2','1']], 'q0') },
+    n1: { build:()=>mk(
+      [['q0',130,250],['q1',340,250],['q2',550,250],['q3',760,250,'accept']],
+      [['q0','q0','0, 1',{loop:-90}], ['q0','q1','1'], ['q1','q2','0, ε'], ['q2','q3','1'], ['q3','q3','0, 1',{loop:-90}]], 'q0') },
+    third: { build:()=>mk(
+      [['q0',130,250],['q1',340,250],['q2',550,250],['q3',760,250,'accept']],
+      [['q0','q0','0, 1',{loop:-90}], ['q0','q1','1'], ['q1','q2','0, 1'], ['q2','q3','0, 1']], 'q0') }
+  };
+
+  b.start('n4');
+})();
+</script>
+</body>
+</html>
