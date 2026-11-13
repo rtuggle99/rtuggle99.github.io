@@ -380,5 +380,7 @@ footer p{margin:0 0 6px;}
 .stack-cells .sc.more{border-style:dashed;color:var(--ink-soft);font-weight:400;}
 .stack-cells .empty{font-family:var(--serif);font-style:italic;font-size:0.8rem;color:var(--muted);padding-top:4px;}
 
-table.delta.pda-delta th, table.delta.pda-delta td{text-align:left;}
-table.delta.pda-delta tbody th{font-family:Georgia, 'Noto Sans Symbols 2', 'Noto Sans', serif;}
+/* PDA tables: each input symbol's columns are set off from the next group */
+table.delta.pda-delta .grp{border-left:2px solid var(--rule);}
+table.delta.pda-delta thead th.pop{font-size:0.82rem;}
+table.delta.pda-delta td.none{color:#c3d3df;}

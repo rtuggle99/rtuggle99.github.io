@@ -532,26 +532,34 @@
   // two moves clash in a DPDA when some configuration allows both
   const pdaClash = (r1, r2) => (r1.read===r2.read || r1.read===EPS || r2.read===EPS) && (r1.pop===r2.pop || r1.pop===EPS || r2.pop===EPS);
 
-  // δ written out, one line per (state, read, pop) that has a move: δ(q, a, x) = {(r, y), …}
-  function pdaDeltaHTML(M, findState, deterministic){
+  // δ as a grid like the other explorers' tables (and Sipser's PDA tables): one row per state, columns grouped
+  // by the input symbol read (Σ and ε), each split by the stack symbol popped (Γ and ε). A cell holds δ(q, a, x):
+  // a set of (state, push) pairs for a PDA, or a single pair for a DPDA; ∅ when there is no move.
+  function pdaDeltaHTML(M, findState, deterministic, sigma, gamma, order){
     const lab = id => `<span class="qq">${labelHTML(findState(id).label)}</span>`;
-    const groups = new Map();
+    const reads = sigma.concat([EPS]), pops = gamma.concat([EPS]);
+    const cell = new Map();
     M.edges.forEach(e=>e.rules.forEach(r=>{
       const k = e.from+'\u0000'+r.read+'\u0000'+r.pop;
-      if(!groups.has(k)) groups.set(k, {from:e.from, read:r.read, pop:r.pop, to:[]});
-      groups.get(k).to.push({to:e.to, push:r.push});
+      if(!cell.has(k)) cell.set(k, []);
+      cell.get(k).push({to:e.to, push:r.push});
     }));
-    const order = M.states.map(s=>s.id);
-    const rows = [...groups.values()].sort((a,b)=> order.indexOf(a.from)-order.indexOf(b.from) || a.read.localeCompare(b.read) || a.pop.localeCompare(b.pop));
-    if(!rows.length) return '<p class="tbl-note">There are no moves, so δ gives ∅ everywhere.</p>';
-    let html = '<div class="tbl-wrap"><table class="delta pda-delta"><thead><tr><th class="corner">state, reads, pops</th><th>goes to, pushes</th></tr></thead><tbody>';
-    rows.forEach(g=>{
-      const pairs = g.to.map(t=>`(${lab(t.to)}, ${esc(t.push)})`);
-      const acc = g.to.some(t=>findState(t.to).kind==='accept');
-      html += `<tr><th>δ(${lab(g.from)}, ${esc(g.read)}, ${esc(g.pop)})</th><td${acc?' class="to-acc"':''}>= ${deterministic && pairs.length===1 ? pairs[0] : '{' + pairs.join(', ') + '}'}</td></tr>`;
+    let html = '<div class="tbl-wrap"><table class="delta pda-delta"><thead>';
+    html += `<tr><th class="corner" rowspan="2">state \\ reads, pops</th>` + reads.map(a=>`<th class="grp" colspan="${pops.length}">${esc(a)}</th>`).join('') + '</tr>';
+    html += '<tr>' + reads.map(()=>pops.map((x,j)=>`<th class="pop${j===0?' grp':''}">${esc(x)}</th>`).join('')).join('') + '</tr></thead><tbody>';
+    order.forEach(s=>{
+      html += `<tr><th${s.kind==='accept' ? ' class="to-acc"' : ''}>${s.isStart?'→ ':''}${lab(s.id)}</th>`;
+      reads.forEach(a=>pops.forEach((x,j)=>{
+        const moves = cell.get(s.id+'\u0000'+a+'\u0000'+x) || [];
+        const grp = j===0 ? ' grp' : '';
+        if(!moves.length){ html += `<td class="none${grp}">∅</td>`; return; }
+        const pairs = moves.map(t=>`(${lab(t.to)}, ${esc(t.push)})`);
+        const acc = moves.some(t=>findState(t.to).kind==='accept');
+        html += `<td class="${(acc?'to-acc':'') + grp}">${deterministic && pairs.length===1 ? pairs[0] : '{' + pairs.join(', ') + '}'}</td>`;
+      }));
+      html += '</tr>';
     });
-    html += '</tbody></table></div><p class="tbl-note">Every combination not listed gives ∅.</p>';
-    return html;
+    return html + '</tbody></table></div>';
   }
 
   MachineBuilder.sim = {pdaRuleText, pdaParseRules, pdaEditor, pdaSigma, pdaGamma, pdaClash, pdaDeltaHTML,EPS, player, animateTokens, fitCopy, buildTree, drawTree, scrollTreeTo, tester,

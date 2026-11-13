@@ -310,8 +310,8 @@
     html += `<dt><i>Q</i></dt><dd>= ${setList(order.map(q))}</dd>`;
     html += `<dt>Σ</dt><dd>= ${setList(SIGMA.map(esc))}</dd>`;
     html += `<dt>Γ</dt><dd>= ${setList(GAMMA.map(esc))}</dd>`;
-    html += `<dt>δ</dt><dd>${serif('is given by:')}</dd></dl>`;
-    html += S.pdaDeltaHTML(M, findState, true);
+    html += `<dt>δ</dt><dd>${serif('is given by this table:')}</dd></dl>`;
+    html += S.pdaDeltaHTML(M, findState, true, SIGMA, GAMMA, order);
     html += `<dl class="parts after"><dt>${q(start)}</dt><dd>${serif('is the start state')}</dd><dt><i>F</i></dt><dd>= ${setList(accepts.map(q))}</dd></dl>`;
     $('formal').innerHTML = html;
   }
